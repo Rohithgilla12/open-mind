@@ -11,11 +11,13 @@
 - [ ] AI adapter: OpenAI-compatible client + fallback chain + noop provider
 
 ### Next
-- [ ] Virtualised masonry grid spike: 500 mixed cards at 60fps (port docs/design/openmind-mockup.html)
 - [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)
 - [ ] Decide: name + domain check
 
 ## Done
+
+### Milestone 0 / M1 — masonry grid perf spike
+- [x] Masonry grid perf spike (docs/research.md, 2026-07-03): CSS-columns masonry holds 60fps easily — median 120fps (120Hz-capped), 0 dropped frames, 8.3ms avg frame at both 500 and 1000 cards. Verdict: **keep CSS columns for M1, do not virtualise**; add `content-visibility: auto` as the cheap first lever only if a future unbounded view shows first-paint/memory pressure.
 
 ### Milestone 1 — card detail + export
 - [x] Card detail + reader view (type-aware renderers) — e2e verified 2026-07-03: `GET /item/<id>` with logged-in cookie returns 200 HTML containing the item's title.
