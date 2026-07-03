@@ -14,7 +14,7 @@ import (
 type Trafilatura struct{ client *http.Client }
 
 // NewTrafilatura returns an Extractor backed by go-trafilatura. A nil client
-// falls back to http.DefaultClient.
+// falls back to a client with a 30s timeout.
 func NewTrafilatura(client *http.Client) *Trafilatura {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
