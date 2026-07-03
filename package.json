@@ -1,0 +1,6 @@
+{
+  "name": "openmind",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": { "turbo": "^2.5.0" }
+}

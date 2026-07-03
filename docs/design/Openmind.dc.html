@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#E4DDCD;color:#1C1A16;font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:#1B3FD1;color:#fff}
+  .serif{font-family:'Newsreader',serif}
+  .meta{font:500 9.5px/1.4 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:#A39C8B}
+  .tag{font:500 10px/1 'JetBrains Mono',monospace;letter-spacing:.02em;color:#6B655A;background:rgba(28,26,22,.055);border:1px solid rgba(28,26,22,.07);padding:4px 7px;border-radius:20px}
+  .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 1px rgba(28,26,22,.08) inset;flex:none}
+  .navitem{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font:500 13px/1 'Instrument Sans',sans-serif;color:#57534A;cursor:pointer}
+  .navitem:hover{background:rgba(28,26,22,.05)}
+  .navitem.on{background:rgba(27,63,209,.1);color:#1B3FD1}
+  .navk{font:500 12px/1 'JetBrains Mono',monospace;color:#A39C8B;margin-left:auto}
+  .mind-col>*{break-inside:avoid;margin-bottom:16px}
+  .card{background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;overflow:hidden;box-shadow:0 1px 2px rgba(28,26,22,.05),0 10px 26px -20px rgba(28,26,22,.45);transition:transform .18s ease,box-shadow .18s ease;cursor:pointer}
+  .card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(28,26,22,.06),0 20px 44px -20px rgba(28,26,22,.55)}
+  .tglbtn{border:none;background:transparent;color:#57534A;font:600 12px/1 'Instrument Sans';padding:8px 15px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s,color .15s}
+  .chip{font:500 10px/1 'JetBrains Mono',monospace;letter-spacing:.02em;color:#1C1A16;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s}
+  .ledger-entry{display:grid;grid-template-columns:64px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid rgba(28,26,22,.07)}
+  .savebtn{border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 'Instrument Sans';padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(27,63,209,.7)}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+</style>
+</helmet>
+
+<div ref="{{ rootRef }}" style="display:flex;height:100vh;overflow:hidden;background:#EFEADE">
+
+  <!-- SIDEBAR -->
+  <aside style="width:230px;flex:none;border-right:1px solid rgba(28,26,22,.1);background:#EBE5D7;display:flex;flex-direction:column;padding:22px 16px">
+    <div style="display:flex;align-items:center;gap:9px;padding:0 6px 24px">
+      <div style="width:24px;height:24px;border-radius:6px;background:#1B3FD1;position:relative;flex:none"><div style="position:absolute;inset:6px 6px auto 6px;height:2px;background:#F4F0E6"></div><div style="position:absolute;inset:11px 6px auto 6px;height:2px;background:rgba(244,240,230,.6)"></div><div style="position:absolute;inset:16px 9px auto 6px;height:2px;background:rgba(244,240,230,.4)"></div></div>
+      <span class="serif" style="font-size:20px;font-weight:600;letter-spacing:-.01em">Openmind</span>
+    </div>
+    <div class="navitem" data-nav="desk" onClick="{{ goDesk }}"><span style="font-size:15px;width:16px">◵</span> Desk</div>
+    <div class="navitem on" data-nav="mind" onClick="{{ goMind }}"><span style="font-size:15px;width:16px">◧</span> The Mind <span class="navk">1,284</span></div>
+    <div class="navitem" onClick="{{ openDrift }}"><span style="font-size:15px;width:16px">❍</span> Drift</div>
+    <div style="height:1px;background:rgba(28,26,22,.09);margin:16px 8px"></div>
+    <div class="meta" style="padding:2px 10px 8px">Lenses</div>
+    <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#1B3FD1"></span> Design inspiration <span class="navk" style="font-size:10px">214</span></div>
+    <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#C24A2E"></span> Distributed systems <span class="navk" style="font-size:10px">88</span></div>
+    <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#2E7D5B"></span> Running &amp; gear <span class="navk" style="font-size:10px">37</span></div>
+    <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#8A7A3A"></span> Books to read <span class="navk" style="font-size:10px">52</span></div>
+    <div class="navitem" style="font-size:12.5px;color:#A39C8B"><span style="width:16px;text-align:center">+</span> New lens</div>
+    <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px;border-radius:11px;border:1px solid rgba(28,26,22,.1);background:#F4F0E6;cursor:pointer">
+      <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1B3FD1,#2E7D5B);display:flex;align-items:center;justify-content:center;color:#F4F0E6;font:600 13px/1 'Instrument Sans';flex:none">R</div>
+      <div style="min-width:0;flex:1">
+        <div style="font:600 12.5px/1.1 'Instrument Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rohith Gilla</div>
+        <div class="meta" style="text-transform:none;letter-spacing:.02em;color:#8A8578;margin-top:3px">Owner · signed in</div>
+      </div>
+      <span style="color:#A39C8B;font-size:12px;flex:none">⌄</span>
+    </div>
+    <div style="padding:14px 10px 2px;margin-top:12px;border-top:1px solid rgba(28,26,22,.09)">
+      <div class="meta" style="margin-bottom:7px">Local · self-hosted</div>
+      <div style="height:5px;border-radius:3px;background:rgba(28,26,22,.1);overflow:hidden"><div style="width:34%;height:100%;background:#2E7D5B"></div></div>
+      <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">3.1 GB / 9 GB archived</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+
+    <sc-if value="{{ isMind }}" hint-placeholder-val="{{ true }}">
+    <!-- red hairline + topbar -->
+    <div style="height:2px;background:linear-gradient(90deg,#C24A2E,#C24A2E 40%,transparent)"></div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px;padding:18px 28px 16px;border-bottom:1px solid rgba(28,26,22,.1);background:#F1ECE1">
+      <div style="flex:none">
+        <div class="serif" style="font-size:27px;font-weight:600;letter-spacing:-.02em;line-height:1">The Mind</div>
+        <div class="meta" style="margin-top:5px;text-transform:none;letter-spacing:.02em;color:#8A8578">1,284 gatherings · organised by the machine</div>
+      </div>
+      <div onClick="{{ openSearch }}" style="flex:1 1 150px;min-width:130px;max-width:400px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);border-radius:10px;cursor:pointer">
+        <span style="color:#A39C8B;font-size:14px;flex:none">⌕</span>
+        <span style="font:400 13px/1 'Instrument Sans';color:#A39C8B;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search a colour, a word, a vibe…</span>
+        <span style="font:600 10px/1 'JetBrains Mono';color:#8A8578;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.09);padding:4px 6px;border-radius:5px">⌘K</span>
+      </div>
+      <!-- GRID / LEDGER TOGGLE -->
+      <div style="display:flex;gap:2px;padding:3px;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.1);border-radius:11px;flex:none">
+        <button class="tglbtn" data-view="grid" onClick="{{ onViewClick }}"><span style="font-size:13px">◧</span> Grid</button>
+        <button class="tglbtn" data-view="ledger" onClick="{{ onViewClick }}"><span style="font-size:13px">☰</span> Ledger</button>
+      </div>
+      <button class="savebtn" style="flex:none" onClick="{{ openCapture }}">Save something</button>
+    </div>
+
+    <!-- filter strip -->
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 28px;border-bottom:1px solid rgba(28,26,22,.08);background:#F1ECE1">
+      <button class="chip" data-filter="all" onClick="{{ onFilterClick }}">All</button>
+      <button class="chip" data-filter="article" onClick="{{ onFilterClick }}">Articles</button>
+      <button class="chip" data-filter="image" onClick="{{ onFilterClick }}">Images</button>
+      <button class="chip" data-filter="quote" onClick="{{ onFilterClick }}">Quotes</button>
+      <button class="chip" data-filter="product" onClick="{{ onFilterClick }}">Products</button>
+      <button class="chip" data-filter="video" onClick="{{ onFilterClick }}">Video</button>
+      <button class="chip" data-filter="note" onClick="{{ onFilterClick }}">Notes</button>
+      <button class="chip" data-filter="book" onClick="{{ onFilterClick }}">Books</button>
+      <span class="meta" style="margin-left:auto">Sorted · recently saved ▾</span>
+    </div>
+
+    <!-- CONTENT SCROLL -->
+    <div style="flex:1;overflow:auto;position:relative;background:#F4F0E6" onClick="{{ onContentClick }}">
+      <div id="paper-tex" style="position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(#00000000 0 31px,rgba(28,26,22,.028) 31px 32px)"></div>
+
+      <!-- ===== GRID VIEW ===== -->
+      <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+      <div style="position:relative;padding:22px 28px 40px">
+        <div id="mind-grid" class="mind-col" style="column-count:3;column-gap:16px">
+
+          <div class="card" data-type="article">
+            <div style="height:118px;background:linear-gradient(120deg,#1B3FD1,#17206b);position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 26px,rgba(255,255,255,.06) 26px 27px)"></div><div class="serif" style="position:absolute;left:14px;bottom:10px;color:#F4F0E6;font-size:15px;font-style:italic;opacity:.9">river / durable</div></div>
+            <div style="padding:13px 14px">
+              <div class="serif" style="font-size:17px;font-weight:600;line-height:1.2;letter-spacing:-.01em">Durable execution and the death of the cron job</div>
+              <div style="font-size:12px;line-height:1.45;color:#6B655A;margin-top:6px">A Postgres-backed queue can replace half your infra. Why workflows beat crons for anything that must not be lost.</div>
+              <div style="display:flex;gap:5px;margin-top:11px;flex-wrap:wrap"><span class="tag">go</span><span class="tag">workflows</span><span class="tag">postgres</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="dot" style="background:#17206b"></span><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#B9C2E8"></span><span class="dot" style="background:#EDE9DC"></span><span class="meta" style="margin-left:auto">Article · 8 min · brandur.org</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="quote" style="background:#1C1A16">
+            <div style="padding:22px 18px 16px">
+              <div style="font:600 40px/1 'Newsreader',serif;color:#E0B23A;height:20px">“</div>
+              <div class="serif" style="font-size:20px;line-height:1.32;color:#F4F0E6;font-style:italic;font-weight:400">We are what we repeatedly do. Excellence, then, is not an act, but a habit.</div>
+              <div class="meta" style="color:#8A8578;margin-top:14px">Will Durant — Quote</div>
+              <div style="display:flex;gap:5px;margin-top:12px"><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#F4F0E6"></span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="image">
+            <div style="height:210px;background:linear-gradient(150deg,#C24A2E 0%,#E0B23A 55%,#EFE3C4 100%);position:relative"><div style="position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,rgba(255,255,255,.35),transparent 45%)"></div><div class="meta" style="position:absolute;left:12px;bottom:10px;color:rgba(255,255,255,.85)">risograph · poster</div></div>
+            <div style="padding:11px 13px;display:flex;align-items:center;gap:8px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#EFE3C4"></span><span class="meta" style="margin-left:auto">Image · Are.na</span></div>
+          </div>
+
+          <div class="card" data-type="product">
+            <div style="height:150px;background:#EFE9DB;display:flex;align-items:center;justify-content:center;position:relative"><div style="width:120px;height:64px;background:linear-gradient(100deg,#2E7D5B,#1f5a41);border-radius:40px 40px 8px 8px;transform:rotate(-8deg);box-shadow:0 10px 20px -8px rgba(0,0,0,.35)"></div><span class="meta" style="position:absolute;top:10px;right:12px;color:#2E7D5B">$285</span></div>
+            <div style="padding:13px 14px">
+              <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Norda 001 — trail runner</div>
+              <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">Dyneema upper · 210g</div>
+              <div style="display:flex;gap:5px;margin-top:10px"><span class="tag">running</span><span class="tag">gear</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#1f5a41"></span><span class="dot" style="background:#EFE9DB"></span><span class="meta" style="margin-left:auto">Product · norda.com</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="note" style="background:#FBF4D8;border-color:rgba(140,120,40,.25)">
+            <div style="padding:14px 15px">
+              <div class="meta" style="color:#9A8A3A">Note · marginalia · 2d ago</div>
+              <div class="serif" style="font-size:15px;line-height:1.4;margin-top:8px;color:#3A3320">Rebuild the enrichment queue as priority lanes — interactive saves jump the bulk-import backlog. Batch summaries 50/call for the discount.</div>
+              <div style="display:flex;gap:5px;margin-top:12px"><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#9A8A3A"></span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="video">
+            <div style="height:120px;background:linear-gradient(135deg,#2b2b2b,#111);position:relative;display:flex;align-items:center;justify-content:center"><div style="width:38px;height:38px;border-radius:50%;background:rgba(244,240,230,.92);display:flex;align-items:center;justify-content:center"><div style="width:0;height:0;border-left:11px solid #1C1A16;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px"></div></div><span class="meta" style="position:absolute;right:10px;bottom:9px;color:rgba(255,255,255,.8)">1:01:26</span></div>
+            <div style="padding:12px 14px">
+              <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Simple Made Easy</div>
+              <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">Rich Hickey · Strange Loop</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#1C1A16"></span><span class="dot" style="background:#5b5b5b"></span><span class="meta" style="margin-left:auto">Video · youtube.com</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="tweet">
+            <div style="padding:14px 15px">
+              <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1B3FD1,#2E7D5B);flex:none"></div><div><div style="font-size:12.5px;font-weight:600">Paul Copplestone</div><div class="meta" style="text-transform:none;letter-spacing:.02em;color:#A39C8B">@kiwicopple</div></div></div>
+              <div style="font-size:13.5px;line-height:1.5;margin-top:10px;color:#2B2820">pgvector + a reranker gets you 90% of a vector-DB startup's pitch, running inside the database you already have. Stop adding services.</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#2E7D5B"></span><span class="meta" style="margin-left:auto">Post · x.com</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="book">
+            <div style="height:180px;background:#EFE9DB;display:flex;align-items:center;justify-content:center;padding:18px"><div style="width:96px;height:140px;background:linear-gradient(160deg,#7a2e2e,#4a1d1d);border-radius:2px 5px 5px 2px;box-shadow:6px 8px 18px -6px rgba(0,0,0,.5);padding:14px 12px;display:flex;flex-direction:column;justify-content:space-between"><div class="serif" style="color:#EDD9A6;font-size:12px;font-style:italic;line-height:1.25">The Timeless Way of Building</div><div class="meta" style="color:rgba(237,217,166,.7);font-size:7px">C. ALEXANDER</div></div></div>
+            <div style="padding:12px 14px">
+              <div class="serif" style="font-size:15.5px;font-weight:600;line-height:1.2">The Timeless Way of Building</div>
+              <div style="display:flex;gap:5px;margin-top:9px"><span class="tag">architecture</span><span class="tag">patterns</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#7a2e2e"></span><span class="dot" style="background:#EDD9A6"></span><span class="dot" style="background:#4a1d1d"></span><span class="meta" style="margin-left:auto">Book · to read</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="recipe">
+            <div style="height:96px;background:linear-gradient(135deg,#6b4226,#8a5a2e);position:relative"><div class="meta" style="position:absolute;left:12px;bottom:9px;color:rgba(255,255,255,.85)">45 min · serves 2</div></div>
+            <div style="padding:13px 14px">
+              <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Miso-glazed aubergine</div>
+              <div style="margin-top:9px;font:400 12px/1.7 'JetBrains Mono',monospace;color:#6B655A">2 aubergines<br>3 tbsp white miso<br>1 tbsp mirin · 1 tsp honey<br>spring onion · sesame</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#6b4226"></span><span class="dot" style="background:#8a5a2e"></span><span class="meta" style="margin-left:auto">Recipe · NYT Cooking</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="article">
+            <div style="height:70px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div>
+            <div style="padding:12px 14px">
+              <div class="serif" style="font-size:15px;font-weight:600;line-height:1.2">River: a durable job queue for Go</div>
+              <div style="font-size:12px;line-height:1.45;color:#6B655A;margin-top:6px">Transactional enqueue, retries and priorities — no Redis, just Postgres.</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#1f5a41"></span><span class="meta" style="margin-left:auto">Article · 5 min · riverqueue.com</span></div>
+            </div>
+          </div>
+
+          <div class="card" data-type="image">
+            <div style="height:160px;background:linear-gradient(160deg,#1B3FD1,#2E7D5B);position:relative"><div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 80%,rgba(224,178,58,.5),transparent 50%)"></div><div class="meta" style="position:absolute;left:12px;bottom:10px;color:rgba(255,255,255,.85)">gradient study</div></div>
+            <div style="padding:11px 13px;display:flex;align-items:center;gap:8px"><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#E0B23A"></span><span class="meta" style="margin-left:auto">Image</span></div>
+          </div>
+
+          <div class="card" data-type="note" style="background:#FBF4D8;border-color:rgba(140,120,40,.25)">
+            <div style="padding:14px 15px">
+              <div class="meta" style="color:#9A8A3A">Note · 5d ago</div>
+              <div class="serif" style="font-size:15px;line-height:1.4;margin-top:8px;color:#3A3320">Openmind's line: "Your commonplace book, kept by a machine — private, self-hosted, yours."</div>
+              <div style="display:flex;gap:5px;margin-top:12px"><span class="dot" style="background:#E0B23A"></span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ===== LEDGER VIEW ===== -->
+      <sc-if value="{{ isLedger }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;max-width:760px;margin:0 auto;padding:28px 40px 60px">
+        <div style="position:absolute;top:24px;bottom:40px;left:104px;width:1px;background:rgba(194,74,46,.4)"></div>
+        <div class="serif" style="font-size:15px;font-style:italic;color:#C24A2E;padding-left:24px;margin-bottom:6px">a commonplace book, kept by a machine</div>
+
+        <div class="ledger-entry" data-type="article">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">03<br>JUL</div>
+          <div>
+            <div class="serif" style="font-size:19px;font-weight:600;line-height:1.3">Durable execution and the death of the cron job</div>
+            <div class="serif" style="font-size:14px;line-height:1.55;color:#57534A;margin-top:4px;font-style:italic">“A Postgres-backed queue can replace half your infra…”</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span class="dot" style="background:#17206b"></span><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#B9C2E8"></span><span class="meta" style="margin-left:2px;color:#8A8578">article · brandur.org · 8 min · go, workflows</span></div>
+          </div>
+        </div>
+
+        <div class="ledger-entry" data-type="quote">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">02<br>JUL</div>
+          <div style="border-left:3px solid #E0B23A;padding-left:14px">
+            <div class="serif" style="font-size:20px;line-height:1.35;font-style:italic;color:#2B2820">We are what we repeatedly do. Excellence, then, is not an act, but a habit.</div>
+            <div class="meta" style="margin-top:7px;color:#8A8578">— Will Durant · quote</div>
+          </div>
+        </div>
+
+        <div class="ledger-entry" data-type="image">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">02<br>JUL</div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:120px;height:84px;flex:none;border-radius:4px;background:linear-gradient(150deg,#C24A2E,#E0B23A);box-shadow:2px 3px 8px -3px rgba(0,0,0,.35);transform:rotate(-1.5deg)"></div>
+            <div style="padding-top:4px">
+              <div class="serif" style="font-size:15px;font-weight:600">Risograph poster study</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#EFE3C4"></span><span class="meta" style="margin-left:2px;color:#8A8578">image · are.na</span></div>
+              <div class="serif" style="font-style:italic;font-size:13px;color:#C24A2E;margin-top:6px">▸ warm, two-ink, high grain — pinned to Design lens</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ledger-entry" data-type="product">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">01<br>JUL</div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:96px;height:60px;flex:none;border-radius:4px;background:#EFE9DB;display:flex;align-items:center;justify-content:center"><div style="width:64px;height:32px;background:linear-gradient(100deg,#2E7D5B,#1f5a41);border-radius:22px 22px 5px 5px;transform:rotate(-8deg)"></div></div>
+            <div style="padding-top:4px">
+              <div class="serif" style="font-size:15px;font-weight:600">Norda 001 — trail runner <span style="color:#2E7D5B">· $285</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#1f5a41"></span><span class="meta" style="margin-left:2px;color:#8A8578">product · norda.com · running</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ledger-entry" data-type="note">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">01<br>JUL</div>
+          <div>
+            <div class="serif" style="font-size:15px;line-height:1.55;color:#3A3320">Rebuild the enrichment queue as priority lanes — interactive saves jump the bulk-import backlog.</div>
+            <div class="meta" style="margin-top:7px;color:#9A8A3A">marginalia · note</div>
+          </div>
+        </div>
+
+        <div class="ledger-entry" data-type="book" style="border-bottom:none">
+          <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">30<br>JUN</div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:44px;height:64px;flex:none;background:linear-gradient(160deg,#7a2e2e,#4a1d1d);border-radius:2px 4px 4px 2px;box-shadow:3px 4px 10px -3px rgba(0,0,0,.5)"></div>
+            <div style="padding-top:4px">
+              <div class="serif" style="font-size:15px;font-weight:600">The Timeless Way of Building</div>
+              <div class="meta" style="margin-top:8px;color:#8A8578">book · to read · architecture, patterns</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      </sc-if>
+
+    </div>
+    </sc-if>
+
+    <!-- ===== DESK ===== -->
+    <sc-if value="{{ isDesk }}" hint-placeholder-val="{{ false }}">
+    <div style="height:2px;background:linear-gradient(90deg,#E0B23A,#E0B23A 40%,transparent)"></div>
+    <div style="flex:1;overflow:auto;background:#EFEADE;padding:30px 36px 60px">
+      <div class="serif" style="font-size:27px;font-weight:600;letter-spacing:-.02em">Your desk</div>
+      <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">what you're working with right now · pinned by you &amp; kept from Drift</div>
+      <div style="column-count:3;column-gap:16px;margin-top:22px;max-width:1000px">
+        <sc-for list="{{ deskItems }}" as="d" hint-placeholder-count="4">
+          <div class="card" style="background:{{ d.tint }};margin-bottom:16px;cursor:default;break-inside:avoid">
+            <sc-if value="{{ d.hero }}" hint-placeholder-val=""><div style="height:100px;background:{{ d.hero }}"></div></sc-if>
+            <div style="padding:14px 16px">
+              <div class="serif" style="font-size:15.5px;line-height:1.35;font-weight:600;color:{{ d.fg }}">{{ d.title }}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:12px">
+                <sc-for list="{{ d.colors }}" as="c" hint-placeholder-count="2"><span class="dot" style="background:{{ c }}"></span></sc-for>
+                <span class="meta" style="margin-left:auto">{{ d.meta }}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div class="meta" style="margin-top:8px;color:#A39C8B">tip · keep items on your desk from Drift, then clear them when you're done</div>
+    </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ===== DETAIL / READER OVERLAY ===== -->
+  <sc-if value="{{ hasOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeOverlay }}" style="position:fixed;inset:0;z-index:50;background:rgba(20,18,14,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:40px">
+    <div onClick="{{ stop }}" style="width:920px;max-width:100%;height:86vh;background:#FBFAF5;border-radius:16px;overflow:hidden;box-shadow:0 40px 90px -20px rgba(0,0,0,.6);display:flex">
+      <div style="flex:1;overflow:auto;padding:40px 48px;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div class="meta" style="color:#A39C8B">{{ open.meta }}</div>
+          <button onClick="{{ closeOverlay }}" style="border:none;background:rgba(28,26,22,.06);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;color:#57534A;flex:none">✕</button>
+        </div>
+        <div class="serif" style="font-size:32px;font-weight:600;line-height:1.15;letter-spacing:-.02em;margin-top:14px">{{ open.title }}</div>
+        <div class="serif" style="font-size:16px;line-height:1.7;color:#3A3320;margin-top:18px">{{ open.summary }}</div>
+        <sc-if value="{{ isArticle }}" hint-placeholder-val="{{ false }}">
+        <div style="border-left:3px solid #1B3FD1;padding:4px 0 4px 16px;margin:20px 0"><div class="serif" style="font-size:17px;line-height:1.5;font-style:italic;color:#17206b">“The database is the queue. There is no second system to reconcile.”</div></div>
+        <div class="serif" style="font-size:15px;line-height:1.7;color:#3A3320">Batching is where the economics turn: group pending jobs, spend one round-trip, take the discount. A bulk import of three thousand items simply grinds overnight — visible the whole way.</div>
+        </sc-if>
+        <div style="display:flex;gap:8px;margin-top:26px;flex-wrap:wrap">
+          <button onClick="{{ stop }}" style="border:none;background:#1B3FD1;color:#F4F0E6;font:600 12px/1 'Instrument Sans';padding:11px 15px;border-radius:9px;cursor:pointer">Open original ↗</button>
+          <button onClick="{{ stop }}" style="border:1px solid rgba(28,26,22,.15);background:#FCFBF6;color:#1C1A16;font:600 12px/1 'Instrument Sans';padding:11px 15px;border-radius:9px;cursor:pointer">Send to Kindle</button>
+          <button onClick="{{ stop }}" style="border:1px solid rgba(28,26,22,.15);background:#FCFBF6;color:#1C1A16;font:600 12px/1 'Instrument Sans';padding:11px 15px;border-radius:9px;cursor:pointer">Add highlight</button>
+        </div>
+      </div>
+      <div style="width:266px;flex:none;border-left:1px solid rgba(28,26,22,.1);background:#EFEADE;padding:26px 22px;overflow:auto">
+        <div class="meta" style="color:#8A8578">Palette</div>
+        <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+          <sc-for list="{{ open.colors }}" as="c" hint-placeholder-count="4"><span class="dot" style="width:24px;height:24px;background:{{ c }}"></span></sc-for>
+        </div>
+        <div style="height:1px;background:rgba(28,26,22,.1);margin:18px 0"></div>
+        <div class="meta" style="color:#8A8578">Tags</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px">
+          <sc-for list="{{ open.tags }}" as="t" hint-placeholder-count="3"><span class="tag">{{ t }}</span></sc-for>
+          <span class="tag" style="border-style:dashed;color:#1B3FD1;border-color:rgba(27,63,209,.4)">+ add</span>
+        </div>
+        <div style="height:1px;background:rgba(28,26,22,.1);margin:18px 0"></div>
+        <div class="meta" style="color:#8A8578">Similar in your mind</div>
+        <div style="display:flex;gap:6px;margin-top:9px"><div style="width:44px;height:44px;border-radius:6px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="width:44px;height:44px;border-radius:6px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div><div style="width:44px;height:44px;border-radius:6px;background:#1C1A16"></div></div>
+        <div class="meta" style="color:#A39C8B;margin-top:16px;text-transform:none;letter-spacing:.02em;line-height:1.5">Archived locally · link can't rot · esc to close</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== DRIFT (full-screen resurfacing) ===== -->
+  <sc-if value="{{ driftOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:70;background:radial-gradient(circle at 50% 38%,#242019,#161410 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px">
+    <button onClick="{{ closeDrift }}" style="position:absolute;top:22px;right:24px;border:none;background:rgba(244,240,230,.1);color:rgba(244,240,230,.75);width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px">✕</button>
+
+    <sc-if value="{{ driftActive }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div class="meta" style="color:#8A8578">Drift · {{ driftPos }} of {{ driftTotal }} today</div>
+      <div style="display:flex;gap:6px;margin-top:12px">
+        <sc-for list="{{ driftDots }}" as="d" hint-placeholder-count="5"><span class="dot" style="width:6px;height:6px;background:{{ d }}"></span></sc-for>
+      </div>
+      <div style="width:344px;max-width:86vw;background:#FBFAF5;border-radius:13px;overflow:hidden;margin-top:26px;box-shadow:0 40px 90px -24px rgba(0,0,0,.7);animation:floaty 5.5s ease-in-out infinite">
+        <div style="height:172px;background:{{ cur.hero }};position:relative"><div style="position:absolute;inset:0;background:radial-gradient(circle at 72% 24%,rgba(255,255,255,.28),transparent 46%)"></div></div>
+        <div style="padding:18px 20px 20px">
+          <div class="serif" style="font-size:20px;font-weight:600;line-height:1.28;letter-spacing:-.01em">{{ cur.title }}</div>
+          <sc-if value="{{ curHasSummary }}" hint-placeholder-val="{{ true }}"><div style="font-size:12.5px;color:#6B655A;margin-top:8px;line-height:1.55">{{ cur.summary }}</div></sc-if>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:14px">
+            <sc-for list="{{ cur.colors }}" as="c" hint-placeholder-count="3"><span class="dot" style="background:{{ c }}"></span></sc-for>
+            <span class="meta" style="margin-left:auto">{{ cur.meta }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="serif" style="color:rgba(244,240,230,.5);font-style:italic;font-size:13px;margin-top:18px">{{ cur.ago }}</div>
+      <div style="display:flex;gap:12px;margin-top:22px">
+        <button onClick="{{ driftLetGo }}" style="border:1px solid rgba(244,240,230,.25);background:transparent;color:rgba(244,240,230,.82);font:600 13px/1 'Instrument Sans';padding:13px 24px;border-radius:11px;cursor:pointer">Let go</button>
+        <button onClick="{{ driftKeep }}" style="border:none;background:#E0B23A;color:#1C1A16;font:600 13px/1 'Instrument Sans';padding:13px 24px;border-radius:11px;cursor:pointer;box-shadow:0 10px 24px -10px rgba(224,178,58,.7)">Keep on my desk</button>
+      </div>
+      <div class="meta" style="color:#57534A;margin-top:22px;text-transform:none;letter-spacing:.03em">older &amp; never-revisited saves, weighted up · esc to leave</div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ driftDone }}" hint-placeholder-val="{{ false }}">
+    <div style="text-align:center;max-width:380px">
+      <div style="font:600 46px/1 'Newsreader',serif;color:#E0B23A">❍</div>
+      <div class="serif" style="font-size:30px;font-weight:600;font-style:italic;color:#F4F0E6;margin-top:18px;letter-spacing:-.01em">That's your drift for today.</div>
+      <div style="color:rgba(244,240,230,.6);font-size:14px;line-height:1.65;margin-top:14px">You revisited {{ driftTotal }} forgotten saves — kept {{ driftKept }} on your desk, let {{ driftLet }} go. Come back tomorrow for a fresh handful.</div>
+      <button onClick="{{ closeDrift }}" style="border:none;background:#E0B23A;color:#1C1A16;font:600 13px/1 'Instrument Sans';padding:13px 26px;border-radius:11px;cursor:pointer;margin-top:26px">Back to The Mind</button>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ===== SEARCH OVERLAY ===== -->
+  <sc-if value="{{ searchOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeSearch }}" style="position:fixed;inset:0;z-index:65;background:rgba(20,18,14,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:8vh 24px 24px">
+    <div onClick="{{ stop }}" style="width:820px;max-width:100%;max-height:82vh;overflow:auto;background:#F4F0E6;border-radius:16px;box-shadow:0 40px 90px -20px rgba(0,0,0,.6);padding:24px 26px 28px">
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;background:#FCFBF6;border:1px solid rgba(27,63,209,.35);border-radius:12px;box-shadow:0 0 0 3px rgba(27,63,209,.08)">
+        <span style="color:#1B3FD1;font-size:16px">⌕</span>
+        <input autofocus placeholder="that go article about durable workflows I saved last month" value="{{ query }}" onInput="{{ onSearchInput }}" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 16px/1.3 'Newsreader',serif;color:#1C1A16" />
+        <span style="font:600 10px/1 'JetBrains Mono';color:#8A8578;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.09);padding:5px 7px;border-radius:5px;flex:none">esc</span>
+      </div>
+
+      <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <span class="meta" style="color:#8A8578">understood as</span>
+        <sc-for list="{{ understood }}" as="u" hint-placeholder-count="2"><span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25)">{{ u }}</span></sc-for>
+        <span class="meta" style="margin-left:auto;color:#A39C8B">fts + vector · reranked</span>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;gap:24px;margin-top:20px">
+        <div style="width:132px;flex:none">
+          <div class="meta" style="color:#8A8578;margin-bottom:9px">Colour</div>
+          <div style="display:flex;flex-wrap:wrap;gap:7px"><span class="dot" style="width:24px;height:24px;background:#1B3FD1;cursor:pointer"></span><span class="dot" style="width:24px;height:24px;background:#C24A2E;cursor:pointer"></span><span class="dot" style="width:24px;height:24px;background:#2E7D5B;cursor:pointer"></span><span class="dot" style="width:24px;height:24px;background:#E0B23A;cursor:pointer"></span><span class="dot" style="width:24px;height:24px;background:#1C1A16;cursor:pointer"></span><span class="dot" style="width:24px;height:24px;background:#EFE3C4;cursor:pointer"></span></div>
+          <div class="meta" style="color:#8A8578;margin:18px 0 9px">Try</div>
+          <div style="font:400 12px/1.7 'JetBrains Mono',monospace;color:#8A8578">color:teal<br>type:recipe<br>similar:this</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="meta" style="color:#8A8578;margin-bottom:11px">{{ resultCount }} results</div>
+          <div style="column-count:2;column-gap:14px">
+            <sc-for list="{{ results }}" as="it" hint-placeholder-count="6">
+              <div class="card" style="margin-bottom:14px;break-inside:avoid;cursor:pointer">
+                <div style="height:60px;background:{{ it.hero }}"></div>
+                <div style="padding:11px 12px">
+                  <div class="serif" style="font-size:14px;font-weight:600;line-height:1.25">{{ it.title }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:9px">
+                    <sc-for list="{{ it.colors }}" as="c" hint-placeholder-count="2"><span class="dot" style="width:8px;height:8px;background:{{ c }}"></span></sc-for>
+                    <span class="meta" style="margin-left:auto">{{ it.meta }}</span>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}"><div class="serif" style="font-style:italic;color:#8A8578;font-size:15px;padding:20px 0">No gatherings match — try a colour, a type, or a looser word.</div></sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== QUICK CAPTURE (⌘K) OVERLAY ===== -->
+  <sc-if value="{{ hasCapture }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeOverlay }}" style="position:fixed;inset:0;z-index:60;background:rgba(20,18,14,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding-top:13vh">
+    <div onClick="{{ stop }}" style="width:480px;max-width:92%;background:#FBFAF5;border-radius:14px;box-shadow:0 40px 90px -20px rgba(0,0,0,.6);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid rgba(28,26,22,.1)">
+        <span style="color:#1B3FD1;font-size:15px">＋</span>
+        <span class="serif" style="font-size:15px;color:#1C1A16;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">https://brandur.org/river</span>
+        <span style="width:2px;height:18px;background:#1B3FD1;animation:floaty 1s infinite;flex:none"></span>
+        <span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25);flex:none">Article ✓</span>
+      </div>
+      <div style="padding:16px 18px;display:flex;gap:13px">
+        <div style="width:66px;height:66px;flex:none;border-radius:8px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div>
+        <div style="flex:1;min-width:0">
+          <div class="serif" style="font-size:15px;font-weight:600;line-height:1.2">Durable execution and the death of the cron job</div>
+          <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">brandur.org</div>
+          <div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="tag" style="opacity:.5">go</span><span class="tag" style="opacity:.5">workflows</span><span class="meta" style="color:#1B3FD1">enriching…</span></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;background:#EFEADE;border-top:1px solid rgba(28,26,22,.08)">
+        <span class="meta" style="color:#8A8578">saves instantly · enriches in place</span>
+        <button onClick="{{ closeOverlay }}" style="margin-left:auto;border:none;font:600 11px/1 'JetBrains Mono';color:#F4F0E6;background:#1B3FD1;padding:8px 12px;border-radius:7px;cursor:pointer">↵ Save</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;grid&quot;,&quot;ledger&quot;],&quot;default&quot;:&quot;grid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;View&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;dense&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;View&quot;},&quot;warmPaper&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;View&quot;}}">
+class Component extends DCLogic {
+  state = { view: null, filter: 'all', open: null, capture: false, drift: false, driftIndex: 0, driftKept: 0, driftLet: 0, screen: 'mind', search: false, query: '', desk: null };
+  seedDesk = [
+    { title: 'Durable execution & the death of the cron job', meta: 'article · 8 min', kind: 'article', hero: 'linear-gradient(120deg,#1B3FD1,#17206b)', tint: '#FCFBF6', colors: ['#17206b', '#1B3FD1'] },
+    { title: 'Priority lanes for the queue — interactive saves jump the bulk backlog.', meta: 'note', kind: 'note', hero: '', tint: '#FBF4D8', colors: ['#E0B23A', '#9A8A3A'] },
+    { title: 'Risograph poster study', meta: 'image · are.na', kind: 'image', hero: 'linear-gradient(150deg,#C24A2E,#E0B23A)', tint: '#FCFBF6', colors: ['#C24A2E', '#E0B23A'] },
+    { title: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', meta: 'quote · Durant', kind: 'quote', hero: '', tint: '#1C1A16', colors: ['#E0B23A'] },
+  ];
+  searchItems = [
+    { title: 'Durable execution and the death of the cron job', type: 'article', meta: 'article · 8 min · brandur.org', tags: ['go', 'workflows', 'postgres'], colors: ['#17206b', '#1B3FD1', '#B9C2E8'], hero: 'linear-gradient(120deg,#1B3FD1,#17206b)' },
+    { title: 'River: a durable job queue for Go', type: 'article', meta: 'article · 5 min · riverqueue.com', tags: ['go', 'queue', 'workflows'], colors: ['#2E7D5B', '#1f5a41'], hero: 'linear-gradient(135deg,#2E7D5B,#1f5a41)' },
+    { title: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', type: 'quote', meta: 'quote · Will Durant', tags: ['habit', 'philosophy'], colors: ['#E0B23A', '#F4F0E6'], hero: '#1C1A16' },
+    { title: 'Risograph poster study', type: 'image', meta: 'image · are.na', tags: ['risograph', 'warm', 'poster'], colors: ['#C24A2E', '#E0B23A', '#EFE3C4'], hero: 'linear-gradient(150deg,#C24A2E,#E0B23A)' },
+    { title: 'Norda 001 — trail runner', type: 'product', meta: 'product · norda.com', tags: ['running', 'gear'], colors: ['#2E7D5B', '#1f5a41'], hero: 'linear-gradient(100deg,#2E7D5B,#1f5a41)' },
+    { title: 'Simple Made Easy', type: 'video', meta: 'video · youtube.com', tags: ['talks', 'philosophy'], colors: ['#1C1A16', '#5b5b5b'], hero: 'linear-gradient(135deg,#2b2b2b,#111)' },
+    { title: 'pgvector + a reranker gets you 90% of a vector-DB pitch', type: 'tweet', meta: 'post · x.com', tags: ['pgvector', 'search'], colors: ['#1B3FD1', '#2E7D5B'], hero: 'linear-gradient(135deg,#1B3FD1,#2E7D5B)' },
+    { title: 'The Timeless Way of Building', type: 'book', meta: 'book · to read', tags: ['architecture', 'patterns'], colors: ['#7a2e2e', '#EDD9A6', '#4a1d1d'], hero: 'linear-gradient(160deg,#7a2e2e,#4a1d1d)' },
+    { title: 'Miso-glazed aubergine', type: 'recipe', meta: 'recipe · nyt cooking', tags: ['dinner', 'warm'], colors: ['#6b4226', '#8a5a2e'], hero: 'linear-gradient(135deg,#6b4226,#8a5a2e)' },
+    { title: 'Gradient study', type: 'image', meta: 'image', tags: ['gradient', 'cobalt'], colors: ['#1B3FD1', '#2E7D5B', '#E0B23A'], hero: 'linear-gradient(160deg,#1B3FD1,#2E7D5B)' },
+  ];
+  driftItems = [
+    { title: 'Risograph poster study', summary: 'Warm two-ink print, heavy grain. You saved this to work out the palette for a side project.', meta: 'image · are.na', ago: 'Saved 8 months ago · never revisited', hero: 'linear-gradient(150deg,#C24A2E,#E0B23A)', colors: ['#C24A2E', '#E0B23A', '#EFE3C4'] },
+    { title: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', summary: '', meta: 'quote · Will Durant', ago: 'Saved 1 year ago · opened once', hero: 'linear-gradient(135deg,#2b2b2b,#111)', colors: ['#E0B23A', '#F4F0E6'] },
+    { title: 'The Timeless Way of Building', summary: 'Christopher Alexander on the quality without a name. You meant to read this over a winter.', meta: 'book · to read', ago: 'Saved 14 months ago · never opened', hero: 'linear-gradient(160deg,#7a2e2e,#4a1d1d)', colors: ['#7a2e2e', '#EDD9A6', '#4a1d1d'] },
+    { title: 'Gradient study', summary: 'A cobalt-to-green field with a warm bloom. Filed under things that felt right at the time.', meta: 'image · saved by you', ago: 'Saved 6 months ago · never revisited', hero: 'linear-gradient(160deg,#1B3FD1,#2E7D5B)', colors: ['#1B3FD1', '#2E7D5B', '#E0B23A'] },
+    { title: 'Simple Made Easy', summary: 'Rich Hickey pulling apart “simple” from “easy”. An hour you keep promising yourself.', meta: 'video · 1:01:26', ago: 'Saved 2 years ago · never played', hero: 'linear-gradient(135deg,#17206b,#1B3FD1)', colors: ['#17206b', '#1B3FD1', '#B9C2E8'] },
+  ];
+  get view() { return this.state.view || this.props.defaultView || 'grid'; }
+  componentDidMount() {
+    this.applyUI();
+    this._key = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); this.setState({ search: true }); }
+      else if (e.key === 'Escape') { this.setState({ open: null, capture: false, drift: false, search: false }); }
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() { if (this._key) window.removeEventListener('keydown', this._key); }
+  componentDidUpdate() { this.applyUI(); }
+  applyUI() {
+    const r = this._root;
+    if (!r) return;
+    const view = this.view;
+    const filter = this.state.filter;
+    r.querySelectorAll('[data-view]').forEach(b => {
+      const on = b.dataset.view === view;
+      b.style.background = on ? '#1C1A16' : 'transparent';
+      b.style.color = on ? '#F4F0E6' : '#57534A';
+    });
+    r.querySelectorAll('[data-filter]').forEach(b => {
+      const on = b.dataset.filter === filter;
+      b.style.background = on ? '#1C1A16' : '#FCFBF6';
+      b.style.color = on ? '#F4F0E6' : '#1C1A16';
+      b.style.borderColor = on ? '#1C1A16' : 'rgba(28,26,22,.13)';
+    });
+    r.querySelectorAll('[data-type]').forEach(el => {
+      el.style.display = (filter === 'all' || el.dataset.type === filter) ? '' : 'none';
+    });
+    const g = r.querySelector('#mind-grid');
+    if (g) g.style.columnCount = (this.props.density === 'dense') ? '4' : '3';
+    const tex = r.querySelector('#paper-tex');
+    if (tex) tex.style.display = (this.props.warmPaper === false) ? 'none' : '';
+    r.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === this.state.screen));
+  }
+  renderVals() {
+    const open = this.state.open;
+    const parse = (card) => {
+      const type = card.dataset.type || '';
+      // title = the largest serif in the card (skips small hero labels)
+      const serifs = [...card.querySelectorAll('.serif')];
+      let titleEl = serifs[0], maxfs = 0;
+      serifs.forEach(s => { const fs = parseFloat(getComputedStyle(s).fontSize) || 0; if (fs > maxfs) { maxfs = fs; titleEl = s; } });
+      let title = titleEl ? titleEl.textContent.trim() : '';
+      // summary = longest leaf paragraph that isn't title / meta / tag
+      const cand = [...card.querySelectorAll('div')].filter(d =>
+        d.children.length === 0 && d.textContent.trim() &&
+        !d.classList.contains('meta') && !d.classList.contains('serif') && !d.classList.contains('tag'));
+      let summary = cand.length ? cand.sort((a, b) => b.textContent.length - a.textContent.length)[0].textContent.trim() : '';
+      if (!title && summary) { title = summary; summary = ''; }
+      if (!title) title = 'Untitled';
+      if (type === 'quote') summary = '';
+      const colors = [...card.querySelectorAll('.dot')]
+        .map(d => getComputedStyle(d).backgroundColor)
+        .filter(c => c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent')
+        .slice(0, 5);
+      const metas = card.querySelectorAll('.meta');
+      const meta = metas.length ? metas[metas.length - 1].textContent.trim() : type;
+      const tags = [...card.querySelectorAll('.tag')].map(t => t.textContent.trim());
+      return { type, title, summary, colors, meta, tags };
+    };
+    return {
+      isGrid: this.view === 'grid',
+      isLedger: this.view === 'ledger',
+      onViewClick: (e) => this.setState({ view: e.currentTarget.dataset.view }),
+      onFilterClick: (e) => this.setState({ filter: e.currentTarget.dataset.filter }),
+      rootRef: (el) => { this._root = el; },
+      onContentClick: (e) => {
+        if (e.target.closest('button')) return;
+        const card = e.target.closest('[data-type]');
+        if (!card) return;
+        this.setState({ open: parse(card) });
+      },
+      openCapture: () => this.setState({ capture: true }),
+      closeOverlay: () => this.setState({ open: null, capture: false }),
+      stop: (e) => e.stopPropagation(),
+      hasOpen: !!open,
+      hasCapture: !!this.state.capture,
+      isArticle: !!open && open.type === 'article',
+      open: open || { title: '', meta: '', summary: '', colors: [], tags: [] },
+      // ---- Drift ----
+      driftOpen: !!this.state.drift,
+      driftDone: this.state.driftIndex >= this.driftItems.length,
+      driftActive: this.state.driftIndex < this.driftItems.length,
+      driftPos: this.state.driftIndex + 1,
+      driftTotal: this.driftItems.length,
+      driftKept: this.state.driftKept,
+      driftLet: this.state.driftLet,
+      cur: this.driftItems[this.state.driftIndex] || { title: '', summary: '', meta: '', ago: '', hero: '#1C1A16', colors: [] },
+      curHasSummary: !!(this.driftItems[this.state.driftIndex] || {}).summary,
+      driftDots: this.driftItems.map((_, i) => i <= this.state.driftIndex ? '#E0B23A' : 'rgba(244,240,230,.22)'),
+      openDrift: () => this.setState({ drift: true, driftIndex: 0, driftKept: 0, driftLet: 0 }),
+      closeDrift: () => this.setState({ drift: false }),
+      driftKeep: () => this.setState(s => {
+        const item = this.driftItems[s.driftIndex];
+        const cur = s.desk || this.seedDesk;
+        const already = cur.some(d => d.title === item.title);
+        const card = { title: item.title, meta: item.meta, kind: 'kept', hero: item.hero, tint: '#FCFBF6', colors: item.colors };
+        return { driftIndex: s.driftIndex + 1, driftKept: s.driftKept + 1, desk: already ? cur : [card, ...cur] };
+      }),
+      driftLetGo: () => this.setState(s => ({ driftIndex: s.driftIndex + 1, driftLet: s.driftLet + 1 })),
+      // ---- Screens / nav ----
+      isMind: this.state.screen === 'mind',
+      isDesk: this.state.screen === 'desk',
+      goMind: () => this.setState({ screen: 'mind' }),
+      goDesk: () => this.setState({ screen: 'desk' }),
+      deskItems: (this.state.desk || this.seedDesk).map(d => ({ ...d, fg: d.tint === '#1C1A16' ? '#F4F0E6' : (d.tint === '#FBF4D8' ? '#3A3320' : '#1C1A16') })),
+      // ---- Search ----
+      searchOpen: !!this.state.search,
+      openSearch: () => this.setState({ search: true }),
+      closeSearch: () => this.setState({ search: false }),
+      query: this.state.query,
+      onSearchInput: (e) => this.setState({ query: e.target.value }),
+      hasQuery: this.state.query.trim().length > 0,
+      understood: this._understand(this.state.query),
+      results: this._search(this.state.query),
+      resultCount: this._search(this.state.query).length,
+      noResults: this.state.query.trim().length > 0 && this._search(this.state.query).length === 0,
+    };
+  }
+  _understand(q) {
+    q = (q || '').toLowerCase();
+    const chips = [];
+    const types = { article: 'article', articles: 'article', image: 'image', images: 'image', photo: 'image', quote: 'quote', note: 'note', book: 'book', books: 'book', product: 'product', video: 'video', recipe: 'recipe' };
+    for (const k in types) { if (q.includes(k)) { chips.push('type: ' + types[k]); break; } }
+    ['cobalt', 'blue', 'warm', 'red', 'orange', 'green', 'gold', 'teal'].forEach(c => { if (q.includes(c)) chips.push('colour ≈ ' + c); });
+    if (q.includes('month')) chips.push('after: 1 Jun');
+    else if (q.includes('year')) chips.push('after: last year');
+    const stop = ['the', 'last', 'month', 'year', 'about', 'that', 'from', 'saved', 'this', 'with', 'and', 'for', 'i'];
+    const topic = q.split(/\s+/).filter(w => w.length > 3 && !stop.includes(w) && !types[w]).slice(0, 2);
+    topic.forEach(t => chips.push('topic ≈ ' + t));
+    return chips.slice(0, 4);
+  }
+  _search(q) {
+    q = (q || '').toLowerCase().trim();
+    if (!q) return this.searchItems;
+    const stop = ['the', 'last', 'month', 'year', 'about', 'that', 'from', 'saved', 'this', 'with', 'and', 'for', 'i', 'a', 'an'];
+    const words = q.split(/\s+/).filter(w => w.length > 2 && !stop.includes(w));
+    return this.searchItems.filter(it => {
+      const hay = (it.title + ' ' + it.type + ' ' + it.tags.join(' ') + ' ' + it.meta).toLowerCase();
+      return words.length === 0 || words.some(w => hay.includes(w));
+    });
+  }
+}
+</script>
+</body>
+</html>
