@@ -58,23 +58,32 @@ function Enriching() {
   );
 }
 
+const imgWrapStyle: CSSProperties = {
+  aspectRatio: "16/9",
+  overflow: "hidden",
+  borderRadius: 6,
+};
+
 const imgStyle: CSSProperties = {
   display: "block",
-  maxWidth: "100%",
   width: "100%",
-  borderRadius: 6,
+  height: "100%",
+  objectFit: "cover",
 };
 
 export function ItemCard({ item }: { item: Item }) {
   const pending = item.status === "pending";
   const domain = domainOf(item.url);
   const hasLeadImage = Boolean(item.leadImageUrl);
-  const alt = item.title ?? "saved image";
+  const imageAlt = item.title ?? "saved image";
+  const videoAlt = item.title ? `${item.title} (video thumbnail)` : "video thumbnail";
 
   if (item.cardType === "image" && hasLeadImage) {
     return (
       <article style={cardStyle}>
-        <img src={item.leadImageUrl} alt={alt} style={imgStyle} />
+        <div style={imgWrapStyle}>
+          <img src={item.leadImageUrl} alt={imageAlt} loading="lazy" style={imgStyle} />
+        </div>
         {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
         {pending ? <Enriching /> : null}
       </article>
@@ -84,7 +93,9 @@ export function ItemCard({ item }: { item: Item }) {
   if (item.cardType === "video" && hasLeadImage) {
     return (
       <article style={cardStyle}>
-        <img src={item.leadImageUrl} alt={alt} style={imgStyle} />
+        <div style={imgWrapStyle}>
+          <img src={item.leadImageUrl} alt={videoAlt} loading="lazy" style={imgStyle} />
+        </div>
         {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
         {domain ? <p style={domainStyle}>{domain}</p> : null}
         {pending ? <Enriching /> : null}
@@ -136,14 +147,15 @@ export function ItemCard({ item }: { item: Item }) {
   // default: article / product / recipe / book / quote / video / image
   // (image/video with a lead image are handled above; this covers the
   // remaining types, plus image/video without a lead image as a fallback)
+  const isBareDomainCard = !item.title && !item.summary && Boolean(domain);
+  const defaultAlt = item.cardType === "video" ? videoAlt : imageAlt;
+
   return (
     <article style={cardStyle}>
       {hasLeadImage ? (
-        <img
-          src={item.leadImageUrl}
-          alt={alt}
-          style={{ ...imgStyle, marginBottom: 8 }}
-        />
+        <div style={{ ...imgWrapStyle, marginBottom: 8 }}>
+          <img src={item.leadImageUrl} alt={defaultAlt} loading="lazy" style={imgStyle} />
+        </div>
       ) : null}
       {item.title ? <h2 style={titleStyle}>{item.title}</h2> : null}
       {item.summary ? (
@@ -160,10 +172,8 @@ export function ItemCard({ item }: { item: Item }) {
           {item.summary}
         </p>
       ) : null}
-      {!item.title && !item.summary && domain ? (
-        <h2 style={titleStyle}>{domain}</h2>
-      ) : null}
-      {domain ? <p style={domainStyle}>{domain}</p> : null}
+      {isBareDomainCard ? <h2 style={titleStyle}>{domain}</h2> : null}
+      {domain && !isBareDomainCard ? <p style={domainStyle}>{domain}</p> : null}
       {pending ? <Enriching /> : null}
     </article>
   );

@@ -49,6 +49,7 @@ export function QuickAdd() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Drop a link or a thought…"
+          aria-label="Save a link or a note"
           disabled={disabled}
           style={{
             flex: 1,

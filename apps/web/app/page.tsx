@@ -21,6 +21,7 @@ async function getSearch(q: string): Promise<Item[]> {
     const res = await apiFetch(`/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) return [];
     const results = ((await res.json()) as SearchResult[]) ?? [];
+    // score is intentionally unused for now: results are already rank-ordered by the API.
     return results.map((r) => r.item);
   } catch {
     return [];
