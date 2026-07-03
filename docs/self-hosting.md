@@ -87,6 +87,10 @@ AI_PROVIDER=gemini GEMINI_API_KEY=<your-key> docker compose up -d
 
 Only budget model tiers are used in the enrichment pipeline; a flagship model is never wired in.
 
+## Exporting your library
+
+A link to a full JSON export is on the web UI's home page (top-level nav). It calls `GET /api/export` (bearer-token or logged-in-cookie authenticated, scoped to your account) and returns every saved item as a JSON array, including each item's extracted text (`body`), title, tags, and metadata — so you always have a portable, lock-in-free copy of everything you've saved.
+
 ## Browser extension
 
 The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.
