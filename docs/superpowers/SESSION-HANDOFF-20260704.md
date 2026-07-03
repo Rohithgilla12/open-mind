@@ -10,7 +10,8 @@ Six slices, each built subagent-driven with per-task + whole-branch review, then
 4. **Card detail + export + delete** — type-aware reader view, `DELETE /items/{id}`, `GET /export` JSON download.
 5. **AI fallback chain** — OpenAI-compatible provider (DeepSeek/Groq/Cerebras/Ollama), ordered chain with 429/5xx fallover + per-provider RPM; `AI_PROVIDER=gemini` compat unchanged.
 6. **Web polish** — a11y labels, image layout stability, alt text, bare-card domain dedupe.
-7. **Image upload** — upload a local image/screenshot (drag-drop or picker) → first-class image card. Filesystem blob store on a mounted volume (`assetsdata`), `assets` table, content-type sniff+allowlist (SVG rejected), size cap, path-traversal-safe UUID filenames, authenticated serving through the web proxy. Storage decision was made per the recommendation below (filesystem volume) — shipped and fresh-volume-verified on the box.
+7. **Image upload** — upload a local image/screenshot (drag-drop or picker) → first-class image card. Filesystem blob store on a mounted volume (`assetsdata`), `assets` table, content-type sniff+allowlist (SVG rejected), size cap, path-traversal-safe UUID filenames, authenticated serving through the web proxy. Filesystem-volume storage per the recommendation below — shipped and fresh-volume-verified on the box.
+8. **EXIF/metadata stripping** — uploaded images are losslessly stripped of EXIF/XMP/IPTC/text metadata on upload (JPEG/PNG/WebP; GIF has none; AVIF rejected pending a lossless stripper). Verified on the box: a GPS-tagged JPEG comes back with the GPS gone and the image still valid. Closes the privacy gap before public exposure.
 
 Plus: Gemini verified live on the box, Karakeep competitive research (`docs/research.md`), masonry perf spike (CSS columns hold 60fps at 1000 cards — no virtualisation needed), golangci-lint wired into `task lint`.
 
@@ -30,8 +31,8 @@ PRD §14 open question — "Openmind" is a working title. Still open.
 ### 4. M2 candidates from Karakeep research (triage when ready)
 Importers (Pocket/Omnivore), RSS feeds, PDF capture. Details + competitive analysis in `docs/research.md`.
 
-### 5. Near-term security follow-up (I can do without a decision)
-**Strip EXIF/GPS from uploaded images** — uploaded originals are served with metadata intact, so a publicly-mapped instance leaks GPS coords from phone photos. Out of scope for the upload branch but tracked in TODO; say the word and I'll add decode/re-encode-on-upload EXIF stripping.
+### 5. Small optional follow-up (your call)
+**Re-allow AVIF uploads** — when EXIF stripping shipped, AVIF was dropped from the upload allowlist (stdlib can't strip its metadata losslessly, and silently storing GPS-bearing AVIF would defeat the privacy fix). AVIF now returns 415. If you want the format back, I'd add a proper ISOBMFF metadata stripper. Not urgent — AVIF is a rare camera output.
 
 ## How to pick up
 Tell me which of #2–#5 to take next (or "map done, verify" after you do #1). Everything is subagent-driven from a spec → plan → execute → review → deploy loop; I'll keep that rhythm.
