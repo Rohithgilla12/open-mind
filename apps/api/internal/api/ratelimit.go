@@ -47,11 +47,7 @@ func rateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			guarded := (r.Method == http.MethodPost && r.URL.Path == "/items") ||
-				(r.Method == http.MethodGet && r.URL.Path == "/items") ||
-				(r.Method == http.MethodGet && r.URL.Path == "/search") ||
-				(r.Method == http.MethodGet && r.URL.Path == "/export")
-			if !guarded {
+			if !guarded(r.Method, r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -62,6 +58,20 @@ func rateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// guarded reports whether a request to (method, path) is subject to the rate
+// limiter. It covers the write/search/list endpoints plus POST /assets uploads.
+// GET /assets/<id> reads are deliberately NOT guarded: image loads are proxied
+// server-side from the single web-container IP with no X-Forwarded-For, so a
+// per-IP burst limiter would break any view with more images than the burst
+// ceiling. Serving is already bearer-gated, user-scoped, and UUID-keyed.
+func guarded(method, path string) bool {
+	return (method == http.MethodPost && path == "/items") ||
+		(method == http.MethodGet && path == "/items") ||
+		(method == http.MethodGet && path == "/search") ||
+		(method == http.MethodGet && path == "/export") ||
+		(method == http.MethodPost && path == "/assets")
 }
 
 type ipLimiter struct {

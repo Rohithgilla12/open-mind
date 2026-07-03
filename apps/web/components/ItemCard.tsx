@@ -1,5 +1,6 @@
 import { tokens } from "@openmind/ui";
 import type { CSSProperties } from "react";
+import { assetSrc } from "../lib/assets";
 import type { Item } from "../lib/types";
 
 const cardStyle: CSSProperties = {
@@ -82,7 +83,7 @@ export function ItemCard({ item }: { item: Item }) {
     return (
       <article style={cardStyle}>
         <div style={imgWrapStyle}>
-          <img src={item.leadImageUrl} alt={imageAlt} loading="lazy" style={imgStyle} />
+          <img src={assetSrc(item.leadImageUrl)} alt={imageAlt} loading="lazy" style={imgStyle} />
         </div>
         {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
         {pending ? <Enriching /> : null}
@@ -94,7 +95,7 @@ export function ItemCard({ item }: { item: Item }) {
     return (
       <article style={cardStyle}>
         <div style={imgWrapStyle}>
-          <img src={item.leadImageUrl} alt={videoAlt} loading="lazy" style={imgStyle} />
+          <img src={assetSrc(item.leadImageUrl)} alt={videoAlt} loading="lazy" style={imgStyle} />
         </div>
         {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
         {domain ? <p style={domainStyle}>{domain}</p> : null}
@@ -154,7 +155,7 @@ export function ItemCard({ item }: { item: Item }) {
     <article style={cardStyle}>
       {hasLeadImage ? (
         <div style={{ ...imgWrapStyle, marginBottom: 8 }}>
-          <img src={item.leadImageUrl} alt={defaultAlt} loading="lazy" style={imgStyle} />
+          <img src={assetSrc(item.leadImageUrl)} alt={defaultAlt} loading="lazy" style={imgStyle} />
         </div>
       ) : null}
       {item.title ? <h2 style={titleStyle}>{item.title}</h2> : null}

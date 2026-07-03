@@ -47,6 +47,14 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return fmt.Errorf("loading item %s: %w", itemID, err)
 	}
 
+	// Uploaded images have no source URL but carry a local asset path in
+	// LeadImageUrl. They must be routed before the note check (which also keys
+	// on an empty URL) and must never touch the extractor or HTTP client — an
+	// /assets/ path is not fetchable.
+	if item.Url == "" && strings.HasPrefix(item.LeadImageUrl, "/assets/") {
+		return p.runUploadedImage(ctx, userID, item)
+	}
+
 	if item.Url == "" {
 		return p.runNote(ctx, userID, item)
 	}
@@ -96,6 +104,25 @@ func (p *Pipeline) runNote(ctx context.Context, userID uuid.UUID, item db.Item) 
 		return fmt.Errorf("saving note metadata: %w", err)
 	}
 	return p.enrichText(ctx, userID, item.ID, title, item.Body)
+}
+
+// runUploadedImage enriches a locally-uploaded image (no source URL): it skips
+// extraction and any fetch, keeps the asset path in LeadImageUrl, classifies as
+// an image card, and runs the shared enrichment tail over the title. The title
+// is set at upload time; it falls back to "image" when absent. Idempotent.
+func (p *Pipeline) runUploadedImage(ctx context.Context, userID uuid.UUID, item db.Item) error {
+	q := p.Store.Queries
+	title := item.Title
+	if title == "" {
+		title = "image"
+	}
+	if err := q.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID,
+		Title: title, Body: "", LeadImageUrl: item.LeadImageUrl, CardType: "image",
+	}); err != nil {
+		return fmt.Errorf("saving uploaded-image metadata: %w", err)
+	}
+	return p.enrichText(ctx, userID, item.ID, title, title)
 }
 
 // enrichText runs the summarise → tag → embed → status tail shared by the URL

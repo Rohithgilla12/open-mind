@@ -6,3 +6,4 @@ node_modules/
 dist/
 apps/api/bin/
 *.tsbuildinfo
+data/

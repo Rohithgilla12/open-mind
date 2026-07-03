@@ -4,14 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/rohithgilla12/openmind/api/internal/ai"
-	"github.com/rohithgilla12/openmind/api/internal/api"
 )
 
 func TestRateLimit429(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	h := api.NewServer(s, rc, ai.NewNoop(), "")
+	h := newSrv(t, s, rc, "")
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 	var last int
@@ -33,7 +30,7 @@ func TestRateLimit429(t *testing.T) {
 // than yielding unlimited 401 guesses.
 func TestWrongTokenGuessesThrottled(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	h := api.NewServer(s, rc, ai.NewNoop(), "sekret")
+	h := newSrv(t, s, rc, "sekret")
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 	var last int

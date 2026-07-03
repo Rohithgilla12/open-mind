@@ -31,6 +31,10 @@ services:
       AI_RPM_GEMINI: ${AI_RPM_GEMINI:-}
       AI_RPM_OPENAI: ${AI_RPM_OPENAI:-}
       OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
+      ASSETS_DIR: ${ASSETS_DIR:-/data/assets}
+      ASSETS_MAX_BYTES: ${ASSETS_MAX_BYTES:-10485760}
+    volumes:
+      - assetsdata:/data/assets
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -50,3 +54,4 @@ services:
 
 volumes:
   pgdata:
+  assetsdata:

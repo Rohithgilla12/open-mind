@@ -230,6 +230,56 @@ func TestPipelineImageURLSkipsExtraction(t *testing.T) {
 	}
 }
 
+func TestPipelineUploadedImageSkipsFetch(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	// Uploaded images have Url=="" and a LeadImageUrl pointing at the local
+	// asset store. Seed that state via CreateItem + a raw UpdateItemExtraction.
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "", Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	assetPath := "/assets/" + uuid.NewString()
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID,
+		Title: "screenshot", Body: "", LeadImageUrl: assetPath, CardType: "image",
+	}); err != nil {
+		t.Fatalf("seed lead image: %v", err)
+	}
+
+	// failingExtractor + nil HTTPClient prove the branch neither extracts nor
+	// fetches: an /assets/ path must never reach the HTTP client.
+	p := &enrich.Pipeline{Store: s, AI: ai.NewFake(), Extractor: failingExtractor{}}
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	got, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if got.CardType != "image" {
+		t.Errorf("cardType = %q, want image", got.CardType)
+	}
+	if got.Status != "enriched" {
+		t.Errorf("status = %q, want enriched", got.Status)
+	}
+	if got.LeadImageUrl != assetPath {
+		t.Errorf("leadImageUrl = %q, want %q (unchanged)", got.LeadImageUrl, assetPath)
+	}
+	if got.Title != "screenshot" {
+		t.Errorf("title = %q, want screenshot", got.Title)
+	}
+
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	again, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if again.CardType != got.CardType || again.Title != got.Title || again.Summary != got.Summary || again.Status != got.Status || again.LeadImageUrl != got.LeadImageUrl {
+		t.Errorf("uploaded-image pipeline not idempotent:\nfirst  %+v\nsecond %+v", got, again)
+	}
+}
+
 // failingExtractor proves notes never touch the extractor.
 type failingExtractor struct{}
 

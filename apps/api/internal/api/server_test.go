@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/api"
+	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/store"
@@ -52,6 +53,18 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 	return s, rc, pool
 }
 
+// newSrv builds a Server handler backed by a throwaway on-disk asset store and
+// the standard 10 MiB upload cap. Tests that need to inspect the asset dir use
+// newSrvWithAssets instead.
+func newSrv(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string) http.Handler {
+	t.Helper()
+	as, err := assets.NewFSStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("asset store: %v", err)
+	}
+	return api.NewServer(s, rc, ai.NewNoop(), token, as, 10<<20)
+}
+
 func postJSON(t *testing.T, url, body string) *http.Response {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
@@ -63,7 +76,7 @@ func postJSON(t *testing.T, url, body string) *http.Response {
 
 func TestCreateItemIsInstantAndPending(t *testing.T) {
 	s, rc, pool := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	start := time.Now()
@@ -98,7 +111,7 @@ func TestCreateItemIsInstantAndPending(t *testing.T) {
 
 func TestCreateItemRejectsBadURL(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	for _, body := range []string{`{"url":"not a url"}`, `{"url":"ftp://example.com"}`, `{"url":""}`} {
@@ -112,7 +125,7 @@ func TestCreateItemRejectsBadURL(t *testing.T) {
 
 func TestCreateItemFromNote(t *testing.T) {
 	s, rc, pool := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	resp := postJSON(t, srv.URL+"/items", `{"note":"remember the milk"}`)
@@ -140,7 +153,7 @@ func TestCreateItemFromNote(t *testing.T) {
 
 func TestCreateItemRejectsBadURLOrNoteCombos(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	for _, body := range []string{
@@ -158,7 +171,7 @@ func TestCreateItemRejectsBadURLOrNoteCombos(t *testing.T) {
 
 func TestCreateItemRejectsOversizeInput(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	tests := []struct {
@@ -181,7 +194,7 @@ func TestCreateItemRejectsOversizeInput(t *testing.T) {
 
 func TestListItems(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	postJSON(t, srv.URL+"/items", `{"url":"https://example.com/first"}`).Body.Close()
@@ -210,7 +223,7 @@ func TestListItems(t *testing.T) {
 
 func TestGetItemDetail(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	resp := postJSON(t, srv.URL+"/items", `{"note":"detail body here"}`)
@@ -262,7 +275,7 @@ func TestGetItemDetail(t *testing.T) {
 
 func TestDeleteItem(t *testing.T) {
 	s, rc, pool := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	resp := postJSON(t, srv.URL+"/items", `{"note":"delete me"}`)
@@ -316,7 +329,7 @@ func TestDeleteItem(t *testing.T) {
 
 func TestExportItems(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	postJSON(t, srv.URL+"/items", `{"note":"first note"}`).Body.Close()
@@ -366,7 +379,7 @@ func seedOtherUserItem(t *testing.T, s *store.Store, body string) string {
 
 func TestSearchItemsReturnsEmptyArray(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
 
 	resp, err := http.Get(srv.URL + "/search?q=anything")
