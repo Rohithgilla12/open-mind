@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import { apiFetch } from "../../../lib/api";
+import { assetSrc } from "../../../lib/assets";
 import type { ItemDetail } from "../../../lib/types";
 import { DeleteButton } from "./DeleteButton";
 
@@ -119,7 +120,7 @@ function DetailBody({ item }: { item: ItemDetail }) {
         {item.leadImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.leadImageUrl}
+            src={assetSrc(item.leadImageUrl)}
             alt={item.title ?? "saved image"}
             loading="lazy"
             style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
@@ -149,7 +150,7 @@ function DetailBody({ item }: { item: ItemDetail }) {
         {item.cardType === "video" && item.leadImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.leadImageUrl}
+            src={assetSrc(item.leadImageUrl)}
             alt={item.title ? `${item.title} (video thumbnail)` : "video thumbnail"}
             loading="lazy"
             style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
@@ -190,7 +191,7 @@ function DetailBody({ item }: { item: ItemDetail }) {
       {item.leadImageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={item.leadImageUrl}
+          src={assetSrc(item.leadImageUrl)}
           alt={item.title ?? "lead image"}
           loading="lazy"
           style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}

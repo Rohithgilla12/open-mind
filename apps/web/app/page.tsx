@@ -3,6 +3,7 @@ import { apiFetch } from "../lib/api";
 import type { Item, SearchResult } from "../lib/types";
 import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
+import { ImageDrop } from "../components/ImageDrop";
 import { SearchBox } from "../components/SearchBox";
 
 async function getRecents(): Promise<Item[]> {
@@ -70,6 +71,7 @@ export default async function Page({
         </a>
       </div>
       <QuickAdd />
+      <ImageDrop />
       <SearchBox initial={q} />
       <Grid items={items} />
     </main>
