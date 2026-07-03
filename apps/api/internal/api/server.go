@@ -170,6 +170,9 @@ func toAPIItem(it db.Item) Item {
 	if it.Summary != "" {
 		out.Summary = &it.Summary
 	}
+	if it.LeadImageUrl != "" {
+		out.LeadImageUrl = &it.LeadImageUrl
+	}
 	if it.CardType != "" {
 		ct := ItemCardType(it.CardType)
 		out.CardType = &ct

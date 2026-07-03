@@ -46,14 +46,15 @@ type CreateItemRequest struct {
 
 // Item defines model for Item.
 type Item struct {
-	CardType  *ItemCardType      `json:"cardType,omitempty"`
-	CreatedAt time.Time          `json:"createdAt"`
-	Id        openapi_types.UUID `json:"id"`
-	Status    ItemStatus         `json:"status"`
-	Summary   *string            `json:"summary,omitempty"`
-	Tags      *[]string          `json:"tags,omitempty"`
-	Title     *string            `json:"title,omitempty"`
-	Url       string             `json:"url"`
+	CardType     *ItemCardType      `json:"cardType,omitempty"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	Id           openapi_types.UUID `json:"id"`
+	LeadImageUrl *string            `json:"leadImageUrl,omitempty"`
+	Status       ItemStatus         `json:"status"`
+	Summary      *string            `json:"summary,omitempty"`
+	Tags         *[]string          `json:"tags,omitempty"`
+	Title        *string            `json:"title,omitempty"`
+	Url          string             `json:"url"`
 }
 
 // ItemCardType defines model for Item.CardType.

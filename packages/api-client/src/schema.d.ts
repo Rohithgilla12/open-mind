@@ -68,6 +68,7 @@ export interface components {
             url: string;
             title?: string;
             summary?: string;
+            leadImageUrl?: string;
             tags?: string[];
             /** @enum {string} */
             cardType?: "article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote";

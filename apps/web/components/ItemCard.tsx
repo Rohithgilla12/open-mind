@@ -58,9 +58,39 @@ function Enriching() {
   );
 }
 
+const imgStyle: CSSProperties = {
+  display: "block",
+  maxWidth: "100%",
+  width: "100%",
+  borderRadius: 6,
+};
+
 export function ItemCard({ item }: { item: Item }) {
   const pending = item.status === "pending";
   const domain = domainOf(item.url);
+  const hasLeadImage = Boolean(item.leadImageUrl);
+  const alt = item.title ?? "saved image";
+
+  if (item.cardType === "image" && hasLeadImage) {
+    return (
+      <article style={cardStyle}>
+        <img src={item.leadImageUrl} alt={alt} style={imgStyle} />
+        {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
+        {pending ? <Enriching /> : null}
+      </article>
+    );
+  }
+
+  if (item.cardType === "video" && hasLeadImage) {
+    return (
+      <article style={cardStyle}>
+        <img src={item.leadImageUrl} alt={alt} style={imgStyle} />
+        {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
+        {domain ? <p style={domainStyle}>{domain}</p> : null}
+        {pending ? <Enriching /> : null}
+      </article>
+    );
+  }
 
   if (item.cardType === "note") {
     return (
@@ -104,8 +134,17 @@ export function ItemCard({ item }: { item: Item }) {
   }
 
   // default: article / product / recipe / book / quote / video / image
+  // (image/video with a lead image are handled above; this covers the
+  // remaining types, plus image/video without a lead image as a fallback)
   return (
     <article style={cardStyle}>
+      {hasLeadImage ? (
+        <img
+          src={item.leadImageUrl}
+          alt={alt}
+          style={{ ...imgStyle, marginBottom: 8 }}
+        />
+      ) : null}
       {item.title ? <h2 style={titleStyle}>{item.title}</h2> : null}
       {item.summary ? (
         <p

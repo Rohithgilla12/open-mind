@@ -71,6 +71,7 @@ components:
         url: { type: string }
         title: { type: string }
         summary: { type: string }
+        leadImageUrl: { type: string }
         tags: { type: array, items: { type: string } }
         cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
         status: { type: string, enum: [pending, enriched, failed] }
