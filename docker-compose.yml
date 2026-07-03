@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: openmind
       POSTGRES_DB: openmind
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/initdb:/docker-entrypoint-initdb.d
@@ -24,7 +24,7 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-noop}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       db:
         condition: service_healthy
