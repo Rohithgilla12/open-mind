@@ -43,6 +43,23 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 	return i, err
 }
 
+const deleteItem = `-- name: DeleteItem :execrows
+DELETE FROM items WHERE user_id = $1 AND id = $2
+`
+
+type DeleteItemParams struct {
+	UserID uuid.UUID
+	ID     uuid.UUID
+}
+
+func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteItem, arg.UserID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensureUser = `-- name: EnsureUser :exec
 INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING
 `
@@ -93,6 +110,44 @@ type ListItemsParams struct {
 
 func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, error) {
 	rows, err := q.db.Query(ctx, listItems, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Title,
+			&i.Body,
+			&i.LeadImageUrl,
+			&i.Summary,
+			&i.Tags,
+			&i.CardType,
+			&i.Status,
+			&i.SearchTsv,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemsForExport = `-- name: ListItemsForExport :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
+`
+
+func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listItemsForExport, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -11,13 +11,15 @@
 - [ ] AI adapter: OpenAI-compatible client + fallback chain + noop provider
 
 ### Next
-- [ ] Card detail + reader view (type-aware renderers)
-- [ ] JSON export
 - [ ] Virtualised masonry grid spike: 500 mixed cards at 60fps (port docs/design/openmind-mockup.html)
 - [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)
 - [ ] Decide: name + domain check
 
 ## Done
+
+### Milestone 1 — card detail + export
+- [x] Card detail + reader view (type-aware renderers) — e2e verified 2026-07-03: `GET /item/<id>` with logged-in cookie returns 200 HTML containing the item's title.
+- [x] JSON export — e2e verified 2026-07-03: `GET /api/export` with Bearer token returns a JSON array with non-empty `body` per item; item removed from the array after `DELETE /api/items/<id>` (204).
 
 ### Milestone 1 — extension
 - [x] WXT extension: save page / selection / image, options page (instance URL + token, validate/save), e2e verified 2026-07-03: browser extension capture (url + note) via Bearer token auth against a fresh local build (`pnpm --filter extension build`); server-side confirmed with `GET /api/auth/check` (200 correct token / 401 wrong token) and `POST /api/items` for both `{url}` and `{note}` payloads (201).

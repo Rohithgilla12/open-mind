@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -18,6 +19,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/store"
+	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
 
 func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool) {
@@ -204,6 +206,162 @@ func TestListItems(t *testing.T) {
 	if items[0]["url"] != "https://example.com/second" {
 		t.Errorf("newest-first ordering wrong: got %v first", items[0]["url"])
 	}
+}
+
+func TestGetItemDetail(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	resp := postJSON(t, srv.URL+"/items", `{"note":"detail body here"}`)
+	var created map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	resp.Body.Close()
+	id := created["id"].(string)
+
+	// Owner fetch → 200 with body field.
+	got, err := http.Get(srv.URL + "/items/" + id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer got.Body.Close()
+	if got.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", got.StatusCode)
+	}
+	var detail map[string]any
+	if err := json.NewDecoder(got.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode detail: %v", err)
+	}
+	if detail["body"] != "detail body here" {
+		t.Errorf("body = %v, want %q", detail["body"], "detail body here")
+	}
+
+	// Another user's item → 404.
+	otherID := seedOtherUserItem(t, s, "someone else")
+	resp2, err := http.Get(srv.URL + "/items/" + otherID)
+	if err != nil {
+		t.Fatalf("get other: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNotFound {
+		t.Errorf("cross-tenant status = %d, want 404", resp2.StatusCode)
+	}
+
+	// Random uuid → 404.
+	resp3, err := http.Get(srv.URL + "/items/11111111-1111-1111-1111-111111111111")
+	if err != nil {
+		t.Fatalf("get random: %v", err)
+	}
+	resp3.Body.Close()
+	if resp3.StatusCode != http.StatusNotFound {
+		t.Errorf("random uuid status = %d, want 404", resp3.StatusCode)
+	}
+}
+
+func TestDeleteItem(t *testing.T) {
+	s, rc, pool := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	resp := postJSON(t, srv.URL+"/items", `{"note":"delete me"}`)
+	var created map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	resp.Body.Close()
+	id := created["id"].(string)
+
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/items/"+id, nil)
+	del, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	del.Body.Close()
+	if del.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204", del.StatusCode)
+	}
+
+	// Subsequent GET → 404.
+	got, err := http.Get(srv.URL + "/items/" + id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	got.Body.Close()
+	if got.StatusCode != http.StatusNotFound {
+		t.Errorf("after delete status = %d, want 404", got.StatusCode)
+	}
+
+	// Deleting another user's item → 404 and the row survives.
+	otherID := seedOtherUserItem(t, s, "protected")
+	req2, _ := http.NewRequest(http.MethodDelete, srv.URL+"/items/"+otherID, nil)
+	del2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("delete other: %v", err)
+	}
+	del2.Body.Close()
+	if del2.StatusCode != http.StatusNotFound {
+		t.Errorf("cross-tenant delete status = %d, want 404", del2.StatusCode)
+	}
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM items WHERE id = $1`, otherID).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("other user's row count = %d, want 1 (must survive)", count)
+	}
+}
+
+func TestExportItems(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	postJSON(t, srv.URL+"/items", `{"note":"first note"}`).Body.Close()
+	time.Sleep(10 * time.Millisecond)
+	postJSON(t, srv.URL+"/items", `{"note":"second note"}`).Body.Close()
+
+	resp, err := http.Get(srv.URL + "/export")
+	if err != nil {
+		t.Fatalf("get export: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var items []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("got %d items, want 2", len(items))
+	}
+	// ASC order by created_at.
+	if items[0]["body"] != "first note" || items[1]["body"] != "second note" {
+		t.Errorf("export order wrong: got %v then %v", items[0]["body"], items[1]["body"])
+	}
+	for i, it := range items {
+		if _, ok := it["body"]; !ok {
+			t.Errorf("item %d missing body field", i)
+		}
+	}
+}
+
+// seedOtherUserItem inserts a note item owned by a distinct user and returns its id.
+func seedOtherUserItem(t *testing.T, s *store.Store, body string) string {
+	t.Helper()
+	other := uuid.MustParse("00000000-0000-0000-0000-0000000000ff")
+	ctx := context.Background()
+	if err := s.Queries.EnsureUser(ctx, other); err != nil {
+		t.Fatalf("ensure other user: %v", err)
+	}
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: other, Body: body})
+	if err != nil {
+		t.Fatalf("create other item: %v", err)
+	}
+	return item.ID.String()
 }
 
 func TestSearchItemsReturnsEmptyArray(t *testing.T) {

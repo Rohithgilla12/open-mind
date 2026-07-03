@@ -49,7 +49,8 @@ func rateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			guarded := (r.Method == http.MethodPost && r.URL.Path == "/items") ||
 				(r.Method == http.MethodGet && r.URL.Path == "/items") ||
-				(r.Method == http.MethodGet && r.URL.Path == "/search")
+				(r.Method == http.MethodGet && r.URL.Path == "/search") ||
+				(r.Method == http.MethodGet && r.URL.Path == "/export")
 			if !guarded {
 				next.ServeHTTP(w, r)
 				return
