@@ -183,6 +183,53 @@ func TestPipelineNoteItemIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestPipelineImageURLSkipsExtraction(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	// /photo has no extension, so the branch must sniff via HEAD and see the
+	// image/png Content-Type to classify it as an image.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+	}))
+	t.Cleanup(srv.Close)
+	imageURL := srv.URL + "/photo"
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: imageURL, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+
+	// failingExtractor proves the image branch never calls the extractor.
+	p := &enrich.Pipeline{Store: s, AI: ai.NewFake(), Extractor: failingExtractor{}, HTTPClient: srv.Client()}
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	got, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if got.CardType != "image" {
+		t.Errorf("cardType = %q, want image", got.CardType)
+	}
+	if got.LeadImageUrl != imageURL {
+		t.Errorf("leadImageUrl = %q, want %q", got.LeadImageUrl, imageURL)
+	}
+	if got.Status != "enriched" {
+		t.Errorf("status = %q, want enriched", got.Status)
+	}
+	if got.Title != "photo" {
+		t.Errorf("title = %q, want photo", got.Title)
+	}
+
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	again, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if again.CardType != got.CardType || again.Title != got.Title || again.Summary != got.Summary || again.Status != got.Status {
+		t.Errorf("image pipeline not idempotent:\nfirst  %+v\nsecond %+v", got, again)
+	}
+}
+
 // failingExtractor proves notes never touch the extractor.
 type failingExtractor struct{}
 
