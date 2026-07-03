@@ -10,7 +10,15 @@ cp .env.example .env      # optional: defaults work out of the box
 docker compose up -d      # starts Postgres (pgvector) + the API/worker binary
 ```
 
-The API listens on `http://localhost:8080`. Migrations run automatically on start.
+This starts three services:
+
+| Service | Bound to | Purpose |
+|---|---|---|
+| `db` | `127.0.0.1:5433` | Postgres + pgvector (persistent volume) |
+| `api` | `127.0.0.1:8080` | Go API + River enrichment worker (one binary) |
+| `web` | `127.0.0.1:3000` | Next.js web UI |
+
+The API listens on `http://localhost:8080`; the web UI on `http://localhost:3000`. Migrations run automatically on api start.
 
 Smoke test:
 
@@ -25,7 +33,36 @@ curl -s localhost:8080/items | python3 -m json.tool
 
 # Find it via full-text search
 curl -s 'localhost:8080/search?q=great' | python3 -m json.tool
+
+# Save a plain note instead of a URL (exactly one of url or note per save)
+curl -s -XPOST localhost:8080/items \
+  -d '{"note":"remember the milk"}' \
+  -H 'content-type: application/json'
 ```
+
+## Authentication
+
+By default the API is **unauthenticated** — convenient for single-user local use, but the binary logs a warning on startup and you must not expose it to a network as-is.
+
+Set `OPENMIND_TOKEN` to a strong secret to require a bearer token on every request (`/healthz` stays exempt for load-balancer probes):
+
+```bash
+OPENMIND_TOKEN=$(openssl rand -hex 32) docker compose up -d
+
+curl -s localhost:8080/items -H "Authorization: Bearer $OPENMIND_TOKEN"
+```
+
+Requests with a missing or wrong token get `401`. The write and search endpoints (`POST /items`, `GET /search`) are additionally rate-limited per client IP (60 requests/minute, burst 10); over-limit requests get `429`.
+
+### Web UI
+
+The `web` service reaches the API in-network via `API_URL=http://api:8080` and shares the same `OPENMIND_TOKEN` as the api. Log in at `http://localhost:3000/login` with the token; the web app stores it in an httpOnly cookie and injects the bearer header server-side, so the token is never exposed to the browser.
+
+When `OPENMIND_TOKEN` is set, the login page validates the token against the API before accepting it (wrong token → `401`). With no token set, any value is accepted (single-user localhost mode).
+
+### Exposing to a network
+
+Both `api` and `web` bind to `127.0.0.1` only by default. **Map your public domain / reverse proxy to the `web` service (port 3000) only** — the browser never talks to the API directly, and the API does not need to be publicly reachable. Terminate TLS at your proxy (the login cookie is flagged `Secure` in production, so the UI must be served over HTTPS). Always set a strong `OPENMIND_TOKEN` before exposing anything.
 
 ## Configuration
 
@@ -38,6 +75,7 @@ All configuration is via environment variables (see `.env.example`):
 | `AI_PROVIDER` | `noop` | Enrichment provider: `noop` or `gemini`. **`noop` is the default** — the app is fully functional (title extraction + FTS search) with no AI key. |
 | `GEMINI_API_KEY` | _(empty)_ | Required only when `AI_PROVIDER=gemini`. Enables AI summaries, tags, and semantic (vector) search. |
 | `PORT` | `8080` | HTTP listen port. |
+| `OPENMIND_TOKEN` | _(empty)_ | Bearer token guarding the API. Empty = unauthenticated (fine for single-user localhost). Set a strong secret before exposing the API on a network. |
 
 ### AI is optional
 

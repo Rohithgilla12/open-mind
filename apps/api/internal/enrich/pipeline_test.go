@@ -2,6 +2,7 @@ package enrich_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,7 +57,7 @@ func TestPipelineRunIsIdempotent(t *testing.T) {
 		t.Fatalf("ensure user: %v", err)
 	}
 	srv := serveFixture(t, "testdata/article.html")
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL, Body: ""})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
 	}
@@ -94,7 +95,7 @@ func TestPipelineSkipsWrongDimEmbedding(t *testing.T) {
 		t.Fatalf("ensure user: %v", err)
 	}
 	srv := serveFixture(t, "testdata/article.html")
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL, Body: ""})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
 	}
@@ -124,7 +125,7 @@ func TestPipelineNoopProviderStillCompletes(t *testing.T) {
 		t.Fatalf("ensure user: %v", err)
 	}
 	srv := serveFixture(t, "testdata/article.html")
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL, Body: ""})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
 	}
@@ -147,4 +148,45 @@ func TestPipelineNoopProviderStillCompletes(t *testing.T) {
 	if count != 0 {
 		t.Errorf("embedding rows = %d, want 0 for noop", count)
 	}
+}
+
+func TestPipelineNoteItemIsIdempotent(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	s.Queries.EnsureUser(ctx, userID)
+	note := "Grocery run ideas\nBuy sourdough starter and rye flour for the weekend bake."
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "", Body: note})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	p := &enrich.Pipeline{Store: s, AI: ai.NewFake(), Extractor: failingExtractor{}}
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	got, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if got.CardType != "note" || got.Status != "enriched" {
+		t.Fatalf("cardType=%q status=%q", got.CardType, got.Status)
+	}
+	if got.Title != "Grocery run ideas" {
+		t.Errorf("title = %q", got.Title)
+	}
+	if got.Body != note {
+		t.Errorf("body was rewritten")
+	}
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	again, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if again.Title != got.Title || again.Summary != got.Summary || again.Body != got.Body {
+		t.Errorf("note pipeline not idempotent")
+	}
+}
+
+// failingExtractor proves notes never touch the extractor.
+type failingExtractor struct{}
+
+func (failingExtractor) Name() string { return "failing" }
+func (failingExtractor) Extract(context.Context, string) (enrich.Extraction, error) {
+	return enrich.Extraction{}, fmt.Errorf("extractor must not be called for notes")
 }

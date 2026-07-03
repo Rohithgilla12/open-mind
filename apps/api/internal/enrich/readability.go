@@ -15,10 +15,11 @@ import (
 type Readability struct{ client *http.Client }
 
 // NewReadability returns an Extractor backed by go-readability. A nil client
-// falls back to a client with a 30s timeout.
+// falls back to an SSRF-safe client with a 30s timeout, which refuses to
+// dial loopback, private, link-local, and other internal addresses.
 func NewReadability(client *http.Client) *Readability {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = SafeHTTPClient(30 * time.Second)
 	}
 	return &Readability{client: client}
 }

@@ -23,11 +23,23 @@ services:
       DATABASE_URL: postgres://openmind:openmind@db:5432/openmind
       AI_PROVIDER: ${AI_PROVIDER:-noop}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       db:
         condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      API_URL: http://api:8080
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:

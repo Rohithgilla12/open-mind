@@ -17,13 +17,15 @@
 - [ ] Grid + card detail view (type-aware renderers)
 - [ ] WXT extension: save page / selection / image
 - [ ] JSON export
-- [ ] SSRF hardening for extractor fetches (private-IP dialer guard, redirect re-check) + basic auth/rate limiting before public exposure
-- [ ] Self-host quickstart: expand docs/self-hosting.md (Milestone 1 polish)
 - [ ] Virtualised masonry grid spike: 500 mixed cards at 60fps (port docs/design/openmind-mockup.html)
 - [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)
 - [ ] Decide: name + domain check
 
 ## Done
+
+### Milestone 1 — expose-ready web
+- [x] SSRF hardening for extractor fetches (private-IP dialer guard, redirect re-check) + bearer auth + per-IP rate limiting before public exposure
+- [x] Web container: `output: standalone` + monorepo Dockerfile; compose `web` service on `127.0.0.1:3000` (`API_URL=http://api:8080`, shared `OPENMIND_TOKEN`, bearer-cookie login validated against the API). docs/self-hosting.md expanded (web service, token setup, map domain to web:3000 only). Verified e2e 2026-07-03: login 200 / wrong-token 401, add URL + note, home + `?q=` search render enriched cards.
 
 ### Milestone 0 — Week-0 spike (committed, not killed)
 - [x] Scaffold monorepo: Taskfile, go.work, pnpm workspaces, turbo.json, docker-compose (postgres + pgvector)

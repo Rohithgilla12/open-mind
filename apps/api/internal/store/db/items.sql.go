@@ -13,16 +13,17 @@ import (
 )
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url) VALUES ($1, $2) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at
 `
 
 type CreateItemParams struct {
 	UserID uuid.UUID
 	Url    string
+	Body   string
 }
 
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, error) {
-	row := q.db.QueryRow(ctx, createItem, arg.UserID, arg.Url)
+	row := q.db.QueryRow(ctx, createItem, arg.UserID, arg.Url, arg.Body)
 	var i Item
 	err := row.Scan(
 		&i.ID,

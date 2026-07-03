@@ -64,13 +64,18 @@ func run(ctx context.Context, args []string) error {
 	slog.Info("ai provider ready", "provider", provider.Name())
 	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil)}
 
+	token := os.Getenv("OPENMIND_TOKEN")
+	if token == "" {
+		slog.Warn("API is unauthenticated — set OPENMIND_TOKEN before exposing it")
+	}
+
 	switch cmd {
 	case "serve":
 		client, err := jobs.NewRiverClient(pool, pipeline, false)
 		if err != nil {
 			return err
 		}
-		return serveHTTP(ctx, s, client, provider)
+		return serveHTTP(ctx, s, client, provider, token)
 	case "work":
 		client, err := jobs.NewRiverClient(pool, pipeline, true)
 		if err != nil {
@@ -82,7 +87,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		return all(ctx, s, client, provider)
+		return all(ctx, s, client, provider, token)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -97,11 +102,11 @@ func port() string {
 
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -138,7 +143,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -147,7 +152,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

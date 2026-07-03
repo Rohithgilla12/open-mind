@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/riverqueue/river"
+	"golang.org/x/time/rate"
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
@@ -21,6 +24,8 @@ import (
 const (
 	defaultListLimit = 50
 	maxListLimit     = 200
+	maxNoteRunes     = 10000
+	maxBodyBytes     = 64 << 10
 )
 
 // Server implements the generated ServerInterface backed by the store and an
@@ -32,29 +37,58 @@ type Server struct {
 	provider    ai.Provider
 }
 
-// NewServer wires the HTTP handler: dev-user middleware + generated routing.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider) http.Handler {
+// NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
+// per-IP rate limiting, and generated routing. When token is empty, auth is
+// disabled (single-user self-host) — the caller is warned at startup.
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string) http.Handler {
 	srv := &Server{store: s, riverClient: riverClient, provider: provider}
 	r := chi.NewRouter()
 	r.Use(devUser)
+	// Rate limiting runs before bearer auth so failed token guesses consume
+	// limiter tokens by construction — brute-force attempts are throttled to
+	// 429 rather than getting unlimited 401 probes.
+	r.Use(rateLimit(rate.Limit(1), 10))
+	if token != "" {
+		r.Use(requireBearer(token))
+	}
 	return HandlerFromMux(srv, r)
 }
 
 // CreateItem persists a saved item and queues enrichment, then returns 201.
 func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var req CreateItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if !validURL(req.Url) {
-		writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
+	hasURL := req.Url != nil && *req.Url != ""
+	hasNote := req.Note != nil && strings.TrimSpace(*req.Note) != ""
+	if hasURL == hasNote { // both or neither
+		writeError(w, http.StatusBadRequest, "provide exactly one of url or note")
 		return
 	}
 
 	ctx := r.Context()
 	uid := userID(ctx)
-	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: req.Url})
+
+	params := db.CreateItemParams{UserID: uid}
+	if hasURL {
+		if !validURL(*req.Url) {
+			writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
+			return
+		}
+		params.Url = *req.Url
+	} else {
+		note := strings.TrimSpace(*req.Note)
+		if utf8.RuneCountInString(note) > maxNoteRunes {
+			writeError(w, http.StatusBadRequest, "note too long (max 10000 chars)")
+			return
+		}
+		params.Body = note
+	}
+
+	item, err := s.store.Queries.CreateItem(ctx, params)
 	if err != nil {
 		slog.Error("creating item", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not save item")
@@ -68,6 +102,11 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, toAPIItem(item))
+}
+
+// GetHealthz reports liveness with no auth dependency.
+func (s *Server) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // ListItems returns the caller's items, newest first.
@@ -142,6 +181,9 @@ func toAPIItem(it db.Item) Item {
 	}
 	if it.Summary != "" {
 		out.Summary = &it.Summary
+	}
+	if it.LeadImageUrl != "" {
+		out.LeadImageUrl = &it.LeadImageUrl
 	}
 	if it.CardType != "" {
 		ct := ItemCardType(it.CardType)
