@@ -6,15 +6,19 @@
 
 ### Now
 
-- [ ] openapi.yaml v0: auth, items CRUD, search; oapi-codegen + TS client generation wired into `task generate`
-- [ ] Schema + migrations: items, item_embeddings, tags, assets (user_id everywhere)
-- [ ] AI adapter: OpenAI-compatible client + fallback chain + noop provider
+- [ ] AI adapter: OpenAI-compatible client + ordered fallback chain (gemini → openai-compatible → noop), per-provider rate-limit config, 429 = fall over not fail
 
 ### Next
-- [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)
-- [ ] Decide: name + domain check
+- [ ] Decide: name + domain check (user decision)
+- [ ] Assets table + image upload capture (schema has items/embeddings/tags; assets deferred until upload lands)
+- [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode
+- [ ] From Karakeep research (docs/research.md): importers (Pocket/Omnivore), RSS feeds, PDF capture — candidates for M2 triage
 
 ## Done
+
+### Research
+- [x] Karakeep repo deep-dive (docs/research.md, 2026-07-03): multi-container TS stack (app + Meilisearch + Chrome + workers) vs our single binary; no vector search in core; AGPL — interop fine, never copy code. Learn from: capture breadth, importers, feeds. Avoid: headless-Chrome archival weight, unvirtualised unbounded views.
+- [x] openapi.yaml contract + codegen and items/embeddings schema — delivered across Milestone 0 and later slices (superseded the original Now items)
 
 ### Milestone 0 / M1 — masonry grid perf spike
 - [x] Masonry grid perf spike (docs/research.md, 2026-07-03): CSS-columns masonry holds 60fps easily — median 120fps (120Hz-capped), 0 dropped frames, 8.3ms avg frame at both 500 and 1000 cards. Verdict: **keep CSS columns for M1, do not virtualise**; add `content-visibility: auto` as the cheap first lever only if a future unbounded view shows first-paint/memory pressure.
