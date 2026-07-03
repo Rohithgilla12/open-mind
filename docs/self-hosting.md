@@ -25,7 +25,26 @@ curl -s localhost:8080/items | python3 -m json.tool
 
 # Find it via full-text search
 curl -s 'localhost:8080/search?q=great' | python3 -m json.tool
+
+# Save a plain note instead of a URL (exactly one of url or note per save)
+curl -s -XPOST localhost:8080/items \
+  -d '{"note":"remember the milk"}' \
+  -H 'content-type: application/json'
 ```
+
+## Authentication
+
+By default the API is **unauthenticated** — convenient for single-user local use, but the binary logs a warning on startup and you must not expose it to a network as-is.
+
+Set `OPENMIND_TOKEN` to a strong secret to require a bearer token on every request (`/healthz` stays exempt for load-balancer probes):
+
+```bash
+OPENMIND_TOKEN=$(openssl rand -hex 32) docker compose up -d
+
+curl -s localhost:8080/items -H "Authorization: Bearer $OPENMIND_TOKEN"
+```
+
+Requests with a missing or wrong token get `401`. The write and search endpoints (`POST /items`, `GET /search`) are additionally rate-limited per client IP (60 requests/minute, burst 10); over-limit requests get `429`.
 
 ## Configuration
 
@@ -38,6 +57,7 @@ All configuration is via environment variables (see `.env.example`):
 | `AI_PROVIDER` | `noop` | Enrichment provider: `noop` or `gemini`. **`noop` is the default** — the app is fully functional (title extraction + FTS search) with no AI key. |
 | `GEMINI_API_KEY` | _(empty)_ | Required only when `AI_PROVIDER=gemini`. Enables AI summaries, tags, and semantic (vector) search. |
 | `PORT` | `8080` | HTTP listen port. |
+| `OPENMIND_TOKEN` | _(empty)_ | Bearer token guarding the API. Empty = unauthenticated (fine for single-user localhost). Set a strong secret before exposing the API on a network. |
 
 ### AI is optional
 

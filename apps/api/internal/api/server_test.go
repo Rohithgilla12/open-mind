@@ -61,7 +61,7 @@ func postJSON(t *testing.T, url, body string) *http.Response {
 
 func TestCreateItemIsInstantAndPending(t *testing.T) {
 	s, rc, pool := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop()))
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
 	t.Cleanup(srv.Close)
 
 	start := time.Now()
@@ -96,7 +96,7 @@ func TestCreateItemIsInstantAndPending(t *testing.T) {
 
 func TestCreateItemRejectsBadURL(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop()))
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
 	t.Cleanup(srv.Close)
 
 	for _, body := range []string{`{"url":"not a url"}`, `{"url":"ftp://example.com"}`, `{"url":""}`} {
@@ -108,9 +108,55 @@ func TestCreateItemRejectsBadURL(t *testing.T) {
 	}
 }
 
+func TestCreateItemFromNote(t *testing.T) {
+	s, rc, pool := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	resp := postJSON(t, srv.URL+"/items", `{"note":"remember the milk"}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	var item map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&item); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if item["status"] != "pending" {
+		t.Errorf("status = %v, want pending", item["status"])
+	}
+
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM river_job WHERE kind = 'enrich_item'`).Scan(&count); err != nil {
+		t.Fatalf("counting jobs: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("enrich_item job rows = %d, want 1", count)
+	}
+}
+
+func TestCreateItemRejectsBadURLOrNoteCombos(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	for _, body := range []string{
+		`{"url":"https://example.com","note":"both"}`,
+		`{}`,
+		`{"note":"   "}`,
+	} {
+		resp := postJSON(t, srv.URL+"/items", body)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("body %s: status = %d, want 400", body, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+}
+
 func TestListItems(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop()))
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
 	t.Cleanup(srv.Close)
 
 	postJSON(t, srv.URL+"/items", `{"url":"https://example.com/first"}`).Body.Close()
@@ -139,7 +185,7 @@ func TestListItems(t *testing.T) {
 
 func TestSearchItemsReturnsEmptyArray(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop()))
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
 	t.Cleanup(srv.Close)
 
 	resp, err := http.Get(srv.URL + "/search?q=anything")

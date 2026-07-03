@@ -5,11 +5,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/riverqueue/river"
+	"golang.org/x/time/rate"
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
@@ -32,11 +34,17 @@ type Server struct {
 	provider    ai.Provider
 }
 
-// NewServer wires the HTTP handler: dev-user middleware + generated routing.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider) http.Handler {
+// NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
+// per-IP rate limiting, and generated routing. When token is empty, auth is
+// disabled (single-user self-host) — the caller is warned at startup.
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string) http.Handler {
 	srv := &Server{store: s, riverClient: riverClient, provider: provider}
 	r := chi.NewRouter()
 	r.Use(devUser)
+	if token != "" {
+		r.Use(requireBearer(token))
+	}
+	r.Use(rateLimit(rate.Limit(1), 10))
 	return HandlerFromMux(srv, r)
 }
 
@@ -47,14 +55,28 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if req.Url == nil || !validURL(*req.Url) {
-		writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
+	hasURL := req.Url != nil && *req.Url != ""
+	hasNote := req.Note != nil && strings.TrimSpace(*req.Note) != ""
+	if hasURL == hasNote { // both or neither
+		writeError(w, http.StatusBadRequest, "provide exactly one of url or note")
 		return
 	}
 
 	ctx := r.Context()
 	uid := userID(ctx)
-	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: *req.Url, Body: ""})
+
+	params := db.CreateItemParams{UserID: uid}
+	if hasURL {
+		if !validURL(*req.Url) {
+			writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
+			return
+		}
+		params.Url = *req.Url
+	} else {
+		params.Body = strings.TrimSpace(*req.Note)
+	}
+
+	item, err := s.store.Queries.CreateItem(ctx, params)
 	if err != nil {
 		slog.Error("creating item", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not save item")

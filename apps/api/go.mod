@@ -12,6 +12,7 @@ require (
 	github.com/pgvector/pgvector-go v0.4.0
 	github.com/riverqueue/river v0.40.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0
+	golang.org/x/time v0.15.0
 	google.golang.org/genai v1.62.0
 )
 
