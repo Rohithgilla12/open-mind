@@ -10,11 +10,12 @@
 - [ ] Decide: name + domain check (user decision)
 - [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode
 - [ ] From Karakeep research (docs/research.md): importers (Pocket/Omnivore), RSS feeds, PDF capture — candidates for M2 triage
-- [ ] Strip EXIF/GPS metadata from uploaded images (privacy) — currently stored/served as-is, see `docs/self-hosting.md` image uploads caveat
+- [ ] Lossless AVIF metadata stripping / re-allow AVIF uploads — AVIF is currently rejected (415) at upload since it was removed from the allowlist pending a metadata-strip implementation
 
 ## Done
 
 ### Milestone 1 — image upload
+- [x] Strip EXIF/GPS/XMP/IPTC metadata from uploaded images (privacy) — e2e verified 2026-07-04: crafted a JPEG with an injected APP1 `Exif\0\0`+fake GPS/TIFF segment, `POST /api/assets` → 201, `GET /api/assets/<id>` → downloaded bytes contain zero `Exif\0\0` occurrences, file still starts `FFD8`/ends `FFD9`, and `jpeg.Decode` succeeds (bounds unchanged, 2x2). AVIF removed from the upload allowlist (fake `ftyp`-branded `avif` file → `POST /api/assets` → `415 unsupported image type`) pending lossless AVIF metadata stripping. Docs updated (`docs/self-hosting.md`, image-upload spec).
 - [x] Assets table + image upload capture — e2e verified 2026-07-04: `POST /api/assets` (multipart, cookie auth) → 201 image card with `leadImageUrl=/assets/<id>`; `GET /api/assets/<id>` → 200 `image/png` bytes with `X-Content-Type-Options: nosniff`; unauth `GET` → 401; item enriched within ~8s (`GET /items` status `enriched`). Fixed a blocking bug found during e2e: distroless `nonroot` API image couldn't write to a freshly-initialised `assetsdata` named volume (root:root ownership) — `apps/api/Dockerfile` now pre-creates `/data/assets` chowned to uid/gid 65532 so Docker seeds the volume with writable ownership. Oversize (`413`) covered by existing unit tests, not re-verified manually.
 
 ### Milestone 1 — AI adapter

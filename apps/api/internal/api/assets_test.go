@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"mime/multipart"
@@ -170,6 +171,73 @@ func TestCreateAssetRejectsNonImage(t *testing.T) {
 				t.Errorf("status = %d, want 415", resp.StatusCode)
 			}
 		})
+	}
+}
+
+// jpegWithExif encodes a 2x2 JPEG and injects an APP1 EXIF segment right after
+// the SOI marker, simulating a photo carrying EXIF.
+func jpegWithExif(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	base := buf.Bytes()
+	payload := append([]byte("Exif\x00\x00"), 0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00)
+	l := len(payload) + 2
+	seg := append([]byte{0xFF, 0xE1, byte(l >> 8), byte(l)}, payload...)
+	out := make([]byte, 0, len(base)+len(seg))
+	out = append(out, base[:2]...)
+	out = append(out, seg...)
+	out = append(out, base[2:]...)
+	return out
+}
+
+func TestCreateAssetRejectsAVIF(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	h, _ := newSrvWithAssets(t, s, rc, 10<<20)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	// Minimal ISOBMFF ftyp box with an avif brand.
+	avif := []byte{0, 0, 0, 0x14, 'f', 't', 'y', 'p', 'a', 'v', 'i', 'f', 0, 0, 0, 0, 'm', 'i', 'f', '1'}
+	resp := postUpload(t, srv.URL+"/assets", "photo.avif", avif)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Errorf("status = %d, want 415", resp.StatusCode)
+	}
+}
+
+func TestCreateAssetStripsExif(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	h, _ := newSrvWithAssets(t, s, rc, 10<<20)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	up := postUpload(t, srv.URL+"/assets", "photo.jpg", jpegWithExif(t))
+	if up.StatusCode != http.StatusCreated {
+		t.Fatalf("upload status = %d, want 201", up.StatusCode)
+	}
+	var item map[string]any
+	if err := json.NewDecoder(up.Body).Decode(&item); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	up.Body.Close()
+	lead := item["leadImageUrl"].(string)
+
+	got, err := http.Get(srv.URL + lead)
+	if err != nil {
+		t.Fatalf("get asset: %v", err)
+	}
+	defer got.Body.Close()
+	data, _ := io.ReadAll(got.Body)
+	if bytes.Contains(data, []byte("Exif\x00\x00")) {
+		t.Errorf("served bytes still contain EXIF marker")
+	}
+	if bytes.Contains(data, []byte{0xFF, 0xE1}) {
+		t.Errorf("served bytes still contain APP1 marker")
 	}
 }
 

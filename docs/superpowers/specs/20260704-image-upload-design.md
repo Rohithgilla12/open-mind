@@ -14,7 +14,7 @@ Save a local image (drag-drop or file picker) as a first-class image card. Fills
 
 ## API
 
-- `POST /assets` (multipart/form-data, field `file`): `http.MaxBytesReader` cap `ASSETS_MAX_BYTES` (default 10 MiB). Validate content-type is `image/{png,jpeg,gif,webp,avif}` by sniffing the leading bytes (`http.DetectContentType`) AND matching an allowlist — reject otherwise (415). Write file, insert asset row, create an item (`cardType: image`, `url: ""`, `body: ""`, `lead_image_url: "/assets/<id>"`), link `asset.item_id`, enqueue enrichment. Return `201 Item`. Rate-limited (guarded set) and bearer-auth'd like all routes.
+- `POST /assets` (multipart/form-data, field `file`): `http.MaxBytesReader` cap `ASSETS_MAX_BYTES` (default 10 MiB). Validate content-type is `image/{png,jpeg,gif,webp}` by sniffing the leading bytes (`http.DetectContentType`) AND matching an allowlist — reject otherwise (415). **AVIF is not in the allowlist** (removed pending lossless AVIF metadata stripping — see below) and is rejected 415 even if content-sniffed correctly. Before writing to disk, run the bytes through `internal/assets.StripMetadata` (jpeg: drop APP1/APP13/COM segments; png: drop `tEXt`/`zTXt`/`iTXt`/`eXIf` chunks; webp: drop `EXIF`/`XMP ` RIFF chunks and clear the corresponding `VP8X` flag bits; gif: passthrough, no metadata segments to strip) — lossless, pixel data untouched, corrupt/unparseable input is rejected (400) rather than silently passed through. Write stripped file, insert asset row, create an item (`cardType: image`, `url: ""`, `body: ""`, `lead_image_url: "/assets/<id>"`), link `asset.item_id`, enqueue enrichment. Return `201 Item`. Rate-limited (guarded set) and bearer-auth'd like all routes.
 - `GET /assets/{id}`: user-scoped lookup (404 cross-tenant/missing), stream the file from disk with stored `Content-Type`, `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=31536000, immutable`. No directory listing; open by `filepath.Join(ASSETS_DIR, sanitized-id)` where id is a parsed UUID (defence in depth against traversal). Never serves anything but the allowlisted image types (stored type is already constrained at upload).
 - openapi.yaml: `POST /assets` (multipart request body, 201 Item / 400 / 413 / 415), `GET /assets/{id}` (200 image/* binary / 404). Bearer applies.
 
@@ -30,7 +30,7 @@ Save a local image (drag-drop or file picker) as a first-class image card. Fills
 
 ## Security review focus (call out explicitly to the reviewer)
 
-Upload content-type spoofing (sniff + allowlist, not the client-supplied type), path traversal (UUID-only filenames + parsed-UUID serve path), stored-XSS via SVG (SVG NOT in the allowlist — reject), size DoS (MaxBytesReader), serving auth (every `/assets` + `/api/assets` path bearer/cookie-gated and user-scoped), `nosniff` header, no execution of stored files.
+Upload content-type spoofing (sniff + allowlist, not the client-supplied type), path traversal (UUID-only filenames + parsed-UUID serve path), stored-XSS via SVG (SVG NOT in the allowlist — reject), size DoS (MaxBytesReader), serving auth (every `/assets` + `/api/assets` path bearer/cookie-gated and user-scoped), `nosniff` header, no execution of stored files, EXIF/GPS/XMP/IPTC metadata leakage (stripped losslessly on upload, shipped — see Pipeline/API sections).
 
 ## Testing
 
@@ -39,4 +39,4 @@ Upload content-type spoofing (sniff + allowlist, not the client-supplied type), 
 
 ## Out of scope
 
-OCR, thumbnail/resize generation, EXIF stripping (note as a follow-up — privacy), clipboard-paste in the extension, video/file (non-image) uploads, S3 adapter.
+OCR, thumbnail/resize generation, lossless AVIF metadata stripping (AVIF re-allow tracked as a follow-up in `TODO.md`), clipboard-paste in the extension, video/file (non-image) uploads, S3 adapter.
