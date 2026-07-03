@@ -72,20 +72,57 @@ All configuration is via environment variables (see `.env.example`):
 |---|---|---|
 | `DATABASE_URL` | `postgres://openmind:openmind@localhost:5433/openmind` | Postgres connection string. Inside compose the API uses the `db` service host automatically. |
 | `TEST_DATABASE_URL` | `postgres://openmind:openmind@localhost:5433/openmind_test` | Connection string used by the Go test suite only. |
-| `AI_PROVIDER` | `noop` | Enrichment provider: `noop` or `gemini`. **`noop` is the default** — the app is fully functional (title extraction + FTS search) with no AI key. |
-| `GEMINI_API_KEY` | _(empty)_ | Required only when `AI_PROVIDER=gemini`. Enables AI summaries, tags, and semantic (vector) search. |
 | `PORT` | `8080` | HTTP listen port. |
 | `OPENMIND_TOKEN` | _(empty)_ | Bearer token guarding the API. Empty = unauthenticated (fine for single-user localhost). Set a strong secret before exposing the API on a network. |
 
 ### AI is optional
 
-With `AI_PROVIDER=noop` (default), saves are extracted and made searchable via Postgres FTS — no external calls, no API key. Set `AI_PROVIDER=gemini` and provide `GEMINI_API_KEY` to add AI summaries, auto-tags, and vector search:
+With no provider configured (or `AI_PROVIDER=noop`), saves are extracted and made searchable via Postgres FTS — no external calls, no API key. Configure one or more providers to add AI summaries, auto-tags, and vector search. Only budget model tiers are ever wired into the enrichment pipeline; a flagship model is never used.
+
+#### Env var reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `AI_PROVIDERS` | _(empty)_ | Comma-separated ordered fallback chain, e.g. `gemini,openai,noop`. Each entry is tried in order; a rate-limited or failing provider falls over to the next rather than failing the job. **Takes precedence over `AI_PROVIDER` if both are set.** |
+| `AI_PROVIDER` | `noop` | Legacy/compat single-provider setting: `noop`, `gemini`, or `openai`. Still supported for existing deployments; prefer `AI_PROVIDERS` for new ones. |
+| `GEMINI_API_KEY` | _(empty)_ | Required when `gemini` appears in the chain (or `AI_PROVIDER=gemini`). |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Base URL for any OpenAI-compatible endpoint. Only needs setting for non-default endpoints (a local/self-hosted server such as Ollama). |
+| `OPENAI_API_KEY` | _(empty)_ | API key for the OpenAI-compatible endpoint; required (with `OPENAI_MODEL`) when `openai` appears in the chain. Some self-hosted servers accept any non-empty value. |
+| `OPENAI_MODEL` | _(empty)_ | Chat/completion model name used for summarise and tag stages; required when `openai` appears in the chain. |
+| `OPENAI_EMBED_MODEL` | _(empty)_ | Embedding model name. Must produce 768-dimension vectors — see the pgvector note below. |
+| `AI_RPM_<NAME>` | _(empty)_ | Per-provider rate limit in requests per minute, e.g. `AI_RPM_GEMINI=10`, `AI_RPM_OPENAI=60`. `NAME` matches the provider name as it appears in `AI_PROVIDERS`, upper-cased. When the limiter is saturated the chain treats it as a fallover, not a failure. |
+
+#### Example: Gemini only
 
 ```bash
 AI_PROVIDER=gemini GEMINI_API_KEY=<your-key> docker compose up -d
 ```
 
-Only budget model tiers are used in the enrichment pipeline; a flagship model is never wired in.
+Single provider, no chain — if Gemini errors, the job fails and River retries; there is no floor provider to fall back to.
+
+#### Example: Gemini → noop chain with a rate limit
+
+```bash
+AI_PROVIDERS=gemini,noop
+GEMINI_API_KEY=<your-key>
+AI_RPM_GEMINI=10
+```
+
+Caps Gemini calls at 10 requests/minute; once the limiter saturates, the chain falls over to `noop` instead of failing the job, so saves keep enriching (with basic extraction only) during a quota crunch rather than piling up as retries.
+
+#### Example: Ollama via the OpenAI-compatible endpoint
+
+```bash
+OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+OPENAI_API_KEY=ollama
+OPENAI_MODEL=llama3.2
+OPENAI_EMBED_MODEL=nomic-embed-text
+AI_PROVIDERS=openai,noop
+```
+
+Runs enrichment fully locally against Ollama. Use `host.docker.internal` (not `localhost`) so the `api` container can reach Ollama running on the host.
+
+The `items_embedding` table's vector column is declared as `vector(768)` (`apps/api/internal/store/migrations/0001_init.sql`), and the codebase's `EmbedDims` constant is fixed at `768` (`apps/api/internal/ai/gemini.go`). `nomic-embed-text` produces 768-dimension embeddings, so it matches out of the box — no config change needed. If you pick a different embedding model with a mismatched dimension, the pipeline does not crash or fail the save: the embed stage compares the returned vector length against `EmbedDims` and, on a mismatch, logs a warning (`skipping embedding: unexpected dimension`) and skips saving the embedding row, leaving the item `enriched` with FTS search only (no semantic search) rather than failing the job (`apps/api/internal/enrich/pipeline.go`).
 
 ## Exporting your library
 

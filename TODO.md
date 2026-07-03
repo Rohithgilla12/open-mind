@@ -6,8 +6,6 @@
 
 ### Now
 
-- [ ] AI adapter: OpenAI-compatible client + ordered fallback chain (gemini → openai-compatible → noop), per-provider rate-limit config, 429 = fall over not fail
-
 ### Next
 - [ ] Decide: name + domain check (user decision)
 - [ ] Assets table + image upload capture (schema has items/embeddings/tags; assets deferred until upload lands)
@@ -15,6 +13,9 @@
 - [ ] From Karakeep research (docs/research.md): importers (Pocket/Omnivore), RSS feeds, PDF capture — candidates for M2 triage
 
 ## Done
+
+### Milestone 1 — AI adapter
+- [x] AI adapter: OpenAI-compatible client + ordered fallback chain (gemini → openai-compatible → noop), per-provider rate-limit config, 429 = fall over not fail — e2e verified 2026-07-03: openai (unreachable `.invalid` base URL) → noop fallover, item enriched with empty summary, chain log confirmed (`ai chain: provider error, failing over provider=openai op=summarise`).
 
 ### Research
 - [x] Karakeep repo deep-dive (docs/research.md, 2026-07-03): multi-container TS stack (app + Meilisearch + Chrome + workers) vs our single binary; no vector search in core; AGPL — interop fine, never copy code. Learn from: capture breadth, importers, feeds. Avoid: headless-Chrome archival weight, unvirtualised unbounded views.
