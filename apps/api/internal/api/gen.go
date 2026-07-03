@@ -20,22 +20,42 @@ const (
 
 // Defines values for ItemCardType.
 const (
-	Article ItemCardType = "article"
-	Book    ItemCardType = "book"
-	Image   ItemCardType = "image"
-	Note    ItemCardType = "note"
-	Product ItemCardType = "product"
-	Quote   ItemCardType = "quote"
-	Recipe  ItemCardType = "recipe"
-	Tweet   ItemCardType = "tweet"
-	Video   ItemCardType = "video"
+	ItemCardTypeArticle ItemCardType = "article"
+	ItemCardTypeBook    ItemCardType = "book"
+	ItemCardTypeImage   ItemCardType = "image"
+	ItemCardTypeNote    ItemCardType = "note"
+	ItemCardTypeProduct ItemCardType = "product"
+	ItemCardTypeQuote   ItemCardType = "quote"
+	ItemCardTypeRecipe  ItemCardType = "recipe"
+	ItemCardTypeTweet   ItemCardType = "tweet"
+	ItemCardTypeVideo   ItemCardType = "video"
 )
 
 // Defines values for ItemStatus.
 const (
-	Enriched ItemStatus = "enriched"
-	Failed   ItemStatus = "failed"
-	Pending  ItemStatus = "pending"
+	ItemStatusEnriched ItemStatus = "enriched"
+	ItemStatusFailed   ItemStatus = "failed"
+	ItemStatusPending  ItemStatus = "pending"
+)
+
+// Defines values for ItemDetailCardType.
+const (
+	ItemDetailCardTypeArticle ItemDetailCardType = "article"
+	ItemDetailCardTypeBook    ItemDetailCardType = "book"
+	ItemDetailCardTypeImage   ItemDetailCardType = "image"
+	ItemDetailCardTypeNote    ItemDetailCardType = "note"
+	ItemDetailCardTypeProduct ItemDetailCardType = "product"
+	ItemDetailCardTypeQuote   ItemDetailCardType = "quote"
+	ItemDetailCardTypeRecipe  ItemDetailCardType = "recipe"
+	ItemDetailCardTypeTweet   ItemDetailCardType = "tweet"
+	ItemDetailCardTypeVideo   ItemDetailCardType = "video"
+)
+
+// Defines values for ItemDetailStatus.
+const (
+	ItemDetailStatusEnriched ItemDetailStatus = "enriched"
+	ItemDetailStatusFailed   ItemDetailStatus = "failed"
+	ItemDetailStatusPending  ItemDetailStatus = "pending"
 )
 
 // CreateItemRequest Exactly one of url or note must be provided.
@@ -63,6 +83,26 @@ type ItemCardType string
 // ItemStatus defines model for Item.Status.
 type ItemStatus string
 
+// ItemDetail defines model for ItemDetail.
+type ItemDetail struct {
+	Body         string              `json:"body"`
+	CardType     *ItemDetailCardType `json:"cardType,omitempty"`
+	CreatedAt    time.Time           `json:"createdAt"`
+	Id           openapi_types.UUID  `json:"id"`
+	LeadImageUrl *string             `json:"leadImageUrl,omitempty"`
+	Status       ItemDetailStatus    `json:"status"`
+	Summary      *string             `json:"summary,omitempty"`
+	Tags         *[]string           `json:"tags,omitempty"`
+	Title        *string             `json:"title,omitempty"`
+	Url          string              `json:"url"`
+}
+
+// ItemDetailCardType defines model for ItemDetail.CardType.
+type ItemDetailCardType string
+
+// ItemDetailStatus defines model for ItemDetail.Status.
+type ItemDetailStatus string
+
 // SearchResult defines model for SearchResult.
 type SearchResult struct {
 	Item  Item    `json:"item"`
@@ -85,6 +125,9 @@ type CreateItemJSONRequestBody = CreateItemRequest
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /export)
+	ExportItems(w http.ResponseWriter, r *http.Request)
+
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
 
@@ -94,6 +137,12 @@ type ServerInterface interface {
 	// (POST /items)
 	CreateItem(w http.ResponseWriter, r *http.Request)
 
+	// (DELETE /items/{id})
+	DeleteItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /items/{id})
+	GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
 	// (GET /search)
 	SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams)
 }
@@ -101,6 +150,11 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// (GET /export)
+func (_ Unimplemented) ExportItems(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +171,16 @@ func (_ Unimplemented) CreateItem(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (DELETE /items/{id})
+func (_ Unimplemented) DeleteItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /items/{id})
+func (_ Unimplemented) GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /search)
 func (_ Unimplemented) SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -130,6 +194,26 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ExportItems operation middleware
+func (siw *ServerInterfaceWrapper) ExportItems(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportItems(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetHealthz operation middleware
 func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +273,68 @@ func (siw *ServerInterfaceWrapper) CreateItem(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateItem(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteItem operation middleware
+func (siw *ServerInterfaceWrapper) DeleteItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetItem operation middleware
+func (siw *ServerInterfaceWrapper) GetItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetItem(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -352,6 +498,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/export", wrapper.ExportItems)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
@@ -359,6 +508,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/items", wrapper.CreateItem)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/items/{id}", wrapper.DeleteItem)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/items/{id}", wrapper.GetItem)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/search", wrapper.SearchItems)

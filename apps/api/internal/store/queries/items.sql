@@ -10,6 +10,12 @@ SELECT * FROM items WHERE user_id = $1 AND id = $2;
 -- name: ListItems :many
 SELECT * FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2;
 
+-- name: DeleteItem :execrows
+DELETE FROM items WHERE user_id = $1 AND id = $2;
+
+-- name: ListItemsForExport :many
+SELECT * FROM items WHERE user_id = $1 ORDER BY created_at ASC;
+
 -- name: UpdateItemExtraction :exec
 UPDATE items SET title = $3, body = $4, lead_image_url = $5, card_type = $6, updated_at = now()
 WHERE user_id = $1 AND id = $2;

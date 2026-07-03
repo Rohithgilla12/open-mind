@@ -41,6 +41,37 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Item" }
+  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: item detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemDetail" }
+        "404":
+          description: not found
+    delete:
+      operationId: deleteItem
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: deleted }
+        "404": { description: not found }
+  /export:
+    get:
+      operationId: exportItems
+      responses:
+        "200":
+          description: full library export
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ItemDetail" }
   /search:
     get:
       operationId: searchItems
@@ -76,6 +107,13 @@ components:
         cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
         status: { type: string, enum: [pending, enriched, failed] }
         createdAt: { type: string, format: date-time }
+    ItemDetail:
+      allOf:
+        - $ref: "#/components/schemas/Item"
+        - type: object
+          required: [body]
+          properties:
+            body: { type: string }
     SearchResult:
       type: object
       required: [item, score]

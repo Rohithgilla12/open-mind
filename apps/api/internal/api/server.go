@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -104,6 +105,58 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toAPIItem(item))
 }
 
+// GetItem returns the full detail (including body) for a single item owned by
+// the caller. Cross-tenant access and unknown ids both resolve to 404 because
+// the query is user-scoped and returns ErrNoRows.
+func (s *Server) GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	ctx := r.Context()
+	item, err := s.store.Queries.GetItem(ctx, db.GetItemParams{UserID: userID(ctx), ID: id})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "item not found")
+			return
+		}
+		slog.Error("getting item", "err", err)
+		writeError(w, http.StatusInternalServerError, "could not fetch item")
+		return
+	}
+	writeJSON(w, http.StatusOK, toAPIItemDetail(item))
+}
+
+// DeleteItem removes an item owned by the caller and returns 204. A delete that
+// affects no rows (unknown id or another user's item) returns 404.
+func (s *Server) DeleteItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	ctx := r.Context()
+	rows, err := s.store.Queries.DeleteItem(ctx, db.DeleteItemParams{UserID: userID(ctx), ID: id})
+	if err != nil {
+		slog.Error("deleting item", "err", err)
+		writeError(w, http.StatusInternalServerError, "could not delete item")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "item not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ExportItems returns the caller's entire library as full item details in
+// created_at ASC order. It always returns an array (never null).
+func (s *Server) ExportItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	items, err := s.store.Queries.ListItemsForExport(ctx, userID(ctx))
+	if err != nil {
+		slog.Error("exporting items", "err", err)
+		writeError(w, http.StatusInternalServerError, "could not export items")
+		return
+	}
+	out := make([]ItemDetail, 0, len(items))
+	for _, it := range items {
+		out = append(out, toAPIItemDetail(it))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // GetHealthz reports liveness with no auth dependency.
 func (s *Server) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -192,6 +245,28 @@ func toAPIItem(it db.Item) Item {
 	if len(it.Tags) > 0 {
 		tags := it.Tags
 		out.Tags = &tags
+	}
+	return out
+}
+
+// toAPIItemDetail maps a stored item to the detail API model: the shared Item
+// fields plus the full body.
+func toAPIItemDetail(it db.Item) ItemDetail {
+	base := toAPIItem(it)
+	out := ItemDetail{
+		Id:           base.Id,
+		Url:          base.Url,
+		Status:       ItemDetailStatus(base.Status),
+		CreatedAt:    base.CreatedAt,
+		Title:        base.Title,
+		Summary:      base.Summary,
+		LeadImageUrl: base.LeadImageUrl,
+		Tags:         base.Tags,
+		Body:         it.Body,
+	}
+	if base.CardType != nil {
+		ct := ItemDetailCardType(*base.CardType)
+		out.CardType = &ct
 	}
 	return out
 }
