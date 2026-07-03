@@ -98,7 +98,7 @@ func classifyGeminiErr(err error) error {
 	}
 
 	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "429") || strings.Contains(msg, "quota") || strings.Contains(msg, "rate") {
+	if strings.Contains(msg, "429") || strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit") {
 		return &RetryableError{Status: 429, Err: err}
 	}
 

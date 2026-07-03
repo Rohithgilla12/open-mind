@@ -80,7 +80,7 @@ func runChain[T any](ctx context.Context, c *Chain, op string, fn func(Provider)
 			cancel()
 			if err != nil {
 				allNotSupported = false
-				lastErr = &RetryableError{Err: fmt.Errorf("rate limiter saturated: %w", err)}
+				lastErr = &RetryableError{Status: 429, Err: fmt.Errorf("rate limiter saturated: %w", err)}
 				slog.Warn("ai chain: rate limiter saturated, failing over",
 					"provider", e.name, "op", op, "err", err)
 				continue
