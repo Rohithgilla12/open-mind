@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/markusmobius/go-trafilatura"
 )
@@ -16,7 +17,7 @@ type Trafilatura struct{ client *http.Client }
 // falls back to http.DefaultClient.
 func NewTrafilatura(client *http.Client) *Trafilatura {
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	return &Trafilatura{client: client}
 }
@@ -37,7 +38,10 @@ func (t *Trafilatura) Extract(ctx context.Context, rawURL string) (Extraction, e
 	if resp.StatusCode >= 400 {
 		return Extraction{}, fmt.Errorf("fetching %s: status %d", rawURL, resp.StatusCode)
 	}
-	parsed, _ := url.Parse(rawURL)
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return Extraction{}, fmt.Errorf("parsing url %s: %w", rawURL, err)
+	}
 	result, err := trafilatura.Extract(resp.Body, trafilatura.Options{OriginalURL: parsed, IncludeImages: true})
 	if err != nil {
 		return Extraction{}, fmt.Errorf("extracting %s: %w", rawURL, err)
