@@ -156,3 +156,35 @@ Not scored (scoring is done separately). Observations from this refreshed run, a
 - **Slowest:** jina on kingarthurbaking.com at 8457ms was the single slowest extraction in this run; jina is consistently the slowest extractor overall, readability the fastest.
 - **Replacements behave like the rest of their category:** all six replacement URLs (jvns.ca CSS post, kingarthurbaking cookie recipe, budgetbytes cajun pasta, cooking.nytimes caprese salad, paulg tweet, unsplash mountain photo) return real extracted content from at least trafilatura and readability, removing the six dead-link rows that polluted the previous results file.
 
+## Scorecard
+
+Manual scores per URL, 0–2 each on title, body completeness, noise removal, lead image (2 = correct or correctly absent; honest explicit errors score 1, silently extracted error/interstitial pages score 0). Max 8 per cell.
+
+| URL (type) | trafilatura | readability | jina |
+|---|---|---|---|
+| paulgraham greatwork (article) | 7 | 7 | 6 |
+| paulgraham wealth (article) | 7 | 7 | 6 |
+| jvns css palettes (article) | 7 | 7 | 6 |
+| danluu why-benchmark (article) | 8 | 8 | 7 |
+| samaltman successful (article) | 7 | 7 | 7 |
+| kingarthur cookies (recipe) | 5 | 6 | 3 |
+| budgetbytes cajun pasta (recipe) | 8 | 8 | 5 |
+| nyt caprese (recipe) | 8 | 8 | 3 |
+| amazon echo (product, anti-bot) | 1 | 1 | 1 |
+| apple iphone (product) | 7 | 6 | 2 |
+| paulg tweet | 8 | 6 | 1 |
+| naval tweet | 7 | 5 | 1 |
+| youtube rick astley (video) | 6 | 5 | 2 |
+| youtube 3b1b (video) | 6 | 5 | 1 |
+| unsplash photo (image, bot-gated) | 1 | 1 | 5 |
+| flickr nasa (image) | 5 | 5 | 6 |
+| medium soft-404 (paywalled) | 1 | 1 | 1 |
+| linear.app method (JS-heavy) | 7 | 7 | 4 |
+| **Total (max 144)** | **106** | **100** | **67** |
+
+## Decision
+
+- **Default extractor: trafilatura** (stays as wired in `cmd/openmind` — no code change). Best or tied-best on 15/18 URLs: strongest lead-image detection, best tweet/video handling, robust noise removal.
+- **readability**: consistently fastest and matches trafilatura on clean articles, but returns empty bodies on video pages and offers no category where it wins on quality. Kept only as a bake-off harness implementation; not wired into the pipeline.
+- **Jina Reader**: slowest and noisiest (nav dumps, cookie walls, markdown artefacts), 451s on tweets — but it is the only extractor that recovered the bot-gated unsplash page. Confirmed as the **optional config-gated fallback** on extraction failure (Milestone 1 wiring).
+- Shared caveat for Milestone 1: all extractors ingest soft-404s and anti-bot interstitials served with HTTP 200 as real content (medium, amazon). Enrichment should eventually detect error-page patterns before summarising.
