@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: internal/store/migrations
+    queries: internal/store/queries
+    gen:
+      go:
+        package: db
+        out: internal/store/db
+        sql_package: pgx/v5
+        overrides:
+          - db_type: vector
+            go_type: { import: "github.com/pgvector/pgvector-go", type: "Vector" }
+          - db_type: uuid
+            go_type: { import: "github.com/google/uuid", type: "UUID" }
