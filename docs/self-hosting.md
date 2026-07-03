@@ -87,4 +87,24 @@ AI_PROVIDER=gemini GEMINI_API_KEY=<your-key> docker compose up -d
 
 Only budget model tiers are used in the enrichment pipeline; a flagship model is never wired in.
 
+## Browser extension
+
+The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.
+
+Build:
+
+```bash
+pnpm --filter extension build           # → apps/extension/.output/chrome-mv3
+pnpm --filter extension build:firefox   # → apps/extension/.output/firefox-mv2
+```
+
+Load unpacked:
+
+- **Chrome / Edge / Brave**: open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, select `apps/extension/.output/chrome-mv3`.
+- **Firefox**: open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, select any file inside `apps/extension/.output/firefox-mv2` (e.g. `manifest.json`). Temporary add-ons are removed on browser restart.
+
+Options page: open the extension's **Settings** (Chrome: right-click the toolbar icon → *Options*), set the **Instance URL** (e.g. `http://localhost:3000` for local testing) and paste the same value you set for `OPENMIND_TOKEN` server-side as the **access token**, then **Validate** and **Save settings**.
+
+For the full manual verification checklist (popup save, context-menu save-selection/save-image, error states), see `apps/extension/README.md` — not duplicated here.
+
 > This is the Milestone 0 quickstart. Expanded operational docs (backups, upgrades, reverse proxy, auth) land in Milestone 1.
