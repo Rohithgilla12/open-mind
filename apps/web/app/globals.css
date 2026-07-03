@@ -1,0 +1,19 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.grid {
+  columns: 4 280px;
+  column-gap: 16px;
+}
+
+.grid > * {
+  break-inside: avoid;
+  margin-bottom: 16px;
+}
