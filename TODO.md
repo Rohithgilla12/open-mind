@@ -8,11 +8,14 @@
 
 ### Next
 - [ ] Decide: name + domain check (user decision)
-- [ ] Assets table + image upload capture (schema has items/embeddings/tags; assets deferred until upload lands)
 - [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode
 - [ ] From Karakeep research (docs/research.md): importers (Pocket/Omnivore), RSS feeds, PDF capture — candidates for M2 triage
+- [ ] Strip EXIF/GPS metadata from uploaded images (privacy) — currently stored/served as-is, see `docs/self-hosting.md` image uploads caveat
 
 ## Done
+
+### Milestone 1 — image upload
+- [x] Assets table + image upload capture — e2e verified 2026-07-04: `POST /api/assets` (multipart, cookie auth) → 201 image card with `leadImageUrl=/assets/<id>`; `GET /api/assets/<id>` → 200 `image/png` bytes with `X-Content-Type-Options: nosniff`; unauth `GET` → 401; item enriched within ~8s (`GET /items` status `enriched`). Fixed a blocking bug found during e2e: distroless `nonroot` API image couldn't write to a freshly-initialised `assetsdata` named volume (root:root ownership) — `apps/api/Dockerfile` now pre-creates `/data/assets` chowned to uid/gid 65532 so Docker seeds the volume with writable ownership. Oversize (`413`) covered by existing unit tests, not re-verified manually.
 
 ### Milestone 1 — AI adapter
 - [x] AI adapter: OpenAI-compatible client + ordered fallback chain (gemini → openai-compatible → noop), per-provider rate-limit config, 429 = fall over not fail — e2e verified 2026-07-03: openai (unreachable `.invalid` base URL) → noop fallover, item enriched with empty summary, chain log confirmed (`ai chain: provider error, failing over provider=openai op=summarise`).

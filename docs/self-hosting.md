@@ -74,6 +74,16 @@ All configuration is via environment variables (see `.env.example`):
 | `TEST_DATABASE_URL` | `postgres://openmind:openmind@localhost:5433/openmind_test` | Connection string used by the Go test suite only. |
 | `PORT` | `8080` | HTTP listen port. |
 | `OPENMIND_TOKEN` | _(empty)_ | Bearer token guarding the API. Empty = unauthenticated (fine for single-user localhost). Set a strong secret before exposing the API on a network. |
+| `ASSETS_DIR` | `/data/assets` | Directory the API writes uploaded image bytes to. In compose this is backed by the named volume `assetsdata` — do not point it at an ephemeral container path in production. |
+| `ASSETS_MAX_BYTES` | `10485760` (10 MiB) | Maximum accepted upload size for `POST /assets`; larger uploads are rejected with `413`. |
+
+## Image uploads
+
+`POST /assets` (multipart form field `file`, `image/*` content types only, up to `ASSETS_MAX_BYTES`) stores the image on disk under `ASSETS_DIR` and creates an `image` card (`leadImageUrl` pointing at `GET /assets/{id}`). The web app exposes this via `POST /api/assets` and `GET /api/assets/{id}` (cookie-authenticated proxies) plus the `ImageDrop` upload UI; the underlying API routes are bearer-token authenticated like the rest of the API.
+
+In `docker-compose.yml`, the `api` service mounts a named volume (`assetsdata:/data/assets`) so uploaded images survive container recreation — back it up the same way you back up `pgdata` if you rely on saved images. The volume is created automatically the first time you run `docker compose up`; no manual step is required.
+
+**Privacy note:** uploaded images are stored and served as-is — EXIF/GPS and other embedded metadata is **not stripped**. Do not upload images containing sensitive location or device metadata you don't want retained. Stripping EXIF/GPS on ingest is tracked as a follow-up (see `TODO.md`).
 
 ### AI is optional
 
