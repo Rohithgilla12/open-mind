@@ -1,6 +1,22 @@
 openapi: 3.0.3
 info: { title: Openmind API, version: 0.0.1 }
+security:
+  - bearerAuth: []
 paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      security: []
+      responses:
+        "200":
+          description: liveness
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string }
   /items:
     post:
       operationId: createItem
@@ -38,12 +54,15 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/SearchResult" }
 components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
   schemas:
     CreateItemRequest:
       type: object
-      required: [url]
+      description: "Exactly one of url or note must be provided."
       properties:
         url: { type: string, format: uri }
+        note: { type: string, minLength: 1, maxLength: 10000 }
     Item:
       type: object
       required: [id, url, status, createdAt]

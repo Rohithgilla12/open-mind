@@ -47,14 +47,14 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if !validURL(req.Url) {
+	if req.Url == nil || !validURL(*req.Url) {
 		writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
 		return
 	}
 
 	ctx := r.Context()
 	uid := userID(ctx)
-	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: req.Url})
+	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: *req.Url})
 	if err != nil {
 		slog.Error("creating item", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not save item")
@@ -68,6 +68,11 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, toAPIItem(item))
+}
+
+// GetHealthz reports liveness with no auth dependency.
+func (s *Server) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // ListItems returns the caller's items, newest first.

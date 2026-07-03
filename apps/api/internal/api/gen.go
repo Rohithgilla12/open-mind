@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+)
+
+const (
+	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
 // Defines values for ItemCardType.
@@ -33,9 +38,10 @@ const (
 	Pending  ItemStatus = "pending"
 )
 
-// CreateItemRequest defines model for CreateItemRequest.
+// CreateItemRequest Exactly one of url or note must be provided.
 type CreateItemRequest struct {
-	Url string `json:"url"`
+	Note *string `json:"note,omitempty"`
+	Url  *string `json:"url,omitempty"`
 }
 
 // Item defines model for Item.
@@ -78,6 +84,9 @@ type CreateItemJSONRequestBody = CreateItemRequest
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /healthz)
+	GetHealthz(w http.ResponseWriter, r *http.Request)
+
 	// (GET /items)
 	ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams)
 
@@ -91,6 +100,11 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// (GET /healthz)
+func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // (GET /items)
 func (_ Unimplemented) ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams) {
@@ -116,10 +130,30 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// GetHealthz operation middleware
+func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListItems operation middleware
 func (siw *ServerInterfaceWrapper) ListItems(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListItemsParams
@@ -146,6 +180,12 @@ func (siw *ServerInterfaceWrapper) ListItems(w http.ResponseWriter, r *http.Requ
 // CreateItem operation middleware
 func (siw *ServerInterfaceWrapper) CreateItem(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateItem(w, r)
 	}))
@@ -161,6 +201,12 @@ func (siw *ServerInterfaceWrapper) CreateItem(w http.ResponseWriter, r *http.Req
 func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params SearchItemsParams
@@ -304,6 +350,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
+	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items", wrapper.ListItems)
 	})
