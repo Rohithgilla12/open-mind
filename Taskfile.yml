@@ -39,7 +39,7 @@ tasks:
 
   lint:
     cmds:
-      - cmd: cd apps/api && go vet ./...
+      - cmd: cd apps/api && golangci-lint run ./...
       - cmd: pnpm turbo run lint
 
   migrate:

@@ -1,0 +1,14 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.ReadCloser).Close
+        - (net/http.ResponseWriter).Write
+  exclusions:
+    rules:
+      # Test files freely ignore error returns from setup/teardown conveniences.
+      - path: _test\.go
+        linters:
+          - errcheck

@@ -26,10 +26,10 @@ func Classify(rawURL string, _ Extraction) string {
 	}
 	host := strings.ToLower(strings.TrimPrefix(parsed.Hostname(), "www."))
 
-	switch {
-	case host == "youtube.com" || host == "m.youtube.com" || host == "youtu.be":
+	switch host {
+	case "youtube.com", "m.youtube.com", "youtu.be":
 		return "video"
-	case host == "x.com" || host == "twitter.com" || host == "mobile.twitter.com":
+	case "x.com", "twitter.com", "mobile.twitter.com":
 		return "tweet"
 	}
 
