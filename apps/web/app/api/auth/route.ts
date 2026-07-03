@@ -15,7 +15,13 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "api unreachable" }, { status: 502 });
   }
-  if (!probe.ok) return NextResponse.json({ error: "invalid token" }, { status: 401 });
+  if (!probe.ok) {
+    if (probe.status === 401)
+      return NextResponse.json({ error: "invalid token" }, { status: 401 });
+    if (probe.status === 429)
+      return NextResponse.json({ error: "rate limited, retry shortly" }, { status: 429 });
+    return NextResponse.json({ error: "api error" }, { status: 502 });
+  }
   (await cookies()).set("om_token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

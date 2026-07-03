@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -23,6 +24,8 @@ import (
 const (
 	defaultListLimit = 50
 	maxListLimit     = 200
+	maxNoteRunes     = 10000
+	maxBodyBytes     = 64 << 10
 )
 
 // Server implements the generated ServerInterface backed by the store and an
@@ -41,15 +44,19 @@ func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Pr
 	srv := &Server{store: s, riverClient: riverClient, provider: provider}
 	r := chi.NewRouter()
 	r.Use(devUser)
+	// Rate limiting runs before bearer auth so failed token guesses consume
+	// limiter tokens by construction — brute-force attempts are throttled to
+	// 429 rather than getting unlimited 401 probes.
+	r.Use(rateLimit(rate.Limit(1), 10))
 	if token != "" {
 		r.Use(requireBearer(token))
 	}
-	r.Use(rateLimit(rate.Limit(1), 10))
 	return HandlerFromMux(srv, r)
 }
 
 // CreateItem persists a saved item and queues enrichment, then returns 201.
 func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var req CreateItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -73,7 +80,12 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 		}
 		params.Url = *req.Url
 	} else {
-		params.Body = strings.TrimSpace(*req.Note)
+		note := strings.TrimSpace(*req.Note)
+		if utf8.RuneCountInString(note) > maxNoteRunes {
+			writeError(w, http.StatusBadRequest, "note too long (max 10000 chars)")
+			return
+		}
+		params.Body = note
 	}
 
 	item, err := s.store.Queries.CreateItem(ctx, params)

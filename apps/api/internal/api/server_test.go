@@ -154,6 +154,29 @@ func TestCreateItemRejectsBadURLOrNoteCombos(t *testing.T) {
 	}
 }
 
+func TestCreateItemRejectsOversizeInput(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	t.Cleanup(srv.Close)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"note over rune cap", `{"note":"` + strings.Repeat("a", 10001) + `"}`},
+		{"body over byte cap", `{"note":"` + strings.Repeat("a", 70000) + `"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := postJSON(t, srv.URL+"/items", tt.body)
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestListItems(t *testing.T) {
 	s, rc, _ := testDeps(t)
 	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))

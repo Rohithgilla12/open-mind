@@ -10,8 +10,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// rateLimit throttles the write/search endpoints per client IP. It only guards
-// POST /items and GET /search; all other routes pass through untouched. Each
+// rateLimit throttles the write/search/list endpoints per client IP. It guards
+// POST /items, GET /items, and GET /search; all other routes pass through
+// untouched. GET /items is the login-probe target, so guarding it (with the
+// limiter ahead of bearer auth) throttles token brute-force attempts. Each
 // client gets a token-bucket limiter (rps refill, burst ceiling).
 func rateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 	var (
@@ -46,6 +48,7 @@ func rateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			guarded := (r.Method == http.MethodPost && r.URL.Path == "/items") ||
+				(r.Method == http.MethodGet && r.URL.Path == "/items") ||
 				(r.Method == http.MethodGet && r.URL.Path == "/search")
 			if !guarded {
 				next.ServeHTTP(w, r)

@@ -36,7 +36,6 @@ services:
       dockerfile: apps/web/Dockerfile
     environment:
       API_URL: http://api:8080
-      OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
