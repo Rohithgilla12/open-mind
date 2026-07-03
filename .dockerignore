@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+.superpowers
+.task
+docs
+*.md
+.env
