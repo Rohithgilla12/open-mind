@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info: { title: Openmind API, version: 0.0.1 }
+paths:
+  /items:
+    post:
+      operationId: createItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateItemRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+    get:
+      operationId: listItems
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Item" }
+  /search:
+    get:
+      operationId: searchItems
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SearchResult" }
+components:
+  schemas:
+    CreateItemRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+    Item:
+      type: object
+      required: [id, url, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        tags: { type: array, items: { type: string } }
+        cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+        status: { type: string, enum: [pending, enriched, failed] }
+        createdAt: { type: string, format: date-time }
+    SearchResult:
+      type: object
+      required: [item, score]
+      properties:
+        item: { $ref: "#/components/schemas/Item" }
+        score: { type: number }
