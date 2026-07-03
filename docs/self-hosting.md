@@ -10,7 +10,15 @@ cp .env.example .env      # optional: defaults work out of the box
 docker compose up -d      # starts Postgres (pgvector) + the API/worker binary
 ```
 
-The API listens on `http://localhost:8080`. Migrations run automatically on start.
+This starts three services:
+
+| Service | Bound to | Purpose |
+|---|---|---|
+| `db` | `127.0.0.1:5433` | Postgres + pgvector (persistent volume) |
+| `api` | `127.0.0.1:8080` | Go API + River enrichment worker (one binary) |
+| `web` | `127.0.0.1:3000` | Next.js web UI |
+
+The API listens on `http://localhost:8080`; the web UI on `http://localhost:3000`. Migrations run automatically on api start.
 
 Smoke test:
 
@@ -45,6 +53,16 @@ curl -s localhost:8080/items -H "Authorization: Bearer $OPENMIND_TOKEN"
 ```
 
 Requests with a missing or wrong token get `401`. The write and search endpoints (`POST /items`, `GET /search`) are additionally rate-limited per client IP (60 requests/minute, burst 10); over-limit requests get `429`.
+
+### Web UI
+
+The `web` service reaches the API in-network via `API_URL=http://api:8080` and shares the same `OPENMIND_TOKEN` as the api. Log in at `http://localhost:3000/login` with the token; the web app stores it in an httpOnly cookie and injects the bearer header server-side, so the token is never exposed to the browser.
+
+When `OPENMIND_TOKEN` is set, the login page validates the token against the API before accepting it (wrong token → `401`). With no token set, any value is accepted (single-user localhost mode).
+
+### Exposing to a network
+
+Both `api` and `web` bind to `127.0.0.1` only by default. **Map your public domain / reverse proxy to the `web` service (port 3000) only** — the browser never talks to the API directly, and the API does not need to be publicly reachable. Terminate TLS at your proxy (the login cookie is flagged `Secure` in production, so the UI must be served over HTTPS). Always set a strong `OPENMIND_TOKEN` before exposing anything.
 
 ## Configuration
 
