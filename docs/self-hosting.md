@@ -86,9 +86,9 @@ With no provider configured (or `AI_PROVIDER=noop`), saves are extracted and mad
 | `AI_PROVIDERS` | _(empty)_ | Comma-separated ordered fallback chain, e.g. `gemini,openai,noop`. Each entry is tried in order; a rate-limited or failing provider falls over to the next rather than failing the job. **Takes precedence over `AI_PROVIDER` if both are set.** |
 | `AI_PROVIDER` | `noop` | Legacy/compat single-provider setting: `noop`, `gemini`, or `openai`. Still supported for existing deployments; prefer `AI_PROVIDERS` for new ones. |
 | `GEMINI_API_KEY` | _(empty)_ | Required when `gemini` appears in the chain (or `AI_PROVIDER=gemini`). |
-| `OPENAI_BASE_URL` | _(empty)_ | Base URL for any OpenAI-compatible endpoint (OpenAI itself, or a local/self-hosted server such as Ollama). Required when `openai` appears in the chain. |
-| `OPENAI_API_KEY` | _(empty)_ | API key for the OpenAI-compatible endpoint. Some self-hosted servers accept any non-empty value. |
-| `OPENAI_MODEL` | _(empty)_ | Chat/completion model name used for summarise and tag stages. |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Base URL for any OpenAI-compatible endpoint. Only needs setting for non-default endpoints (a local/self-hosted server such as Ollama). |
+| `OPENAI_API_KEY` | _(empty)_ | API key for the OpenAI-compatible endpoint; required (with `OPENAI_MODEL`) when `openai` appears in the chain. Some self-hosted servers accept any non-empty value. |
+| `OPENAI_MODEL` | _(empty)_ | Chat/completion model name used for summarise and tag stages; required when `openai` appears in the chain. |
 | `OPENAI_EMBED_MODEL` | _(empty)_ | Embedding model name. Must produce 768-dimension vectors — see the pgvector note below. |
 | `AI_RPM_<NAME>` | _(empty)_ | Per-provider rate limit in requests per minute, e.g. `AI_RPM_GEMINI=10`, `AI_RPM_OPENAI=60`. `NAME` matches the provider name as it appears in `AI_PROVIDERS`, upper-cased. When the limiter is saturated the chain treats it as a fallover, not a failure. |
 
