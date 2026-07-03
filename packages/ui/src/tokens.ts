@@ -4,6 +4,8 @@ export const tokens = {
     ink: "#191918",
     cobalt: "#2438FF",
     line: "#E7E5DF",
+    surface: "#FFFFFF",
+    danger: "#B3261E",
   },
   font: {
     sans: "'Instrument Sans', 'IBM Plex Sans', sans-serif",

@@ -51,7 +51,7 @@ export function LoginForm() {
           padding: "2rem",
           border: `1px solid ${tokens.color.line}`,
           borderRadius: "8px",
-          backgroundColor: "white",
+          backgroundColor: tokens.color.surface,
         }}
       >
         <h1
@@ -79,7 +79,7 @@ export function LoginForm() {
           }}
         />
         {error ? (
-          <p style={{ color: "#B3261E", fontFamily: tokens.font.sans, fontSize: "0.875rem", margin: 0 }}>
+          <p style={{ color: tokens.color.danger, fontFamily: tokens.font.sans, fontSize: "0.875rem", margin: 0 }}>
             {error}
           </p>
         ) : null}
@@ -90,7 +90,7 @@ export function LoginForm() {
             padding: "0.6rem 0.75rem",
             fontFamily: tokens.font.sans,
             fontWeight: 600,
-            color: "white",
+            color: tokens.color.surface,
             backgroundColor: tokens.color.cobalt,
             border: "none",
             borderRadius: "6px",

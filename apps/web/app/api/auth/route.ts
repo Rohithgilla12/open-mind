@@ -6,10 +6,15 @@ const API_URL = process.env.API_URL ?? "http://localhost:8080";
 export async function POST(req: Request) {
   const { token } = (await req.json()) as { token?: string };
   if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
-  const probe = await fetch(`${API_URL}/items?limit=1`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  let probe: Response;
+  try {
+    probe = await fetch(`${API_URL}/items?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch {
+    return NextResponse.json({ error: "api unreachable" }, { status: 502 });
+  }
   if (!probe.ok) return NextResponse.json({ error: "invalid token" }, { status: 401 });
   (await cookies()).set("om_token", token, {
     httpOnly: true,
