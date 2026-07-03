@@ -46,6 +46,20 @@ func stripJPEG(data []byte) ([]byte, error) {
 		if data[i] != 0xFF {
 			return nil, fmt.Errorf("jpeg: expected marker at offset %d", i)
 		}
+		// A marker may be preceded by any number of 0xFF fill bytes; skip them
+		// so a spec-legal FF FF ... <marker> sequence isn't misread as a segment.
+		// data[j] lands on the marker byte; keep the last 0xFF adjacent to it so
+		// the copy/segment logic below still sees a well-formed FF <marker> pair.
+		j := i + 1
+		for j < len(data) && data[j] == 0xFF {
+			j++
+		}
+		if j >= len(data) {
+			return nil, fmt.Errorf("jpeg: truncated at marker")
+		}
+		// Emit any leading fill bytes (all but the final 0xFF) verbatim.
+		out = append(out, data[i:j-1]...)
+		i = j - 1
 		marker := data[i+1]
 
 		// Standalone markers with no length/payload: RSTn (D0–D7), TEM (01).

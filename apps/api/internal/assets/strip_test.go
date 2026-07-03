@@ -103,6 +103,26 @@ func TestStripJPEG(t *testing.T) {
 	}
 }
 
+func TestStripJPEGFillBytes(t *testing.T) {
+	// A spec-legal JPEG may pad a marker with extra 0xFF fill bytes. Inject an
+	// EXIF segment whose marker is preceded by two extra fill bytes and confirm
+	// the stripper handles it (removes EXIF, still decodes) rather than rejecting.
+	exif := jpegSegment(0xE1, append([]byte("Exif\x00\x00"), 0x49, 0x49, 0x2A, 0x00))
+	withFill := append([]byte{0xFF, 0xFF}, exif...) // FF FF FF E1 ...
+	jpg := injectAfterSOI(t, jpegBytes(t), withFill)
+
+	out, err := StripMetadata("image/jpeg", jpg)
+	if err != nil {
+		t.Fatalf("StripMetadata rejected a fill-byte jpeg: %v", err)
+	}
+	if bytes.Contains(out, []byte("Exif\x00\x00")) {
+		t.Errorf("EXIF survived the fill-byte path")
+	}
+	if _, err := jpeg.Decode(bytes.NewReader(out)); err != nil {
+		t.Fatalf("decode stripped fill-byte jpeg: %v", err)
+	}
+}
+
 func TestStripJPEGNoMetadata(t *testing.T) {
 	base := jpegBytes(t)
 	out, err := StripMetadata("image/jpeg", base)
