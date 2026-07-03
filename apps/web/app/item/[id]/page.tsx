@@ -121,7 +121,8 @@ function DetailBody({ item }: { item: ItemDetail }) {
           <img
             src={item.leadImageUrl}
             alt={item.title ?? "saved image"}
-            style={{ maxWidth: "100%", borderRadius: 8 }}
+            loading="lazy"
+            style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
           />
         ) : null}
         {item.title ? (
@@ -149,8 +150,9 @@ function DetailBody({ item }: { item: ItemDetail }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.leadImageUrl}
-            alt={item.title ?? "video"}
-            style={{ maxWidth: "100%", borderRadius: 8 }}
+            alt={item.title ? `${item.title} (video thumbnail)` : "video thumbnail"}
+            loading="lazy"
+            style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
           />
         ) : null}
         <QuoteBlock text={item.summary || item.body || item.title || ""} />
@@ -190,7 +192,8 @@ function DetailBody({ item }: { item: ItemDetail }) {
         <img
           src={item.leadImageUrl}
           alt={item.title ?? "lead image"}
-          style={{ maxWidth: "100%", borderRadius: 8 }}
+          loading="lazy"
+          style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
         />
       ) : null}
       <div>

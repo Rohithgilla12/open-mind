@@ -31,20 +31,23 @@ export function DeleteButton({ id }: { id: string }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
       {error ? (
-        <span
-          style={{
-            fontFamily: tokens.font.mono,
-            fontSize: "0.72rem",
-            color: tokens.color.danger,
-          }}
-        >
-          {error}
+        <span aria-live="polite">
+          <span
+            style={{
+              fontFamily: tokens.font.mono,
+              fontSize: "0.72rem",
+              color: tokens.color.danger,
+            }}
+          >
+            {error}
+          </span>
         </span>
       ) : null}
       <button
         type="button"
         onClick={onDelete}
         disabled={busy}
+        aria-label="Delete this item"
         style={{
           fontFamily: tokens.font.mono,
           fontSize: "0.78rem",

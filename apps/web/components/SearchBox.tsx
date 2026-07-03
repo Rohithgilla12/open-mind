@@ -21,6 +21,7 @@ export function SearchBox({ initial }: { initial?: string }) {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search by keyword, colour, vibe…"
+        aria-label="Search your library"
         style={{
           width: "100%",
           padding: "0.6rem 0.75rem",
