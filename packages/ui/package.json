@@ -1,0 +1,13 @@
+{
+  "name": "@openmind/ui",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/tokens.ts",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "test": "echo \"no tests\""
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}
