@@ -1,17 +1,15 @@
-import { createClient } from "@openmind/api-client";
 import type { paths } from "@openmind/api-client";
 import { tokens } from "@openmind/ui";
+import { apiFetch } from "../lib/api";
 
 type Item =
   paths["/items"]["get"]["responses"]["200"]["content"]["application/json"][number];
 
 async function getItems(): Promise<Item[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-  const client = createClient(baseUrl);
-
   try {
-    const { data } = await client.GET("/items", {});
-    return data ?? [];
+    const res = await apiFetch("/items");
+    if (!res.ok) return [];
+    return ((await res.json()) as Item[]) ?? [];
   } catch {
     // Enrichment/API may be down; render an empty state rather than failing the build.
     return [];
