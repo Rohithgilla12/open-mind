@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -17,9 +18,15 @@ import (
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/api"
+	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/store"
+)
+
+const (
+	defaultAssetsDir      = "/data/assets"
+	defaultAssetsMaxBytes = 10 << 20 // 10 MiB
 )
 
 // riverClient is the concrete River client type used across this process.
@@ -69,13 +76,24 @@ func run(ctx context.Context, args []string) error {
 		slog.Warn("API is unauthenticated — set OPENMIND_TOKEN before exposing it")
 	}
 
+	assetsDir := os.Getenv("ASSETS_DIR")
+	if assetsDir == "" {
+		assetsDir = defaultAssetsDir
+	}
+	assetStore, err := assets.NewFSStore(assetsDir)
+	if err != nil {
+		return fmt.Errorf("initialising asset store: %w", err)
+	}
+	assetMaxBytes := assetMaxBytesFromEnv()
+	slog.Info("asset store ready", "dir", assetsDir, "max_bytes", assetMaxBytes)
+
 	switch cmd {
 	case "serve":
 		client, err := jobs.NewRiverClient(pool, pipeline, false)
 		if err != nil {
 			return err
 		}
-		return serveHTTP(ctx, s, client, provider, token)
+		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes)
 	case "work":
 		client, err := jobs.NewRiverClient(pool, pipeline, true)
 		if err != nil {
@@ -87,7 +105,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		return all(ctx, s, client, provider, token)
+		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -100,13 +118,25 @@ func port() string {
 	return "8080"
 }
 
+// assetMaxBytesFromEnv reads ASSETS_MAX_BYTES, falling back to the 10 MiB
+// default when unset or invalid.
+func assetMaxBytesFromEnv() int64 {
+	if v := os.Getenv("ASSETS_MAX_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			return n
+		}
+		slog.Warn("invalid ASSETS_MAX_BYTES; using default", "value", v)
+	}
+	return defaultAssetsMaxBytes
+}
+
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -143,7 +173,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -152,7 +182,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

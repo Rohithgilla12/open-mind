@@ -10,6 +10,16 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
+type Asset struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	ItemID           pgtype.UUID
+	ContentType      string
+	ByteSize         int64
+	OriginalFilename string
+	CreatedAt        pgtype.Timestamptz
+}
+
 type Item struct {
 	ID           uuid.UUID
 	UserID       uuid.UUID

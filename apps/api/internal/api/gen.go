@@ -109,6 +109,11 @@ type SearchResult struct {
 	Score float32 `json:"score"`
 }
 
+// CreateAssetMultipartBody defines parameters for CreateAsset.
+type CreateAssetMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
 // ListItemsParams defines parameters for ListItems.
 type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -119,11 +124,20 @@ type SearchItemsParams struct {
 	Q string `form:"q" json:"q"`
 }
 
+// CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
+type CreateAssetMultipartRequestBody CreateAssetMultipartBody
+
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = CreateItemRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+
+	// (POST /assets)
+	CreateAsset(w http.ResponseWriter, r *http.Request)
+
+	// (GET /assets/{id})
+	GetAsset(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /export)
 	ExportItems(w http.ResponseWriter, r *http.Request)
@@ -150,6 +164,16 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// (POST /assets)
+func (_ Unimplemented) CreateAsset(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /assets/{id})
+func (_ Unimplemented) GetAsset(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // (GET /export)
 func (_ Unimplemented) ExportItems(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +218,57 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CreateAsset operation middleware
+func (siw *ServerInterfaceWrapper) CreateAsset(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAsset(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAsset operation middleware
+func (siw *ServerInterfaceWrapper) GetAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAsset(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ExportItems operation middleware
 func (siw *ServerInterfaceWrapper) ExportItems(w http.ResponseWriter, r *http.Request) {
@@ -497,6 +572,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/assets", wrapper.CreateAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/assets/{id}", wrapper.GetAsset)
+	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/export", wrapper.ExportItems)
 	})

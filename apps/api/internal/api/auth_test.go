@@ -4,14 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/rohithgilla12/openmind/api/internal/ai"
-	"github.com/rohithgilla12/openmind/api/internal/api"
 )
 
 func TestBearerAuth(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), "sekret"))
+	srv := httptest.NewServer(newSrv(t, s, rc, "sekret"))
 	defer srv.Close()
 	tests := []struct {
 		name, path, header string
@@ -42,7 +39,7 @@ func TestBearerAuth(t *testing.T) {
 
 func TestAuthDisabledWhenTokenEmpty(t *testing.T) {
 	s, rc, _ := testDeps(t)
-	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/items")

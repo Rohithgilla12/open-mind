@@ -16,6 +16,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
+	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/search"
 	"github.com/rohithgilla12/openmind/api/internal/store"
@@ -33,16 +34,19 @@ const (
 // insert-only River client. Capture is sacred: CreateItem returns as soon as
 // the row is persisted; enrichment is queued and runs asynchronously.
 type Server struct {
-	store       *store.Store
-	riverClient *river.Client[pgx.Tx]
-	provider    ai.Provider
+	store        *store.Store
+	riverClient  *river.Client[pgx.Tx]
+	provider     ai.Provider
+	assetStore   *assets.FSStore
+	assetMaxByte int64
 }
 
 // NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
 // per-IP rate limiting, and generated routing. When token is empty, auth is
 // disabled (single-user self-host) — the caller is warned at startup.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string) http.Handler {
-	srv := &Server{store: s, riverClient: riverClient, provider: provider}
+// assetStore backs the image upload/serve endpoints and maxBytes caps upload size.
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64) http.Handler {
+	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes}
 	r := chi.NewRouter()
 	r.Use(devUser)
 	// Rate limiting runs before bearer auth so failed token guesses consume

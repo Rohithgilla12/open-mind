@@ -61,6 +61,43 @@ paths:
       responses:
         "204": { description: deleted }
         "404": { description: not found }
+  /assets:
+    post:
+      operationId: createAsset
+      description: "Upload a local image as a first-class image card (multipart field 'file')."
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: created image item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "400": { description: bad request }
+        "413": { description: payload too large }
+        "415": { description: unsupported media type }
+  /assets/{id}:
+    get:
+      operationId: getAsset
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: image bytes
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/gif: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            image/avif: { schema: { type: string, format: binary } }
+        "404": { description: not found }
   /export:
     get:
       operationId: exportItems
