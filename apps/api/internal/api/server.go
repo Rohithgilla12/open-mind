@@ -13,6 +13,7 @@ import (
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	"github.com/rohithgilla12/openmind/api/internal/search"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -96,10 +97,26 @@ func (s *Server) ListItems(w http.ResponseWriter, r *http.Request, params ListIt
 	writeJSON(w, http.StatusOK, out)
 }
 
-// SearchItems is a placeholder until Task 9 wires hybrid search. It returns an
-// empty array (never null) so clients can rely on the shape.
-func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, _ SearchItemsParams) {
-	writeJSON(w, http.StatusOK, []SearchResult{})
+// SearchItems runs hybrid search (FTS + pgvector, RRF fusion) scoped to the
+// caller and returns ranked results, newest-ranked first. It always returns an
+// array (never null) so clients can rely on the shape.
+func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams) {
+	if params.Q == "" {
+		writeError(w, http.StatusBadRequest, "q is required")
+		return
+	}
+	ctx := r.Context()
+	results, err := search.Hybrid(ctx, s.store, s.provider, userID(ctx), params.Q, defaultListLimit)
+	if err != nil {
+		slog.Error("hybrid search", "err", err)
+		writeError(w, http.StatusInternalServerError, "search failed")
+		return
+	}
+	out := make([]SearchResult, 0, len(results))
+	for _, res := range results {
+		out = append(out, SearchResult{Item: toAPIItem(res.Item), Score: float32(res.Score)})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // validURL accepts only absolute http/https URLs.

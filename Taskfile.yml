@@ -32,7 +32,9 @@ tasks:
 
   test:
     cmds:
-      - cmd: cd apps/api && go test ./...
+      # -p 1 serializes package test binaries: store/enrich/search integration
+      # tests share one Postgres, and parallel binaries race on TRUNCATE.
+      - cmd: cd apps/api && go test -p 1 ./...
       - cmd: pnpm turbo run test
 
   lint:
