@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
@@ -21,6 +23,19 @@ type Pipeline struct {
 	Store     *store.Store
 	AI        ai.Provider
 	Extractor Extractor
+	// HTTPClient is used for extractor-independent probes (the image-URL HEAD
+	// sniff). When nil it defaults to a SafeHTTPClient; tests inject an
+	// httptest client.
+	HTTPClient *http.Client
+}
+
+// httpClient returns the pipeline's HTTP client, defaulting to a SafeHTTPClient
+// so user-supplied URLs can never reach internal addresses.
+func (p *Pipeline) httpClient() *http.Client {
+	if p.HTTPClient != nil {
+		return p.HTTPClient
+	}
+	return SafeHTTPClient(10 * time.Second)
 }
 
 // Run enriches the item identified by userID/itemID. It is safe to call more
@@ -34,6 +49,20 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 
 	if item.Url == "" {
 		return p.runNote(ctx, userID, item)
+	}
+
+	// Image URLs bypass the extractor entirely: there is no article to pull, so
+	// we render the image directly as an image card. The sniff never fails the
+	// job — an inconclusive result falls through to normal extraction.
+	if ok, _ := isImageURL(ctx, p.httpClient(), item.Url); ok {
+		title := imageTitle(item.Url)
+		if err := q.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+			UserID: userID, ID: itemID,
+			Title: title, Body: "", LeadImageUrl: item.Url, CardType: "image",
+		}); err != nil {
+			return fmt.Errorf("saving image extraction: %w", err)
+		}
+		return p.enrichText(ctx, userID, itemID, title, title)
 	}
 
 	ex, err := p.Extractor.Extract(ctx, item.Url)

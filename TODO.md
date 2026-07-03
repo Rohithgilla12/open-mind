@@ -11,17 +11,16 @@
 - [ ] AI adapter: OpenAI-compatible client + fallback chain + noop provider
 
 ### Next
-- [ ] River queue: enrichment job, priority lanes, idempotency test (run twice, same result)
-- [ ] Hybrid search: FTS + pgvector + rank fusion
-- [ ] Capture: web quick-add (URL / note / image)
-- [ ] Grid + card detail view (type-aware renderers)
-- [ ] WXT extension: save page / selection / image
+- [ ] Card detail + reader view (type-aware renderers)
 - [ ] JSON export
 - [ ] Virtualised masonry grid spike: 500 mixed cards at 60fps (port docs/design/openmind-mockup.html)
 - [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)
 - [ ] Decide: name + domain check
 
 ## Done
+
+### Milestone 1 — extension
+- [x] WXT extension: save page / selection / image, options page (instance URL + token, validate/save), e2e verified 2026-07-03: browser extension capture (url + note) via Bearer token auth against a fresh local build (`pnpm --filter extension build`); server-side confirmed with `GET /api/auth/check` (200 correct token / 401 wrong token) and `POST /api/items` for both `{url}` and `{note}` payloads (201).
 
 ### Milestone 1 — expose-ready web
 - [x] SSRF hardening for extractor fetches (private-IP dialer guard, redirect re-check) + bearer auth + per-IP rate limiting before public exposure
