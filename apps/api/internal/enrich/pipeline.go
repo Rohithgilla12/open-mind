@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
@@ -31,6 +32,10 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return fmt.Errorf("loading item %s: %w", itemID, err)
 	}
 
+	if item.Url == "" {
+		return p.runNote(ctx, userID, item)
+	}
+
 	ex, err := p.Extractor.Extract(ctx, item.Url)
 	if err != nil {
 		if serr := q.SetItemStatus(ctx, db.SetItemStatusParams{UserID: userID, ID: itemID, Status: "failed"}); serr != nil {
@@ -46,11 +51,34 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return fmt.Errorf("saving extraction: %w", err)
 	}
 
-	summary, err := p.AI.Summarise(ctx, ex.Title, ex.Body)
+	return p.enrichText(ctx, userID, itemID, ex.Title, ex.Body)
+}
+
+// runNote enriches a note item (no URL): it skips extraction, classifies as a
+// note, derives the title from the first line of the body, and runs the shared
+// summarise/tag/embed path over the note text.
+func (p *Pipeline) runNote(ctx context.Context, userID uuid.UUID, item db.Item) error {
+	q := p.Store.Queries
+	title := noteTitle(item.Body)
+	if err := q.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID,
+		Title: title, Body: item.Body, LeadImageUrl: "", CardType: "note",
+	}); err != nil {
+		return fmt.Errorf("saving note metadata: %w", err)
+	}
+	return p.enrichText(ctx, userID, item.ID, title, item.Body)
+}
+
+// enrichText runs the summarise → tag → embed → status tail shared by the URL
+// and note paths. Every stage is idempotent; the ErrNotSupported and dimension
+// guards keep the noop provider and mismatched embeddings from failing the job.
+func (p *Pipeline) enrichText(ctx context.Context, userID, itemID uuid.UUID, title, body string) error {
+	q := p.Store.Queries
+	summary, err := p.AI.Summarise(ctx, title, body)
 	if err != nil {
 		return fmt.Errorf("summarising: %w", err) // River retries; save stays intact
 	}
-	tags, err := p.AI.Tag(ctx, ex.Title, ex.Body)
+	tags, err := p.AI.Tag(ctx, title, body)
 	if err != nil {
 		return fmt.Errorf("tagging: %w", err)
 	}
@@ -61,7 +89,7 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return fmt.Errorf("saving enrichment: %w", err)
 	}
 
-	embedInput := ex.Title + "\n" + summary + "\n" + ex.Body
+	embedInput := title + "\n" + summary + "\n" + body
 	vec, err := p.AI.Embed(ctx, embedInput)
 	switch {
 	case errors.Is(err, ai.ErrNotSupported):
@@ -79,4 +107,19 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		}
 	}
 	return q.SetItemStatus(ctx, db.SetItemStatusParams{UserID: userID, ID: itemID, Status: "enriched"})
+}
+
+// noteTitle derives a card title from a note body: the first non-empty-trimmed
+// line, truncated to 80 runes.
+func noteTitle(body string) string {
+	line := body
+	if i := strings.IndexByte(body, '\n'); i >= 0 {
+		line = body[:i]
+	}
+	line = strings.TrimSpace(line)
+	r := []rune(line)
+	if len(r) > 80 {
+		return string(r[:80])
+	}
+	return line
 }

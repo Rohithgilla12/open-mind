@@ -41,7 +41,7 @@ func testStore(t *testing.T) *store.Store {
 func seedItem(t *testing.T, s *store.Store, p ai.Provider, userID uuid.UUID, title, body string) db.Item {
 	t.Helper()
 	ctx := context.Background()
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/" + title})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/" + title, Body: ""})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
 	}

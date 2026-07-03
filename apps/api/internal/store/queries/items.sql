@@ -2,7 +2,7 @@
 INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING;
 
 -- name: CreateItem :one
-INSERT INTO items (user_id, url) VALUES ($1, $2) RETURNING *;
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: GetItem :one
 SELECT * FROM items WHERE user_id = $1 AND id = $2;

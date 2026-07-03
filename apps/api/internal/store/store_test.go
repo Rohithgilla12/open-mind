@@ -38,7 +38,7 @@ func TestItemLifecycle(t *testing.T) {
 	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com"})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com", Body: ""})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}

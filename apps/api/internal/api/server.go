@@ -54,7 +54,7 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	uid := userID(ctx)
-	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: *req.Url})
+	item, err := s.store.Queries.CreateItem(ctx, db.CreateItemParams{UserID: uid, Url: *req.Url, Body: ""})
 	if err != nil {
 		slog.Error("creating item", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not save item")
