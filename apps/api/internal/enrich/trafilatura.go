@@ -15,10 +15,11 @@ import (
 type Trafilatura struct{ client *http.Client }
 
 // NewTrafilatura returns an Extractor backed by go-trafilatura. A nil client
-// falls back to a client with a 30s timeout.
+// falls back to an SSRF-safe client with a 30s timeout, which refuses to
+// dial loopback, private, link-local, and other internal addresses.
 func NewTrafilatura(client *http.Client) *Trafilatura {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = SafeHTTPClient(30 * time.Second)
 	}
 	return &Trafilatura{client: client}
 }
