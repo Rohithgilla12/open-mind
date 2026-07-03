@@ -18,5 +18,9 @@ export function clampNote(text: string, source?: string): string {
   const body =
     chars.length > budget ? chars.slice(0, budget).join("") : trimmed;
 
-  return body + suffix;
+  const composed = body + suffix;
+  const composedChars = Array.from(composed);
+  return composedChars.length > MAX_NOTE_CHARS
+    ? composedChars.slice(0, MAX_NOTE_CHARS).join("")
+    : composed;
 }

@@ -11,7 +11,8 @@ async function flashBadge(text: string): Promise<void> {
 }
 
 export default defineBackground(() => {
-  browser.runtime.onInstalled.addListener(() => {
+  browser.runtime.onInstalled.addListener(async () => {
+    await browser.contextMenus.removeAll();
     browser.contextMenus.create({
       id: "om-selection",
       title: "Save selection to Openmind",
@@ -45,7 +46,9 @@ export default defineBackground(() => {
         message:
           res.status === 401
             ? "Token invalid — open extension settings."
-            : `Error ${res.status}`,
+            : res.status === 0
+              ? "Instance unreachable — check the extension settings."
+              : `Error ${res.status}`,
       });
     }
   });
