@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"log/slog"
@@ -27,7 +28,6 @@ var allowedImageTypes = map[string]struct{}{
 	"image/jpeg": {},
 	"image/gif":  {},
 	"image/webp": {},
-	"image/avif": {},
 }
 
 // detectImageType returns the sniffed content-type of buf, restricted to image
@@ -81,21 +81,35 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = file.Close() }()
 
-	// Sniff the leading bytes, then rewind so the full stream is stored.
-	head := make([]byte, sniffLen)
-	n, err := io.ReadFull(file, head)
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+	// Read the whole (MaxBytesReader-bounded) upload so we can sniff, validate,
+	// and strip metadata before touching the database. Exceeding the cap yields
+	// an *http.MaxBytesError → 413.
+	data, err := io.ReadAll(file)
+	if err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeError(w, http.StatusRequestEntityTooLarge, "file exceeds size limit")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "could not read upload")
 		return
 	}
-	head = head[:n]
+
+	head := data
+	if len(head) > sniffLen {
+		head = head[:sniffLen]
+	}
 	contentType := detectImageType(head)
 	if _, ok := allowedImageTypes[contentType]; !ok {
 		writeError(w, http.StatusUnsupportedMediaType, "unsupported image type")
 		return
 	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		writeError(w, http.StatusBadRequest, "could not rewind upload")
+
+	// Strip metadata (EXIF/XMP/IPTC/comments) losslessly before any row is
+	// created, so a malformed image never leaves orphan rows behind.
+	stripped, err := assets.StripMetadata(contentType, data)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not process image")
 		return
 	}
 
@@ -125,7 +139,7 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	size, err := s.assetStore.Put(asset.ID, file, s.assetMaxByte)
+	size, err := s.assetStore.Put(asset.ID, bytes.NewReader(stripped), s.assetMaxByte)
 	if err != nil {
 		if errors.Is(err, assets.ErrTooLarge) {
 			writeError(w, http.StatusRequestEntityTooLarge, "file exceeds size limit")
