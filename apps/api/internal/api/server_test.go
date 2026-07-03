@@ -209,7 +209,7 @@ func TestListItems(t *testing.T) {
 }
 
 func TestGetItemDetail(t *testing.T) {
-	s, rc, pool := testDeps(t)
+	s, rc, _ := testDeps(t)
 	srv := httptest.NewServer(api.NewServer(s, rc, ai.NewNoop(), ""))
 	t.Cleanup(srv.Close)
 
@@ -239,7 +239,7 @@ func TestGetItemDetail(t *testing.T) {
 	}
 
 	// Another user's item → 404.
-	otherID := seedOtherUserItem(t, pool, s, "someone else")
+	otherID := seedOtherUserItem(t, s, "someone else")
 	resp2, err := http.Get(srv.URL + "/items/" + otherID)
 	if err != nil {
 		t.Fatalf("get other: %v", err)
@@ -294,7 +294,7 @@ func TestDeleteItem(t *testing.T) {
 	}
 
 	// Deleting another user's item → 404 and the row survives.
-	otherID := seedOtherUserItem(t, pool, s, "protected")
+	otherID := seedOtherUserItem(t, s, "protected")
 	req2, _ := http.NewRequest(http.MethodDelete, srv.URL+"/items/"+otherID, nil)
 	del2, err := http.DefaultClient.Do(req2)
 	if err != nil {
@@ -350,7 +350,7 @@ func TestExportItems(t *testing.T) {
 }
 
 // seedOtherUserItem inserts a note item owned by a distinct user and returns its id.
-func seedOtherUserItem(t *testing.T, pool *pgxpool.Pool, s *store.Store, body string) string {
+func seedOtherUserItem(t *testing.T, s *store.Store, body string) string {
 	t.Helper()
 	other := uuid.MustParse("00000000-0000-0000-0000-0000000000ff")
 	ctx := context.Background()
@@ -361,7 +361,6 @@ func seedOtherUserItem(t *testing.T, pool *pgxpool.Pool, s *store.Store, body st
 	if err != nil {
 		t.Fatalf("create other item: %v", err)
 	}
-	_ = pool
 	return item.ID.String()
 }
 

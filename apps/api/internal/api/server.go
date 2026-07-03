@@ -251,6 +251,7 @@ func toAPIItem(it db.Item) Item {
 
 // toAPIItemDetail maps a stored item to the detail API model: the shared Item
 // fields plus the full body.
+// toAPIItemDetail mirrors toAPIItem plus Body; keep field copies in sync when Item gains fields.
 func toAPIItemDetail(it db.Item) ItemDetail {
 	base := toAPIItem(it)
 	out := ItemDetail{
