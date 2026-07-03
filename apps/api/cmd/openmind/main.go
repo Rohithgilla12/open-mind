@@ -47,6 +47,12 @@ func run(ctx context.Context, args []string) error {
 		return store.Migrate(ctx, pool)
 	}
 
+	// Auto-migrate on startup for serve|work|all so a fresh `docker compose up`
+	// works on an empty volume. Migrate is idempotent and transactional.
+	if err := store.Migrate(ctx, pool); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
+
 	s := store.New(pool)
 	if err := s.Queries.EnsureUser(ctx, api.DevUserID); err != nil {
 		return fmt.Errorf("provisioning dev user: %w", err)

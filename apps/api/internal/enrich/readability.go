@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -42,7 +43,8 @@ func (r *Readability) Extract(ctx context.Context, rawURL string) (Extraction, e
 	if err != nil {
 		return Extraction{}, fmt.Errorf("parsing url %s: %w", rawURL, err)
 	}
-	article, err := readability.FromReader(resp.Body, parsed)
+	body := io.LimitReader(resp.Body, maxResponseBytes)
+	article, err := readability.FromReader(body, parsed)
 	if err != nil {
 		return Extraction{}, fmt.Errorf("extracting %s: %w", rawURL, err)
 	}

@@ -17,6 +17,7 @@
 - [ ] Grid + card detail view (type-aware renderers)
 - [ ] WXT extension: save page / selection / image
 - [ ] JSON export
+- [ ] SSRF hardening for extractor fetches (private-IP dialer guard, redirect re-check) + basic auth/rate limiting before public exposure
 - [ ] Self-host quickstart: expand docs/self-hosting.md (Milestone 1 polish)
 - [ ] Virtualised masonry grid spike: 500 mixed cards at 60fps (port docs/design/openmind-mockup.html)
 - [ ] Karakeep repo deep-dive: what to learn, what to avoid (notes → docs/research.md)

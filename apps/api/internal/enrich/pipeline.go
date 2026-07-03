@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
@@ -67,6 +68,11 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		// noop provider: FTS-only mode, no embedding row.
 	case err != nil:
 		return fmt.Errorf("embedding: %w", err)
+	case len(vec) != ai.EmbedDims:
+		// Wrong dimensionality would break the pgvector column; skip the
+		// embedding rather than failing the job. The item still ends enriched
+		// (FTS-searchable), and a re-run can backfill the vector.
+		slog.Warn("skipping embedding: unexpected dimension", "item_id", itemID, "got", len(vec), "want", ai.EmbedDims)
 	default:
 		if err := q.UpsertEmbedding(ctx, db.UpsertEmbeddingParams{ItemID: itemID, UserID: userID, Embedding: pgvector.NewVector(vec)}); err != nil {
 			return fmt.Errorf("saving embedding: %w", err)

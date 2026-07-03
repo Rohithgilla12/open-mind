@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -42,7 +43,8 @@ func (t *Trafilatura) Extract(ctx context.Context, rawURL string) (Extraction, e
 	if err != nil {
 		return Extraction{}, fmt.Errorf("parsing url %s: %w", rawURL, err)
 	}
-	result, err := trafilatura.Extract(resp.Body, trafilatura.Options{OriginalURL: parsed, IncludeImages: true})
+	body := io.LimitReader(resp.Body, maxResponseBytes)
+	result, err := trafilatura.Extract(body, trafilatura.Options{OriginalURL: parsed, IncludeImages: true})
 	if err != nil {
 		return Extraction{}, fmt.Errorf("extracting %s: %w", rawURL, err)
 	}

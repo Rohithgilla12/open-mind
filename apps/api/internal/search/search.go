@@ -45,11 +45,14 @@ func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID
 	if vec, err := p.Embed(ctx, q); err == nil {
 		vres, err := s.Queries.SearchVector(ctx, db.SearchVectorParams{UserID: userID, Embedding: pgvector.NewVector(vec), Limit: int32(limit * 2)})
 		if err != nil {
-			return nil, fmt.Errorf("vector search: %w", err)
-		}
-		for rank, row := range vres {
-			scores[row.ID] += 1.0 / float64(k+rank+1)
-			items[row.ID] = vecRowToItem(row)
+			// Degrade to FTS-only results rather than failing the request,
+			// mirroring the embed-failure fallback below.
+			slog.Warn("vector search failed; falling back to FTS only", "err", err)
+		} else {
+			for rank, row := range vres {
+				scores[row.ID] += 1.0 / float64(k+rank+1)
+				items[row.ID] = vecRowToItem(row)
+			}
 		}
 	} else if !errors.Is(err, ai.ErrNotSupported) {
 		slog.Warn("query embedding failed; falling back to FTS only", "err", err)
@@ -59,7 +62,19 @@ func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID
 	for id := range scores {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return scores[ids[i]] > scores[ids[j]] })
+	// Descending fused score, with a deterministic tiebreak (newest first,
+	// then ID) so equal-scored results order stably across requests.
+	sort.SliceStable(ids, func(i, j int) bool {
+		si, sj := scores[ids[i]], scores[ids[j]]
+		if si != sj {
+			return si > sj
+		}
+		ci, cj := items[ids[i]].CreatedAt, items[ids[j]].CreatedAt
+		if !ci.Time.Equal(cj.Time) {
+			return ci.Time.After(cj.Time)
+		}
+		return ids[i].String() > ids[j].String()
+	})
 	if len(ids) > limit {
 		ids = ids[:limit]
 	}

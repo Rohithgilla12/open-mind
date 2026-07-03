@@ -11,8 +11,11 @@ import (
 const (
 	geminiGenModel   = "gemini-flash-lite-latest"
 	geminiEmbedModel = "gemini-embedding-001"
-	embedDims        = int32(768)
 )
+
+// EmbedDims is the fixed dimensionality of embedding vectors produced across
+// the app. The pgvector column and the query guard both depend on this value.
+const EmbedDims = 768
 
 // Gemini is a Provider backed by Google's Gemini API.
 type Gemini struct{ client *genai.Client }
@@ -59,7 +62,7 @@ func (g *Gemini) Tag(ctx context.Context, title, body string) ([]string, error) 
 
 // Embed returns a 768-dimensional embedding for the given text.
 func (g *Gemini) Embed(ctx context.Context, text string) ([]float32, error) {
-	dims := embedDims
+	dims := int32(EmbedDims)
 	resp, err := g.client.Models.EmbedContent(ctx, geminiEmbedModel, genai.Text(truncate(text, 8000)), &genai.EmbedContentConfig{OutputDimensionality: &dims})
 	if err != nil {
 		return nil, fmt.Errorf("gemini embed: %w", err)

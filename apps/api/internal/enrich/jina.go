@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -71,7 +72,7 @@ func (j *Jina) Extract(ctx context.Context, rawURL string) (Extraction, error) {
 		return Extraction{}, fmt.Errorf("fetching %s: status %d", rawURL, resp.StatusCode)
 	}
 	var parsed jinaResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&parsed); err != nil {
 		return Extraction{}, fmt.Errorf("decoding jina response for %s: %w", rawURL, err)
 	}
 	var lead string
