@@ -1,0 +1,133 @@
+package search_test
+
+import (
+	"context"
+	"os"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
+
+	"github.com/rohithgilla12/openmind/api/internal/ai"
+	"github.com/rohithgilla12/openmind/api/internal/search"
+	"github.com/rohithgilla12/openmind/api/internal/store"
+	"github.com/rohithgilla12/openmind/api/internal/store/db"
+)
+
+func testStore(t *testing.T) *store.Store {
+	t.Helper()
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		url = "postgres://openmind:openmind@localhost:5433/openmind_test"
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatalf("connecting: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if err := store.Migrate(ctx, pool); err != nil {
+		t.Fatalf("migrating: %v", err)
+	}
+	// No TRUNCATE: every test uses a fresh random user_id, and all queries are
+	// tenant-scoped, so rows from other tests/packages are invisible here.
+	// Avoiding TRUNCATE keeps these tests from racing other packages that share
+	// the database when `go test ./...` runs package binaries in parallel.
+	return store.New(pool)
+}
+
+// seedItem creates an enriched item with an embedding for the given user.
+func seedItem(t *testing.T, s *store.Store, p ai.Provider, userID uuid.UUID, title, body string) db.Item {
+	t.Helper()
+	ctx := context.Background()
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/" + title})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID, Title: title, Body: body, CardType: "article",
+	}); err != nil {
+		t.Fatalf("update extraction: %v", err)
+	}
+	if err := s.Queries.UpdateItemEnrichment(ctx, db.UpdateItemEnrichmentParams{
+		UserID: userID, ID: item.ID, Summary: body, Tags: []string{title},
+	}); err != nil {
+		t.Fatalf("update enrichment: %v", err)
+	}
+	vec, err := p.Embed(ctx, body)
+	if err == nil {
+		if err := s.Queries.UpsertEmbedding(ctx, db.UpsertEmbeddingParams{
+			ItemID: item.ID, UserID: userID, Embedding: pgvector.NewVector(vec),
+		}); err != nil {
+			t.Fatalf("upsert embedding: %v", err)
+		}
+	}
+	return item
+}
+
+func TestHybridRanksMatchFirst(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p := ai.NewFake()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	bread := seedItem(t, s, p, userID, "sourdough", "a guide to sourdough fermentation and bread baking")
+	seedItem(t, s, p, userID, "rustlang", "understanding the rust borrow checker and ownership")
+
+	results, err := search.Hybrid(ctx, s, p, userID, "sourdough", 10)
+	if err != nil {
+		t.Fatalf("hybrid: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("no results")
+	}
+	if results[0].Item.ID != bread.ID {
+		t.Errorf("first result = %v, want bread %v", results[0].Item.ID, bread.ID)
+	}
+}
+
+func TestHybridNoopFTSOnly(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	// Noop provider: Embed unsupported, so no embeddings are written.
+	np := ai.NewNoop()
+	bread := seedItem(t, s, np, userID, "sourdough", "a guide to sourdough fermentation and bread baking")
+
+	results, err := search.Hybrid(ctx, s, np, userID, "fermentation", 10)
+	if err != nil {
+		t.Fatalf("hybrid (noop): %v", err)
+	}
+	if len(results) != 1 || results[0].Item.ID != bread.ID {
+		t.Fatalf("noop FTS results = %v, want [%v]", results, bread.ID)
+	}
+}
+
+func TestHybridTenantIsolation(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p := ai.NewFake()
+	owner := uuid.New()
+	other := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, owner); err != nil {
+		t.Fatalf("ensure owner: %v", err)
+	}
+	if err := s.Queries.EnsureUser(ctx, other); err != nil {
+		t.Fatalf("ensure other: %v", err)
+	}
+	seedItem(t, s, p, owner, "sourdough", "a guide to sourdough fermentation and bread baking")
+
+	results, err := search.Hybrid(ctx, s, p, other, "sourdough", 10)
+	if err != nil {
+		t.Fatalf("hybrid: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("cross-tenant results = %d, want 0", len(results))
+	}
+}

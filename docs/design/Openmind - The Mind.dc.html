@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#E4DDCD;color:#1C1A16;font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:#1B3FD1;color:#fff}
+  .dv-turn{padding:52px 56px 40px}
+  .dv-thd{display:flex;align-items:baseline;gap:12px;margin:0 0 26px}
+  .dv-tid{font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.06em;padding:4px 8px;background:#1C1A16;color:#F4F0E6;border-radius:5px;text-decoration:none}
+  .dv-tname{font:500 14px/1.2 'Instrument Sans',sans-serif;color:#1C1A16}
+  .dv-tname em{font-family:'Newsreader',serif;font-style:italic;color:#6B655A}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+  .dv-olabel{display:flex;align-items:center;gap:9px;font:400 11px/1.3 'JetBrains Mono',monospace;letter-spacing:.02em;color:#6B655A;text-transform:uppercase}
+  .dv-oid{font:600 10px/1 'JetBrains Mono',monospace;padding:4px 7px;background:rgba(28,26,22,.09);color:#1C1A16;border-radius:5px;text-decoration:none;letter-spacing:.04em}
+  .dv-opt:target .dv-oid{background:#1B3FD1;color:#fff}
+  .dv-next{margin:30px 0 0;font:400 12px/1.6 'JetBrains Mono',monospace;color:#8A8578}
+  .dv-next a{color:#1B3FD1;text-decoration:none}
+  .frame{background:#F4F0E6;border:1px solid rgba(28,26,22,.13);border-radius:14px;box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 18px 44px -22px rgba(28,26,22,.5);overflow:hidden}
+  /* masonry */
+  .mind-col{column-gap:16px}
+  .mind-col>*{break-inside:avoid;margin-bottom:16px}
+  .card{background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;overflow:hidden;box-shadow:0 1px 2px rgba(28,26,22,.05),0 10px 26px -20px rgba(28,26,22,.45);transition:transform .18s ease,box-shadow .18s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(28,26,22,.06),0 18px 40px -20px rgba(28,26,22,.55)}
+  .meta{font:500 9.5px/1.4 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:#A39C8B}
+  .tag{font:500 10px/1 'JetBrains Mono',monospace;letter-spacing:.02em;color:#6B655A;background:rgba(28,26,22,.055);border:1px solid rgba(28,26,22,.07);padding:4px 7px;border-radius:20px}
+  .serif{font-family:'Newsreader',serif}
+  .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 1px rgba(28,26,22,.08) inset}
+  .navitem{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font:500 13px/1 'Instrument Sans',sans-serif;color:#57534A;cursor:default}
+  .navitem.on{background:rgba(27,63,209,.1);color:#1B3FD1}
+  .navk{font:500 12px/1 'JetBrains Mono',monospace;color:#A39C8B;margin-left:auto}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">The Mind — three card directions <em>· gallery paper · ink · cobalt · palette dots</em></span></div>
+  <div class="dv-opts">
+
+    <!-- ============ 1a EDITORIAL (full app shell) ============ -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a> Editorial masonry · full app shell · recommended</div>
+      <div class="frame" style="width:1300px">
+        <div style="display:flex;height:840px">
+
+          <!-- SIDEBAR -->
+          <aside style="width:224px;flex:none;border-right:1px solid rgba(28,26,22,.1);background:#EFEADE;display:flex;flex-direction:column;padding:20px 16px">
+            <div style="display:flex;align-items:center;gap:9px;padding:0 6px 22px">
+              <div style="width:22px;height:22px;border-radius:6px;background:#1B3FD1;position:relative"><div style="position:absolute;inset:5px 5px auto 5px;height:2px;background:#F4F0E6"></div><div style="position:absolute;inset:9px 5px auto 5px;height:2px;background:rgba(244,240,230,.6)"></div><div style="position:absolute;inset:13px 8px auto 5px;height:2px;background:rgba(244,240,230,.4)"></div></div>
+              <span class="serif" style="font-size:19px;font-weight:600;letter-spacing:-.01em">Openmind</span>
+            </div>
+            <div class="navitem"><span style="font-size:15px">◵</span> Desk</div>
+            <div class="navitem on"><span style="font-size:15px">◧</span> The Mind <span class="navk">1,284</span></div>
+            <div class="navitem"><span style="font-size:15px">❍</span> Drift</div>
+            <div style="height:1px;background:rgba(28,26,22,.09);margin:14px 8px"></div>
+            <div class="meta" style="padding:2px 10px 8px">Lenses</div>
+            <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#1B3FD1"></span> Design inspiration</div>
+            <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#C24A2E"></span> Distributed systems</div>
+            <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#2E7D5B"></span> Running & gear</div>
+            <div class="navitem" style="font-size:12.5px"><span class="dot" style="background:#8A7A3A"></span> Books to read</div>
+            <div class="navitem" style="font-size:12.5px;color:#A39C8B"><span style="width:9px;text-align:center">+</span> New lens</div>
+            <div style="margin-top:auto;padding:12px 10px 2px;border-top:1px solid rgba(28,26,22,.09)">
+              <div class="meta" style="margin-bottom:7px">Local · self-hosted</div>
+              <div style="height:5px;border-radius:3px;background:rgba(28,26,22,.1);overflow:hidden"><div style="width:34%;height:100%;background:#2E7D5B"></div></div>
+              <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">3.1 GB / 9 GB archived</div>
+            </div>
+          </aside>
+
+          <!-- MAIN -->
+          <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+            <!-- topbar -->
+            <div style="display:flex;align-items:center;gap:16px;padding:18px 26px;border-bottom:1px solid rgba(28,26,22,.1)">
+              <div>
+                <div class="serif" style="font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1">The Mind</div>
+                <div class="meta" style="margin-top:5px;text-transform:none;letter-spacing:.02em;color:#8A8578">1,284 gatherings · organised by the machine</div>
+              </div>
+              <div style="flex:1;max-width:420px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:9px 14px;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);border-radius:10px">
+                <span style="color:#A39C8B;font-size:14px">⌕</span>
+                <span style="font:400 13px/1 'Instrument Sans';color:#A39C8B;flex:1">Search a colour, a word, a vibe…</span>
+                <span style="font:600 10px/1 'JetBrains Mono';color:#8A8578;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.09);padding:4px 6px;border-radius:5px">⌘K</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+                <span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#E0B23A"></span>
+                <span class="meta" style="margin-left:4px">colour</span>
+              </div>
+              <button style="border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 'Instrument Sans';padding:11px 16px;border-radius:10px;cursor:pointer">Save something</button>
+            </div>
+
+            <!-- filter strip -->
+            <div style="display:flex;align-items:center;gap:8px;padding:12px 26px;border-bottom:1px solid rgba(28,26,22,.08)">
+              <span class="tag" style="background:#1C1A16;color:#F4F0E6;border-color:#1C1A16">All</span>
+              <span class="tag">Articles</span><span class="tag">Images</span><span class="tag">Quotes</span><span class="tag">Products</span><span class="tag">Video</span><span class="tag">Notes</span>
+              <span class="meta" style="margin-left:auto">Sorted · recently saved ▾</span>
+            </div>
+
+            <!-- GRID -->
+            <div style="flex:1;overflow:hidden;padding:20px 26px;background:linear-gradient(#F4F0E6,#F1ECE1)">
+              <div class="mind-col" style="column-count:3">
+
+                <!-- Article -->
+                <div class="card">
+                  <div style="height:118px;background:linear-gradient(120deg,#1B3FD1,#17206b);position:relative;overflow:hidden">
+                    <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 26px,rgba(255,255,255,.06) 26px 27px)"></div>
+                    <div class="serif" style="position:absolute;left:14px;bottom:10px;color:#F4F0E6;font-size:15px;font-style:italic;opacity:.9">river / durable</div>
+                  </div>
+                  <div style="padding:13px 14px">
+                    <div class="serif" style="font-size:17px;font-weight:600;line-height:1.2;letter-spacing:-.01em">Durable execution and the death of the cron job</div>
+                    <div style="font-size:12px;line-height:1.45;color:#6B655A;margin-top:6px">A Postgres-backed queue can replace half your infra. Why workflows beat crons for anything that must not be lost.</div>
+                    <div style="display:flex;gap:5px;margin-top:11px;flex-wrap:wrap"><span class="tag">go</span><span class="tag">workflows</span><span class="tag">postgres</span></div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="dot" style="background:#17206b"></span><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#B9C2E8"></span><span class="dot" style="background:#EDE9DC"></span><span class="meta" style="margin-left:auto">Article · 8 min · brandur.org</span></div>
+                  </div>
+                </div>
+
+                <!-- Quote -->
+                <div class="card" style="background:#1C1A16">
+                  <div style="padding:22px 18px 16px">
+                    <div style="font:600 40px/1 'Newsreader',serif;color:#E0B23A;height:20px">“</div>
+                    <div class="serif" style="font-size:20px;line-height:1.32;color:#F4F0E6;font-style:italic;font-weight:400">We are what we repeatedly do. Excellence, then, is not an act, but a habit.</div>
+                    <div class="meta" style="color:#8A8578;margin-top:14px">Will Durant — Quote</div>
+                    <div style="display:flex;gap:5px;margin-top:12px"><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#1C1A16;box-shadow:0 0 0 1px rgba(255,255,255,.2) inset"></span><span class="dot" style="background:#F4F0E6"></span></div>
+                  </div>
+                </div>
+
+                <!-- Image ref -->
+                <div class="card">
+                  <div style="height:210px;background:linear-gradient(150deg,#C24A2E 0%,#E0B23A 55%,#EFE3C4 100%);position:relative">
+                    <div style="position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,rgba(255,255,255,.35),transparent 45%)"></div>
+                    <div class="meta" style="position:absolute;left:12px;bottom:10px;color:rgba(255,255,255,.85)">risograph · poster</div>
+                  </div>
+                  <div style="padding:11px 13px;display:flex;align-items:center;gap:8px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#EFE3C4"></span><span class="meta" style="margin-left:auto">Image · saved from Are.na</span></div>
+                </div>
+
+                <!-- Product -->
+                <div class="card">
+                  <div style="height:150px;background:#EFE9DB;display:flex;align-items:center;justify-content:center;position:relative">
+                    <div style="width:120px;height:64px;background:linear-gradient(100deg,#2E7D5B,#1f5a41);border-radius:40px 40px 8px 8px;transform:rotate(-8deg);box-shadow:0 10px 20px -8px rgba(0,0,0,.35)"></div>
+                    <span class="meta" style="position:absolute;top:10px;right:12px;color:#2E7D5B">$285</span>
+                  </div>
+                  <div style="padding:13px 14px">
+                    <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Norda 001 — trail runner</div>
+                    <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">Dyneema upper · 210g</div>
+                    <div style="display:flex;gap:5px;margin-top:10px"><span class="tag">running</span><span class="tag">gear</span></div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#1f5a41"></span><span class="dot" style="background:#EFE9DB"></span><span class="meta" style="margin-left:auto">Product · norda.com</span></div>
+                  </div>
+                </div>
+
+                <!-- Note -->
+                <div class="card" style="background:#FBF4D8;border-color:rgba(140,120,40,.25)">
+                  <div style="padding:14px 15px">
+                    <div class="meta" style="color:#9A8A3A">Note · marginalia · 2d ago</div>
+                    <div class="serif" style="font-size:15px;line-height:1.4;margin-top:8px;color:#3A3320">Rebuild the enrichment queue as priority lanes — interactive saves jump the bulk-import backlog. Batch summaries 50/call for the discount.</div>
+                    <div style="display:flex;gap:5px;margin-top:12px"><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#9A8A3A"></span></div>
+                  </div>
+                </div>
+
+                <!-- Video -->
+                <div class="card">
+                  <div style="height:120px;background:linear-gradient(135deg,#2b2b2b,#111);position:relative;display:flex;align-items:center;justify-content:center">
+                    <div style="width:38px;height:38px;border-radius:50%;background:rgba(244,240,230,.92);display:flex;align-items:center;justify-content:center"><div style="width:0;height:0;border-left:11px solid #1C1A16;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px"></div></div>
+                    <span class="meta" style="position:absolute;right:10px;bottom:9px;color:rgba(255,255,255,.8)">1:01:26</span>
+                  </div>
+                  <div style="padding:12px 14px">
+                    <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Simple Made Easy</div>
+                    <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">Rich Hickey · Strange Loop</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#1C1A16"></span><span class="dot" style="background:#5b5b5b"></span><span class="meta" style="margin-left:auto">Video · youtube.com</span></div>
+                  </div>
+                </div>
+
+                <!-- Tweet -->
+                <div class="card">
+                  <div style="padding:14px 15px">
+                    <div style="display:flex;align-items:center;gap:9px"><div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1B3FD1,#2E7D5B)"></div><div><div style="font-size:12.5px;font-weight:600">Paul Copplestone</div><div class="meta" style="text-transform:none;letter-spacing:.02em;color:#A39C8B">@kiwicopple</div></div></div>
+                    <div style="font-size:13.5px;line-height:1.5;margin-top:10px;color:#2B2820">pgvector + a reranker gets you 90% of a vector-DB startup's pitch, running inside the database you already have. Stop adding services.</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#2E7D5B"></span><span class="meta" style="margin-left:auto">Post · x.com</span></div>
+                  </div>
+                </div>
+
+                <!-- Book -->
+                <div class="card">
+                  <div style="height:180px;background:#EFE9DB;display:flex;align-items:center;justify-content:center;padding:18px">
+                    <div style="width:96px;height:140px;background:linear-gradient(160deg,#7a2e2e,#4a1d1d);border-radius:2px 5px 5px 2px;box-shadow:6px 8px 18px -6px rgba(0,0,0,.5);padding:14px 12px;display:flex;flex-direction:column;justify-content:space-between">
+                      <div class="serif" style="color:#EDD9A6;font-size:12px;font-style:italic;line-height:1.25">The Timeless Way of Building</div>
+                      <div class="meta" style="color:rgba(237,217,166,.7);font-size:7px">C. ALEXANDER</div>
+                    </div>
+                  </div>
+                  <div style="padding:12px 14px">
+                    <div class="serif" style="font-size:15.5px;font-weight:600;line-height:1.2">The Timeless Way of Building</div>
+                    <div style="display:flex;gap:5px;margin-top:9px"><span class="tag">architecture</span><span class="tag">patterns</span></div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#7a2e2e"></span><span class="dot" style="background:#EDD9A6"></span><span class="dot" style="background:#4a1d1d"></span><span class="meta" style="margin-left:auto">Book · to read</span></div>
+                  </div>
+                </div>
+
+                <!-- Recipe -->
+                <div class="card">
+                  <div style="height:96px;background:linear-gradient(135deg,#6b4226,#8a5a2e);position:relative"><div class="meta" style="position:absolute;left:12px;bottom:9px;color:rgba(255,255,255,.85)">45 min · serves 2</div></div>
+                  <div style="padding:13px 14px">
+                    <div class="serif" style="font-size:16px;font-weight:600;line-height:1.2">Miso-glazed aubergine</div>
+                    <div style="margin-top:9px;font:400 12px/1.7 'JetBrains Mono',monospace;color:#6B655A">2 aubergines<br>3 tbsp white miso<br>1 tbsp mirin · 1 tsp honey<br>spring onion · sesame</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:11px"><span class="dot" style="background:#6b4226"></span><span class="dot" style="background:#8a5a2e"></span><span class="meta" style="margin-left:auto">Recipe · nyt cooking</span></div>
+                  </div>
+                </div>
+
+                <!-- Image ref 2 -->
+                <div class="card">
+                  <div style="height:160px;background:linear-gradient(160deg,#1B3FD1,#2E7D5B);position:relative"><div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 80%,rgba(224,178,58,.5),transparent 50%)"></div><div class="meta" style="position:absolute;left:12px;bottom:10px;color:rgba(255,255,255,.85)">gradient study</div></div>
+                  <div style="padding:11px 13px;display:flex;align-items:center;gap:8px"><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#2E7D5B"></span><span class="dot" style="background:#E0B23A"></span><span class="meta" style="margin-left:auto">Image</span></div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ============ 1b GALLERY-DENSE ============ -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a> Gallery-dense · image-forward · metadata on hover</div>
+      <div class="frame" style="width:1000px;padding:22px 24px 26px;background:#F1ECE1">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px">
+          <div class="serif" style="font-size:22px;font-weight:600;letter-spacing:-.02em">The Mind</div>
+          <span class="meta">tighter · 5-up · the picture leads</span>
+        </div>
+        <div class="mind-col" style="column-count:5;column-gap:12px">
+          <!-- images & visual-first, minimal chrome -->
+          <div class="card" style="border-radius:8px"><div style="height:130px;background:linear-gradient(150deg,#C24A2E,#E0B23A)"></div><div style="padding:8px 9px;display:flex;gap:4px;align-items:center"><span class="dot" style="width:7px;height:7px;background:#C24A2E"></span><span class="dot" style="width:7px;height:7px;background:#E0B23A"></span><span class="dot" style="width:7px;height:7px;background:#EFE3C4"></span></div></div>
+          <div class="card" style="border-radius:8px;background:#1C1A16"><div style="padding:14px 12px"><div class="serif" style="font-size:14px;line-height:1.3;color:#F4F0E6;font-style:italic">Excellence is not an act, but a habit.</div><div class="meta" style="color:#8A8578;margin-top:8px">Durant</div></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:180px;background:linear-gradient(160deg,#1B3FD1,#2E7D5B)"></div><div style="padding:8px 9px;display:flex;gap:4px"><span class="dot" style="width:7px;height:7px;background:#1B3FD1"></span><span class="dot" style="width:7px;height:7px;background:#2E7D5B"></span></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:90px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="padding:9px 10px"><div class="serif" style="font-size:12.5px;font-weight:600;line-height:1.25">Durable execution & the death of cron</div><div class="meta" style="margin-top:7px">8 min · article</div></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:150px;background:#EFE9DB;display:flex;align-items:center;justify-content:center"><div style="width:56px;height:82px;background:linear-gradient(160deg,#7a2e2e,#4a1d1d);border-radius:2px 3px 3px 2px;box-shadow:3px 4px 10px -3px rgba(0,0,0,.5)"></div></div><div style="padding:8px 9px;display:flex;gap:4px"><span class="dot" style="width:7px;height:7px;background:#7a2e2e"></span><span class="dot" style="width:7px;height:7px;background:#EDD9A6"></span></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:110px;background:linear-gradient(135deg,#2b2b2b,#111);display:flex;align-items:center;justify-content:center"><div style="width:26px;height:26px;border-radius:50%;background:rgba(244,240,230,.92);display:flex;align-items:center;justify-content:center"><div style="width:0;height:0;border-left:8px solid #1C1A16;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px"></div></div></div><div style="padding:8px 9px"><div class="meta">1:01 · video</div></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:70px;background:#EFE9DB;display:flex;align-items:center;justify-content:center"><div style="width:70px;height:36px;background:linear-gradient(100deg,#2E7D5B,#1f5a41);border-radius:22px 22px 5px 5px;transform:rotate(-8deg)"></div></div><div style="padding:8px 9px"><div class="serif" style="font-size:12px;font-weight:600">Norda 001</div><div class="meta" style="margin-top:5px;color:#2E7D5B">$285 · product</div></div></div>
+          <div class="card" style="border-radius:8px;background:#FBF4D8;border-color:rgba(140,120,40,.25)"><div style="padding:11px 11px"><div class="serif" style="font-size:12.5px;line-height:1.35;color:#3A3320">Priority lanes: interactive saves jump the bulk backlog.</div><div class="meta" style="color:#9A8A3A;margin-top:7px">note</div></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:120px;background:linear-gradient(135deg,#6b4226,#8a5a2e)"></div><div style="padding:8px 9px"><div class="serif" style="font-size:12px;font-weight:600">Miso aubergine</div><div class="meta" style="margin-top:5px">recipe</div></div></div>
+          <div class="card" style="border-radius:8px"><div style="height:100px;background:radial-gradient(circle at 40% 30%,#E0B23A,#C24A2E)"></div><div style="padding:8px 9px;display:flex;gap:4px"><span class="dot" style="width:7px;height:7px;background:#E0B23A"></span><span class="dot" style="width:7px;height:7px;background:#C24A2E"></span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1c COMMONPLACE PAPER ============ -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a> Commonplace ledger · ruled paper · marginalia</div>
+      <div class="frame" style="width:720px;padding:0;background:#F7F2E4">
+        <div style="padding:26px 34px 30px;background:repeating-linear-gradient(#F7F2E4 0 31px,rgba(27,63,209,.08) 31px 32px);position:relative">
+          <div style="position:absolute;top:0;bottom:0;left:56px;width:1px;background:rgba(194,74,46,.35)"></div>
+          <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:22px;padding-left:22px">
+            <div class="serif" style="font-size:24px;font-weight:600;font-style:italic;letter-spacing:-.01em">The Mind</div>
+            <span class="meta" style="color:#C24A2E">— a commonplace book, kept by a machine</span>
+          </div>
+
+          <!-- entry: article -->
+          <div style="display:grid;grid-template-columns:60px 1fr;gap:14px;margin-bottom:22px">
+            <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">03 JUL</div>
+            <div>
+              <div class="serif" style="font-size:18px;font-weight:600;line-height:1.3">Durable execution and the death of the cron job</div>
+              <div class="serif" style="font-size:14px;line-height:1.5;color:#57534A;margin-top:4px;font-style:italic">“A Postgres-backed queue can replace half your infra…”</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span class="dot" style="background:#17206b"></span><span class="dot" style="background:#1B3FD1"></span><span class="dot" style="background:#B9C2E8"></span><span class="meta" style="margin-left:2px;color:#8A8578">article · brandur.org · 8 min · go, workflows</span></div>
+            </div>
+          </div>
+
+          <!-- entry: quote -->
+          <div style="display:grid;grid-template-columns:60px 1fr;gap:14px;margin-bottom:22px">
+            <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">02 JUL</div>
+            <div style="border-left:3px solid #E0B23A;padding-left:14px">
+              <div class="serif" style="font-size:20px;line-height:1.35;font-style:italic;color:#2B2820">We are what we repeatedly do. Excellence, then, is not an act, but a habit.</div>
+              <div class="meta" style="margin-top:7px;color:#8A8578">— Will Durant · quote</div>
+            </div>
+          </div>
+
+          <!-- entry: image -->
+          <div style="display:grid;grid-template-columns:60px 1fr;gap:14px;margin-bottom:22px">
+            <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">02 JUL</div>
+            <div style="display:flex;gap:14px;align-items:flex-start">
+              <div style="width:120px;height:84px;flex:none;border-radius:4px;background:linear-gradient(150deg,#C24A2E,#E0B23A);box-shadow:2px 3px 8px -3px rgba(0,0,0,.35);transform:rotate(-1.5deg)"></div>
+              <div style="padding-top:4px">
+                <div class="serif" style="font-size:15px;font-weight:600">Risograph poster study</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#EFE3C4"></span><span class="meta" style="margin-left:2px;color:#8A8578">image · are.na</span></div>
+                <div class="serif" style="font-style:italic;font-size:13px;color:#C24A2E;margin-top:6px">▸ warm, two-ink, high grain — pin to Design lens</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- entry: note -->
+          <div style="display:grid;grid-template-columns:60px 1fr;gap:14px">
+            <div class="meta" style="text-align:right;color:#A39C8B;padding-top:3px">01 JUL</div>
+            <div>
+              <div class="serif" style="font-size:15px;line-height:1.5;color:#3A3320">Rebuild the enrichment queue as priority lanes — interactive saves jump the bulk-import backlog.</div>
+              <div class="meta" style="margin-top:7px;color:#9A8A3A">marginalia · note</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!--MORE_OPTS-->
+
+  </div>
+  <p class="dv-next">Try next: "build out the rest in <a class="dv-oid" href="#1a">1a</a>" · "make the cards denser like <a class="dv-oid" href="#1b">1b</a>" · "more paper texture like <a class="dv-oid" href="#1c">1c</a>" · "show the card detail / reader view"</p>
+</section>
+<section class="dv-turn" id="screens" style="background:rgba(28,26,22,.025);border-top:1px solid rgba(28,26,22,.08)">
+  <div class="dv-thd"><a class="dv-tid" href="#screens" style="background:#1B3FD1">S</a><span class="dv-tname">The seven screens <em>· direction 1a · gallery paper · ink · cobalt</em></span></div>
+  <div class="dv-opts">
+
+    <!-- CARD DETAIL / READER -->
+    <div class="dv-opt" id="s-detail">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-detail">S1</a> Card detail · reader mode · marginalia rail</div>
+      <div class="frame" style="width:900px;height:600px;display:flex">
+        <div style="flex:1;overflow:hidden;background:#FBFAF5;padding:34px 44px">
+          <div class="meta" style="color:#A39C8B">◂ The Mind · Article · brandur.org · 8 min</div>
+          <div class="serif" style="font-size:32px;font-weight:600;line-height:1.15;letter-spacing:-.02em;margin-top:14px">Durable execution and the death of the cron job</div>
+          <div class="serif" style="font-size:15px;line-height:1.7;color:#3A3320;margin-top:18px">A Postgres-backed queue can replace half of your infrastructure. When work must not be lost, a durable workflow beats a cron job on every axis that matters — retries, visibility, idempotency.</div>
+          <div class="serif" style="font-size:15px;line-height:1.7;color:#3A3320;margin-top:14px">The idea is old but the ergonomics are finally good. River leans on the transactional guarantees you already trust, so enqueue-and-forget becomes a single statement inside the same commit as your business write.</div>
+          <div style="border-left:3px solid #1B3FD1;padding:4px 0 4px 16px;margin:18px 0"><div class="serif" style="font-size:17px;line-height:1.5;font-style:italic;color:#17206b">“The database is the queue. There is no second system to reconcile.”</div></div>
+          <div class="serif" style="font-size:15px;line-height:1.7;color:#3A3320">Batching is where the economics turn: group pending jobs, spend one API round-trip, take the discount. A bulk import of three thousand items simply grinds overnight.</div>
+          <div style="display:flex;gap:8px;margin-top:22px"><button style="border:none;background:#1B3FD1;color:#F4F0E6;font:600 12px/1 'Instrument Sans';padding:10px 14px;border-radius:9px">Open original ↗</button><button style="border:1px solid rgba(28,26,22,.15);background:#FCFBF6;color:#1C1A16;font:600 12px/1 'Instrument Sans';padding:10px 14px;border-radius:9px">Send to Kindle</button><button style="border:1px solid rgba(28,26,22,.15);background:#FCFBF6;color:#1C1A16;font:600 12px/1 'Instrument Sans';padding:10px 14px;border-radius:9px">Highlight</button></div>
+        </div>
+        <div style="width:266px;flex:none;border-left:1px solid rgba(28,26,22,.1);background:#EFEADE;padding:24px 20px;overflow:hidden">
+          <div class="meta" style="color:#8A8578">AI summary</div>
+          <div style="font-size:12.5px;line-height:1.55;color:#3A3320;margin-top:8px">Durable, Postgres-backed queues replace cron for anything that must not be lost — retries, idempotency and batching included, no extra services.</div>
+          <div style="height:1px;background:rgba(28,26,22,.1);margin:18px 0"></div>
+          <div class="meta" style="color:#8A8578">Palette</div>
+          <div style="display:flex;gap:6px;margin-top:9px"><span class="dot" style="width:22px;height:22px;background:#17206b"></span><span class="dot" style="width:22px;height:22px;background:#1B3FD1"></span><span class="dot" style="width:22px;height:22px;background:#B9C2E8"></span><span class="dot" style="width:22px;height:22px;background:#EDE9DC"></span></div>
+          <div style="height:1px;background:rgba(28,26,22,.1);margin:18px 0"></div>
+          <div class="meta" style="color:#8A8578">Tags</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px"><span class="tag">go</span><span class="tag">workflows</span><span class="tag">postgres</span><span class="tag" style="border-style:dashed;color:#1B3FD1;border-color:rgba(27,63,209,.4)">+ add</span></div>
+          <div class="meta" style="color:#A39C8B;margin-top:6px;text-transform:none;letter-spacing:.02em">3 by AI · 0 by you</div>
+          <div style="height:1px;background:rgba(28,26,22,.1);margin:18px 0"></div>
+          <div class="meta" style="color:#8A8578">Similar in your mind</div>
+          <div style="display:flex;gap:6px;margin-top:9px"><div style="width:40px;height:40px;border-radius:6px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div><div style="width:40px;height:40px;border-radius:6px;background:#1C1A16"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="dv-opt" id="s-search">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-search">S2</a> Search · natural language + colour + hybrid rank</div>
+      <div class="frame" style="width:900px;height:600px;background:#F4F0E6;padding:28px 30px">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:#FCFBF6;border:1px solid rgba(27,63,209,.35);border-radius:12px;box-shadow:0 0 0 3px rgba(27,63,209,.08)">
+          <span style="color:#1B3FD1;font-size:16px">⌕</span>
+          <span class="serif" style="font-size:17px;color:#1C1A16;flex:1;font-style:italic">that go article about durable workflows I saved last month</span>
+          <span style="width:2px;height:20px;background:#1B3FD1;animation:floaty 1s infinite"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+          <span class="meta" style="color:#8A8578">understood as</span>
+          <span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25)">type: article</span>
+          <span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25)">topic ≈ durable workflows</span>
+          <span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25)">after: 1 Jun</span>
+          <span class="meta" style="margin-left:auto;color:#A39C8B">fts + vector · reranked · 41 ms</span>
+        </div>
+        <div style="display:flex;gap:20px;margin-top:22px">
+          <div style="width:150px;flex:none">
+            <div class="meta" style="color:#8A8578;margin-bottom:9px">Colour</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px"><span class="dot" style="width:26px;height:26px;background:#1B3FD1;box-shadow:0 0 0 2px #1B3FD1,0 0 0 4px #F4F0E6"></span><span class="dot" style="width:26px;height:26px;background:#C24A2E"></span><span class="dot" style="width:26px;height:26px;background:#2E7D5B"></span><span class="dot" style="width:26px;height:26px;background:#E0B23A"></span><span class="dot" style="width:26px;height:26px;background:#1C1A16"></span><span class="dot" style="width:26px;height:26px;background:#EFE3C4"></span></div>
+            <div class="meta" style="color:#8A8578;margin:18px 0 9px">Type</div>
+            <div style="display:flex;flex-direction:column;gap:6px"><span class="tag" style="background:#1C1A16;color:#F4F0E6;border-color:#1C1A16;text-align:center">article</span><span class="tag" style="text-align:center">image</span><span class="tag" style="text-align:center">quote</span><span class="tag" style="text-align:center">note</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="meta" style="color:#8A8578;margin-bottom:10px">3 results</div>
+            <div class="mind-col" style="column-count:2;column-gap:14px">
+              <div class="card" style="box-shadow:0 0 0 2px rgba(27,63,209,.35)"><div style="height:74px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="padding:11px 12px"><div class="serif" style="font-size:14px;font-weight:600;line-height:1.2">Durable execution and the death of the cron job</div><div class="meta" style="margin-top:8px;text-transform:none;letter-spacing:.02em;color:#1B3FD1">matched: “durable” + vector 0.91</div></div></div>
+              <div class="card"><div style="padding:12px 13px"><div style="font-size:12.5px;line-height:1.5;color:#2B2820">pgvector + a reranker gets you 90% of a vector-DB startup's pitch…</div><div class="meta" style="margin-top:9px">post · x.com</div></div></div>
+              <div class="card"><div style="height:60px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div><div style="padding:10px 12px"><div class="serif" style="font-size:13px;font-weight:600">River: a job queue for Go</div><div class="meta" style="margin-top:7px">article · 5 min</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CMD+K CAPTURE -->
+    <div class="dv-opt" id="s-capture">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-capture">S3</a> Quick capture · ⌘K · type auto-detected</div>
+      <div class="frame" style="width:600px;height:460px;position:relative;background:#1C1A16">
+        <div style="position:absolute;inset:0;background:linear-gradient(#1B3FD1,#17206b);opacity:.16"></div>
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(#00000000 0 30px,rgba(0,0,0,.08) 30px 31px)"></div>
+        <div style="position:absolute;left:50%;top:52px;transform:translateX(-50%);width:480px;background:#FBFAF5;border-radius:14px;box-shadow:0 30px 70px -20px rgba(0,0,0,.6);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid rgba(28,26,22,.1)">
+            <span style="color:#1B3FD1;font-size:15px">＋</span>
+            <span class="serif" style="font-size:15px;color:#1C1A16;flex:1">https://brandur.org/river</span>
+            <span style="width:2px;height:18px;background:#1B3FD1"></span>
+            <span class="tag" style="background:rgba(27,63,209,.1);color:#1B3FD1;border-color:rgba(27,63,209,.25)">Article ✓</span>
+          </div>
+          <div style="padding:16px 18px;display:flex;gap:13px">
+            <div style="width:66px;height:66px;flex:none;border-radius:8px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div>
+            <div style="flex:1;min-width:0">
+              <div class="serif" style="font-size:15px;font-weight:600;line-height:1.2">Durable execution and the death of the cron job</div>
+              <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">brandur.org</div>
+              <div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="tag" style="opacity:.5">go</span><span class="tag" style="opacity:.5">workflows</span><span class="meta" style="color:#1B3FD1">enriching…</span></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;background:#EFEADE;border-top:1px solid rgba(28,26,22,.08)">
+            <span class="meta" style="color:#8A8578">saves instantly · enriches in place</span>
+            <span style="margin-left:auto;font:600 11px/1 'JetBrains Mono';color:#F4F0E6;background:#1B3FD1;padding:7px 11px;border-radius:7px">↵ Save</span>
+          </div>
+        </div>
+        <div style="position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:22px" class="meta">
+          <span style="color:rgba(244,240,230,.6)">paste a link</span><span style="color:rgba(244,240,230,.6)">drop an image</span><span style="color:rgba(244,240,230,.6)">type a note</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRIFT -->
+    <div class="dv-opt" id="s-drift">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-drift">S4</a> Drift · calm resurfacing · keep or let go</div>
+      <div class="frame" style="width:600px;height:560px;background:#1C1A16;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:34px">
+        <div class="meta" style="color:#8A8578;position:absolute;top:26px;left:0;right:0;text-align:center">Drift · 3 of 12 today</div>
+        <div style="position:absolute;top:52px;left:50%;transform:translateX(-50%);display:flex;gap:6px"><span class="dot" style="width:6px;height:6px;background:#E0B23A"></span><span class="dot" style="width:6px;height:6px;background:#E0B23A"></span><span class="dot" style="width:6px;height:6px;background:#E0B23A"></span><span class="dot" style="width:6px;height:6px;background:rgba(244,240,230,.2)"></span><span class="dot" style="width:6px;height:6px;background:rgba(244,240,230,.2)"></span></div>
+        <div class="card" style="width:320px;background:#FBFAF5;animation:floaty 5s ease-in-out infinite">
+          <div style="height:150px;background:linear-gradient(150deg,#C24A2E,#E0B23A);position:relative"><div style="position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,rgba(255,255,255,.35),transparent 45%)"></div></div>
+          <div style="padding:16px 18px">
+            <div class="serif" style="font-size:19px;font-weight:600;line-height:1.25">Risograph poster study</div>
+            <div style="font-size:12.5px;color:#6B655A;margin-top:6px;line-height:1.5">Warm two-ink print, heavy grain. You saved this to figure out the palette for a side project.</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span><span class="dot" style="background:#EFE3C4"></span><span class="meta" style="margin-left:auto">image · are.na</span></div>
+          </div>
+        </div>
+        <div class="serif" style="color:rgba(244,240,230,.55);font-style:italic;font-size:13px;margin-top:18px">Saved 8 months ago · never revisited</div>
+        <div style="display:flex;gap:12px;margin-top:20px">
+          <button style="border:1px solid rgba(244,240,230,.25);background:transparent;color:rgba(244,240,230,.8);font:600 13px/1 'Instrument Sans';padding:12px 22px;border-radius:10px">Let go</button>
+          <button style="border:none;background:#E0B23A;color:#1C1A16;font:600 13px/1 'Instrument Sans';padding:12px 22px;border-radius:10px">Keep on my desk</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESK -->
+    <div class="dv-opt" id="s-desk">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-desk">S5</a> Desk · what's in front of you right now</div>
+      <div class="frame" style="width:700px;height:520px;background:#EFEADE;padding:30px 34px;overflow:hidden">
+        <div class="serif" style="font-size:26px;font-weight:600;letter-spacing:-.02em">Your desk</div>
+        <div class="meta" style="margin-top:6px;text-transform:none;letter-spacing:.02em;color:#8A8578">4 things you're working with · pinned by you</div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:22px">
+          <div class="card" style="width:200px;transform:rotate(-1.2deg)"><div style="height:90px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="padding:11px 12px"><div class="serif" style="font-size:14px;font-weight:600;line-height:1.2">Durable execution & cron</div><div class="meta" style="margin-top:7px">article · 8 min</div></div></div>
+          <div class="card" style="width:200px;transform:rotate(1deg);background:#FBF4D8;border-color:rgba(140,120,40,.25)"><div style="padding:13px 14px"><div class="meta" style="color:#9A8A3A">note</div><div class="serif" style="font-size:14px;line-height:1.4;margin-top:7px;color:#3A3320">Priority lanes for the queue — interactive saves jump the backlog.</div></div></div>
+          <div class="card" style="width:150px;transform:rotate(-.6deg)"><div style="height:120px;background:linear-gradient(150deg,#C24A2E,#E0B23A)"></div><div style="padding:9px 11px;display:flex;gap:5px"><span class="dot" style="background:#C24A2E"></span><span class="dot" style="background:#E0B23A"></span></div></div>
+          <div class="card" style="width:200px;transform:rotate(.8deg);background:#1C1A16"><div style="padding:16px 16px"><div class="serif" style="font-size:15px;line-height:1.35;color:#F4F0E6;font-style:italic">Excellence is not an act, but a habit.</div><div class="meta" style="color:#8A8578;margin-top:10px">Durant · quote</div></div></div>
+        </div>
+        <div class="meta" style="margin-top:24px;color:#A39C8B">picked up today ↑ · everything else lives in The Mind</div>
+      </div>
+    </div>
+
+    <!-- LENSES -->
+    <div class="dv-opt" id="s-lenses">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-lenses">S6</a> Lenses · saved queries · self-filling</div>
+      <div class="frame" style="width:540px;background:#F4F0E6;padding:28px 28px 30px">
+        <div style="display:flex;align-items:baseline;gap:10px"><div class="serif" style="font-size:24px;font-weight:600;letter-spacing:-.02em">Lenses</div><span class="meta" style="color:#8A8578">the machine files · you just look</span></div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:20px">
+          <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;padding:14px 16px;display:flex;align-items:center;gap:14px">
+            <span class="dot" style="width:12px;height:12px;background:#1B3FD1"></span>
+            <div style="flex:1">
+              <div style="font:600 14px/1 'Instrument Sans'">Design inspiration</div>
+              <div style="display:flex;gap:5px;margin-top:8px"><span class="tag">type: image</span><span class="tag">colour: warm</span></div>
+            </div>
+            <div style="display:flex;gap:4px"><div style="width:34px;height:34px;border-radius:6px;background:linear-gradient(150deg,#C24A2E,#E0B23A)"></div><div style="width:34px;height:34px;border-radius:6px;background:radial-gradient(circle,#E0B23A,#C24A2E)"></div><div style="width:34px;height:34px;border-radius:6px;background:#EFE3C4"></div></div>
+            <span class="meta" style="color:#A39C8B">214</span>
+          </div>
+          <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;padding:14px 16px;display:flex;align-items:center;gap:14px">
+            <span class="dot" style="width:12px;height:12px;background:#C24A2E"></span>
+            <div style="flex:1">
+              <div style="font:600 14px/1 'Instrument Sans'">Distributed systems</div>
+              <div style="display:flex;gap:5px;margin-top:8px"><span class="tag">topic ≈ queues</span><span class="tag">type: article</span></div>
+            </div>
+            <div style="display:flex;gap:4px"><div style="width:34px;height:34px;border-radius:6px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="width:34px;height:34px;border-radius:6px;background:#1C1A16"></div><div style="width:34px;height:34px;border-radius:6px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div></div>
+            <span class="meta" style="color:#A39C8B">88</span>
+          </div>
+          <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;padding:14px 16px;display:flex;align-items:center;gap:14px">
+            <span class="dot" style="width:12px;height:12px;background:#2E7D5B"></span>
+            <div style="flex:1">
+              <div style="font:600 14px/1 'Instrument Sans'">Running &amp; gear</div>
+              <div style="display:flex;gap:5px;margin-top:8px"><span class="tag">type: product</span><span class="tag">topic ≈ running</span></div>
+            </div>
+            <div style="display:flex;gap:4px"><div style="width:34px;height:34px;border-radius:6px;background:#EFE9DB;display:flex;align-items:center;justify-content:center"><div style="width:22px;height:11px;background:#2E7D5B;border-radius:8px 8px 2px 2px"></div></div><div style="width:34px;height:34px;border-radius:6px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div></div>
+            <span class="meta" style="color:#A39C8B">37</span>
+          </div>
+          <div style="border:1px dashed rgba(28,26,22,.2);border-radius:11px;padding:14px 16px;display:flex;align-items:center;gap:10px;color:#1B3FD1"><span>+</span><span class="serif" style="font-style:italic;font-size:14px">Describe a new lens…</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONBOARDING / EMPTY -->
+    <div class="dv-opt" id="s-empty">
+      <div class="dv-olabel"><a class="dv-oid" href="#s-empty">S7</a> Onboarding · empty state · the invitation</div>
+      <div class="frame" style="width:600px;height:520px;background:#F4F0E6;position:relative;overflow:hidden">
+        <div style="position:absolute;inset:0;opacity:.32;padding:20px;display:flex;gap:12px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px"><div style="height:120px;border-radius:10px;background:linear-gradient(120deg,#1B3FD1,#17206b)"></div><div style="height:80px;border-radius:10px;background:#1C1A16"></div></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px"><div style="height:70px;border-radius:10px;background:linear-gradient(150deg,#C24A2E,#E0B23A)"></div><div style="height:130px;border-radius:10px;background:#EFE9DB"></div></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px"><div style="height:100px;border-radius:10px;background:linear-gradient(135deg,#2E7D5B,#1f5a41)"></div><div style="height:90px;border-radius:10px;background:#FBF4D8"></div></div>
+        </div>
+        <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,#F4F0E6 30%,rgba(244,240,230,.85) 60%,rgba(244,240,230,.5))"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center">
+          <div style="width:40px;height:40px;border-radius:10px;background:#1B3FD1;position:relative;margin-bottom:18px"><div style="position:absolute;inset:9px 9px auto 9px;height:3px;background:#F4F0E6"></div><div style="position:absolute;inset:16px 9px auto 9px;height:3px;background:rgba(244,240,230,.6)"></div><div style="position:absolute;inset:23px 14px auto 9px;height:3px;background:rgba(244,240,230,.4)"></div></div>
+          <div class="serif" style="font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.15">Your commonplace book,<br>kept by a machine</div>
+          <div class="serif" style="font-size:15px;font-style:italic;color:#6B655A;margin-top:12px;max-width:360px;line-height:1.5">Save anything. Organise nothing. It's private, self-hosted, and entirely yours.</div>
+          <div style="display:flex;gap:10px;margin-top:24px">
+            <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.12);border-radius:10px;padding:12px 14px;text-align:center"><div style="font:600 12px/1 'Instrument Sans'">Add the extension</div><div class="meta" style="margin-top:6px;color:#A39C8B">one click</div></div>
+            <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.12);border-radius:10px;padding:12px 14px;text-align:center"><div style="font:600 12px/1 'Instrument Sans'">Press ⌘K</div><div class="meta" style="margin-top:6px;color:#A39C8B">anywhere</div></div>
+            <div style="background:#FCFBF6;border:1px solid rgba(28,26,22,.12);border-radius:10px;padding:12px 14px;text-align:center"><div style="font:600 12px/1 'Instrument Sans'">Drop a file</div><div class="meta" style="margin-top:6px;color:#A39C8B">image or note</div></div>
+          </div>
+          <button style="border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 'Instrument Sans';padding:13px 22px;border-radius:10px;margin-top:24px">Save your first thing</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "make <a class="dv-oid" href="#s-drift">S4</a> Drift a full-screen flow" · "add hover states across <a class="dv-oid" href="#1a">1a</a>" · "swap cobalt for a warmer accent" · "show the browser-extension popup"</p>
+</section>
+</x-dc>
+</body>
+</html>

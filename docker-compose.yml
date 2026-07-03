@@ -1,0 +1,33 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: openmind
+      POSTGRES_PASSWORD: openmind
+      POSTGRES_DB: openmind
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openmind"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  api:
+    build: apps/api
+    command: ["all"]
+    environment:
+      DATABASE_URL: postgres://openmind:openmind@db:5432/openmind
+      AI_PROVIDER: ${AI_PROVIDER:-noop}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

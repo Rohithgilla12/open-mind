@@ -1,0 +1,47 @@
+version: "3"
+
+tasks:
+  db:
+    cmds: [docker compose up -d db]
+
+  dev:
+    deps: [db]
+    cmds:
+      - task: generate
+      - cmd: cd apps/api && go run ./cmd/openmind migrate && go run ./cmd/openmind all
+
+  generate:
+    deps: [generate:api, generate:sqlc, generate:ts]
+
+  generate:api:
+    dir: apps/api
+    sources: ["../../openapi.yaml", "oapi.cfg.yaml"]
+    generates: ["internal/api/gen.go"]
+    cmds: [go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1 -config oapi.cfg.yaml ../../openapi.yaml]
+
+  generate:sqlc:
+    dir: apps/api
+    sources: ["sqlc.yaml", "internal/store/queries/*.sql", "internal/store/migrations/*.sql"]
+    generates: ["internal/store/db/*.go"]
+    cmds: [go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate]
+
+  generate:ts:
+    sources: ["openapi.yaml"]
+    generates: ["packages/api-client/src/schema.d.ts"]
+    cmds: [pnpm --filter @openmind/api-client generate]
+
+  test:
+    cmds:
+      # -p 1 serializes package test binaries: store/enrich/search integration
+      # tests share one Postgres, and parallel binaries race on TRUNCATE.
+      - cmd: cd apps/api && go test -p 1 ./...
+      - cmd: pnpm turbo run test
+
+  lint:
+    cmds:
+      - cmd: cd apps/api && go vet ./...
+      - cmd: pnpm turbo run lint
+
+  migrate:
+    dir: apps/api
+    cmds: [go run ./cmd/openmind migrate]

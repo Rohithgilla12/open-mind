@@ -1,0 +1,20 @@
+[
+  { "url": "https://paulgraham.com/greatwork.html", "type": "article" },
+  { "url": "https://paulgraham.com/wealth.html", "type": "article" },
+  { "url": "https://jvns.ca/blog/2026/05/04/css-colour-palettes/", "type": "article" },
+  { "url": "https://danluu.com/why-benchmark/", "type": "article" },
+  { "url": "https://blog.samaltman.com/how-to-be-successful", "type": "article" },
+  { "url": "https://www.kingarthurbaking.com/recipes/chocolate-chip-cookies-recipe", "type": "recipe" },
+  { "url": "https://www.budgetbytes.com/one-pot-creamy-cajun-chicken-pasta/", "type": "recipe" },
+  { "url": "https://cooking.nytimes.com/recipes/1018849-classic-caprese-salad", "type": "recipe" },
+  { "url": "https://www.amazon.com/dp/B08N5WRWNW", "type": "product" },
+  { "url": "https://www.apple.com/shop/buy-iphone/iphone-15-pro", "type": "product" },
+  { "url": "https://x.com/paulg/status/1911893528772489695", "type": "tweet" },
+  { "url": "https://x.com/naval/status/1002103360646823936", "type": "tweet" },
+  { "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "type": "video" },
+  { "url": "https://www.youtube.com/watch?v=aircAruvnKk", "type": "video" },
+  { "url": "https://unsplash.com/photos/gray-mountain-under-white-sky-during-daytime-yC-Yzbqy7PY", "type": "image" },
+  { "url": "https://www.flickr.com/photos/nasacommons/albums", "type": "image" },
+  { "url": "https://medium.com/@nikitonsky/the-programmers-brain-in-the-lands-of-exponentials-e800aab1b06f", "type": "article" },
+  { "url": "https://linear.app/method", "type": "article" }
+]
