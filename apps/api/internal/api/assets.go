@@ -79,7 +79,7 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing multipart file field")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Sniff the leading bytes, then rewind so the full stream is stored.
 	head := make([]byte, sniffLen)
@@ -132,6 +132,12 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Error("writing asset blob", "asset_id", asset.ID, "err", err)
+		// Best-effort cleanup: drop the item so no ghost card is left behind.
+		// The asset row is removed via ON DELETE CASCADE. Failure here is logged
+		// but does not change the original 500 the caller receives.
+		if _, delErr := s.store.Queries.DeleteItem(ctx, db.DeleteItemParams{UserID: uid, ID: item.ID}); delErr != nil {
+			slog.Error("cleaning up orphan item after blob-write failure", "item_id", item.ID, "err", delErr)
+		}
 		writeError(w, http.StatusInternalServerError, "could not store file")
 		return
 	}
