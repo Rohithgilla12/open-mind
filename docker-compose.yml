@@ -22,7 +22,14 @@ services:
     environment:
       DATABASE_URL: postgres://openmind:openmind@db:5432/openmind
       AI_PROVIDER: ${AI_PROVIDER:-noop}
+      AI_PROVIDERS: ${AI_PROVIDERS:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL:-}
+      AI_RPM_GEMINI: ${AI_RPM_GEMINI:-}
+      AI_RPM_OPENAI: ${AI_RPM_OPENAI:-}
       OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
     ports:
       - "127.0.0.1:8080:8080"
