@@ -37,17 +37,37 @@ export default async function Page({
 
   return (
     <main style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <h1
+      <div
         style={{
-          fontFamily: tokens.font.sans,
-          fontSize: "1.4rem",
-          fontWeight: 600,
-          color: tokens.color.ink,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
           margin: "0 0 1.25rem",
         }}
       >
-        Openmind
-      </h1>
+        <h1
+          style={{
+            fontFamily: tokens.font.sans,
+            fontSize: "1.4rem",
+            fontWeight: 600,
+            color: tokens.color.ink,
+            margin: 0,
+          }}
+        >
+          Openmind
+        </h1>
+        <a
+          href="/api/export"
+          style={{
+            fontFamily: tokens.font.mono,
+            fontSize: "0.75rem",
+            color: tokens.color.cobalt,
+            textDecoration: "none",
+          }}
+        >
+          Export JSON
+        </a>
+      </div>
       <QuickAdd />
       <SearchBox initial={q} />
       <Grid items={items} />

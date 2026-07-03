@@ -5,3 +5,6 @@ export type Item =
 
 export type SearchResult =
   paths["/search"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+export type ItemDetail =
+  paths["/items/{id}"]["get"]["responses"]["200"]["content"]["application/json"];

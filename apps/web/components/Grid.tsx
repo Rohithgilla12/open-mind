@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { tokens } from "@openmind/ui";
 import type { Item } from "../lib/types";
 import { ItemCard } from "./ItemCard";
@@ -21,7 +22,13 @@ export function Grid({ items }: { items: Item[] }) {
   return (
     <div className="grid">
       {items.map((item) => (
-        <ItemCard key={item.id} item={item} />
+        <Link
+          key={item.id}
+          href={`/item/${item.id}`}
+          style={{ display: "block", color: "inherit", textDecoration: "none" }}
+        >
+          <ItemCard item={item} />
+        </Link>
       ))}
     </div>
   );
