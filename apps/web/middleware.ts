@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
   const hasToken = req.cookies.has("om_token");
   const isLogin = req.nextUrl.pathname.startsWith("/login");
   if (!hasToken && !isLogin) {
