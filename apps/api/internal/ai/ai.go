@@ -5,6 +5,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 )
@@ -31,14 +32,26 @@ type Provider interface {
 var ErrNotSupported = errors.New("ai: operation not supported by provider")
 
 // FromEnv builds a Provider based on the AI_PROVIDER environment variable.
-// Unknown or unimplemented values (including "gemini", pending a future
-// task) fall back to the noop provider with a warning logged.
-func FromEnv() Provider {
+// "gemini" requires GEMINI_API_KEY and returns an error if it is unset.
+// Unknown values fall back to the noop provider with a warning logged.
+// It takes a context because building some providers (e.g. gemini) makes
+// a network round-trip during client construction.
+func FromEnv(ctx context.Context) (Provider, error) {
 	switch provider := os.Getenv("AI_PROVIDER"); provider {
 	case "", "noop":
-		return NewNoop()
+		return NewNoop(), nil
+	case "gemini":
+		apiKey := os.Getenv("GEMINI_API_KEY")
+		if apiKey == "" {
+			return nil, fmt.Errorf("ai: AI_PROVIDER=gemini requires GEMINI_API_KEY")
+		}
+		p, err := NewGemini(ctx, apiKey)
+		if err != nil {
+			return nil, fmt.Errorf("building gemini provider: %w", err)
+		}
+		return p, nil
 	default:
-		slog.Warn("ai: unknown or unimplemented AI_PROVIDER, falling back to noop", "provider", provider)
-		return NewNoop()
+		slog.Warn("ai: unknown AI_PROVIDER, falling back to noop", "provider", provider)
+		return NewNoop(), nil
 	}
 }
