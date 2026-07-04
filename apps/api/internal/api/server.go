@@ -197,12 +197,23 @@ func (s *Server) ListItems(w http.ResponseWriter, r *http.Request, params ListIt
 // caller and returns ranked results, newest-ranked first. It always returns an
 // array (never null) so clients can rely on the shape.
 func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams) {
-	if params.Q == "" {
-		writeError(w, http.StatusBadRequest, "q is required")
+	var q, color string
+	if params.Q != nil {
+		q = strings.TrimSpace(*params.Q)
+	}
+	if params.Color != nil {
+		color = strings.TrimSpace(*params.Color)
+	}
+	if q == "" && color == "" {
+		writeError(w, http.StatusBadRequest, "q or color is required")
 		return
 	}
 	ctx := r.Context()
-	results, err := search.Hybrid(ctx, s.store, s.provider, userID(ctx), params.Q, defaultListLimit)
+	results, err := search.Run(ctx, s.store, s.provider, userID(ctx), q, color, defaultListLimit)
+	if errors.Is(err, search.ErrBadColor) {
+		writeError(w, http.StatusBadRequest, "invalid color")
+		return
+	}
 	if err != nil {
 		slog.Error("hybrid search", "err", err)
 		writeError(w, http.StatusInternalServerError, "search failed")

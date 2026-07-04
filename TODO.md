@@ -2,17 +2,31 @@
 
 > Solo tracker. Now = this week's evenings. Claude Code: read this at session start, update at session end. Graduates to GitHub Issues at OSS launch.
 
-## Milestone 1 — "Save & find"
+## Milestone 2 — "It feels magic"
+
+> Opened 2026-07-04. M1 "Now" was empty; remaining M1 "Next" items are either user decisions (name/domain), deferred (multi-user auth — parked until laptop access), or triage candidates now folded into this backlog. M2 scope per PRD §10: colour search, NL query parsing, Lenses, reader mode, imports.
 
 ### Now
+- [ ] NL query parsing — wire provider `ParseQuery` into `/search` so natural-language queries ("blue book about bread") split into text + colour + filters
 
 ### Next
+- [ ] Lenses (saved query/rule collections) — schema + API + web
+- [ ] Reader mode polish (M1 shipped a type-aware detail view; M2 = distraction-free reading)
+- [ ] Imports: Pocket/Omnivore, RSS feeds, PDF capture (from Karakeep research, docs/research.md)
+- [ ] Web UI for colour search — search overlay with colour swatches + understood-as chips (design already specced, deferred in M1 design pass)
+
+### Later
+- [ ] Lossless AVIF metadata stripping / re-allow AVIF uploads (M1 carry-over — AVIF currently 415s at upload pending a metadata-strip implementation)
+
+## Milestone 1 — "Save & find" (deferred tail)
+
 - [ ] Decide: name + domain check (user decision)
-- [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode
-- [ ] From Karakeep research (docs/research.md): importers (Pocket/Omnivore), RSS feeds, PDF capture — candidates for M2 triage
-- [ ] Lossless AVIF metadata stripping / re-allow AVIF uploads — AVIF is currently rejected (415) at upload since it was removed from the allowlist pending a metadata-strip implementation
+- [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode. **Deferred to laptop session (2026-07-04)**; schema is already multi-tenant, so this is login/accounts work, not a data-model change.
 
 ## Done
+
+### Milestone 2 — colour search
+- [x] Colour search backend (2026-07-04) — `/search` gains an optional `color` param (hex `#RRGGBB`/shorthand or named colour incl. Openmind accents cobalt/terracotta/gold/green); `q` now optional, ≥1 of q/color required. New `search/color.go`: hex+name parse → sRGB→CIELAB, ΔE*76 nearest-palette-colour ranking over the stored `palette text[]`, fused into the existing RRF alongside FTS+vector so text+colour queries combine. New tenant-scoped `ListItemsWithPalette` query. Contract regenerated (Go + TS client). Unit tests (parse/ΔE ordering/ranking) green; DB-backed tests (`TestColorSearch*`) written — run in CI/laptop (no Docker daemon in web session). Web UI + NL colour parsing still to come.
 
 ### Milestone 1 — web design pass
 - [x] Warm-editorial reskin of the web app (`docs/superpowers/plans/20260704-design-pass.md`) — tokens/fonts/shell (Task 1), type-aware cards + image fallback (Task 2), topbar/filter strip/capture/search (Task 3), palette dots server-extraction + render (Task 4), **card detail reader restyle (Task 5)**, visual verification (Task 6). Detail page (`/item/[id]`) rebuilt to the reader look: bright reader panel on canvas, mono meta line, large Newsreader title, serif summary lead, cobalt "Open original ↗", right-hand rail (palette swatches + tags + "archived locally"), type-aware bodies (article/product/book/recipe/video/tweet hero + summary + body, quote = gold-glyph italic serif, note = serif body, image = large image). Verified 2026-07-04: `pnpm --filter web build`+`lint` green; drove the built page with headless Chromium across article / broken-image / quote / note / image fixtures — all 200, **zero `<img>` tags** (images painted as background-over-gradient, so a 404 hero reveals the type gradient, never a broken-image glyph), reader shell + palette rail present. Remaining M2 design screens (out of scope): Ledger view, Drift, Desk, functional Lenses, search overlay with understood-as chips + colour swatches, ⌘K quick-capture palette.

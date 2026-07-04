@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -106,6 +107,72 @@ func TestHybridNoopFTSOnly(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].Item.ID != bread.ID {
 		t.Fatalf("noop FTS results = %v, want [%v]", results, bread.ID)
+	}
+}
+
+// seedColorItem creates an item with a fixed palette (no embedding needed).
+func seedColorItem(t *testing.T, s *store.Store, userID uuid.UUID, title string, palette []string) db.Item {
+	t.Helper()
+	ctx := context.Background()
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/" + title, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.SetItemPalette(ctx, db.SetItemPaletteParams{UserID: userID, ID: item.ID, Palette: palette}); err != nil {
+		t.Fatalf("set palette: %v", err)
+	}
+	return item
+}
+
+func TestColorSearchRanksClosestPalette(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	np := ai.NewNoop()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	blue := seedColorItem(t, s, userID, "blue", []string{"#1B3FD1", "#F4F0E6"})
+	seedColorItem(t, s, userID, "red", []string{"#D1291B", "#FCFBF6"})
+
+	results, err := search.Run(ctx, s, np, userID, "", "cobalt", 10)
+	if err != nil {
+		t.Fatalf("color search: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("results = %d, want 2", len(results))
+	}
+	if results[0].Item.ID != blue.ID {
+		t.Errorf("closest to cobalt = %v, want blue %v", results[0].Item.ID, blue.ID)
+	}
+}
+
+func TestColorSearchBadColor(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	_, err := search.Run(ctx, s, ai.NewNoop(), uuid.New(), "", "chartreuse-ish", 10)
+	if !errors.Is(err, search.ErrBadColor) {
+		t.Fatalf("err = %v, want ErrBadColor", err)
+	}
+}
+
+func TestColorSearchTenantIsolation(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	owner := uuid.New()
+	other := uuid.New()
+	for _, u := range []uuid.UUID{owner, other} {
+		if err := s.Queries.EnsureUser(ctx, u); err != nil {
+			t.Fatalf("ensure user: %v", err)
+		}
+	}
+	seedColorItem(t, s, owner, "blue", []string{"#1B3FD1"})
+	results, err := search.Run(ctx, s, ai.NewNoop(), other, "", "cobalt", 10)
+	if err != nil {
+		t.Fatalf("color search: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("cross-tenant results = %d, want 0", len(results))
 	}
 }
 

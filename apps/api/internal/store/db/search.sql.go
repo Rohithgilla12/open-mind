@@ -13,6 +13,45 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
+const listItemsWithPalette = `-- name: ListItemsWithPalette :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette FROM items WHERE user_id = $1 AND cardinality(palette) > 0
+`
+
+func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listItemsWithPalette, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Title,
+			&i.Body,
+			&i.LeadImageUrl,
+			&i.Summary,
+			&i.Tags,
+			&i.CardType,
+			&i.Status,
+			&i.SearchTsv,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Palette,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchFTS = `-- name: SearchFTS :many
 SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items

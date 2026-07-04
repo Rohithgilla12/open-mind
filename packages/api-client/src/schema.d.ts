@@ -108,6 +108,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Text search (q), colour-proximity search (color), or both fused. At least one of q or color is required. */
         get: operations["searchItems"];
         put?: never;
         post?: never;
@@ -384,8 +385,10 @@ export interface operations {
     };
     searchItems: {
         parameters: {
-            query: {
-                q: string;
+            query?: {
+                q?: string;
+                /** @description Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour. */
+                color?: string;
             };
             header?: never;
             path?: never;

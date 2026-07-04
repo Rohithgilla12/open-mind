@@ -123,7 +123,10 @@ type ListItemsParams struct {
 
 // SearchItemsParams defines parameters for SearchItems.
 type SearchItemsParams struct {
-	Q string `form:"q" json:"q"`
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Color Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour.
+	Color *string `form:"color,omitempty" json:"color,omitempty"`
 }
 
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
@@ -435,18 +438,19 @@ func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Re
 	// Parameter object where we will unmarshal all parameters from the context
 	var params SearchItemsParams
 
-	// ------------- Required query parameter "q" -------------
+	// ------------- Optional query parameter "q" -------------
 
-	if paramValue := r.URL.Query().Get("q"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+	err = runtime.BindQueryParameter("form", true, false, "q", r.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
 		return
 	}
 
-	err = runtime.BindQueryParameter("form", true, true, "q", r.URL.Query(), &params.Q)
+	// ------------- Optional query parameter "color" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "color", r.URL.Query(), &params.Color)
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "color", Err: err})
 		return
 	}
 
