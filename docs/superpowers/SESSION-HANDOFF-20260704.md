@@ -20,7 +20,7 @@ Plus: Gemini verified live on the box, Karakeep competitive research (`docs/rese
 ## Still needs YOU
 
 ### 1. Domain mapping (2 min, only you can do it)
-In the Cloudflare dashboard, map a hostname (suggest `openmind.gilla.fun`) → `http://localhost:3000` on the box. Web only — never route to :8787. Login token is in `~/open-mind/.env` (`OPENMIND_TOKEN`). Recommend a Cloudflare Access policy on the hostname as belt-and-braces even with the token.
+In the Cloudflare Zero Trust dashboard, add a public hostname (suggest `openmind.gilla.fun`) to the gilla.fun tunnel with **Service = `http://openmind-web:3000`** — NOT localhost:3000. The tunnel `cloudflared` is containerized on the `cloudflare-tunnel_default` docker network; our web container is now attached to that network with alias `openmind-web` (verified reachable → HTTP 200). Web only — never route to the api (:8787). Login token is in `~/open-mind/.env` (`OPENMIND_TOKEN`). A Cloudflare Access policy on the hostname is belt-and-braces even with the token.
 
 ### 2. Multi-user auth — needs a model decision
 Current auth is a single shared `OPENMIND_TOKEN` (self-host single-user). Real multi-user (the PRD's day-one multi-tenant story is already in the schema — every table has `user_id`) needs an auth model: magic-link/email, OAuth, or username+password. This changes the login flow and the extension token story, so it's worth your call on direction.
