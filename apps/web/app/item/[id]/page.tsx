@@ -5,67 +5,120 @@ import type { CSSProperties, ReactNode } from "react";
 import { Palette } from "../../../components/Palette";
 import { apiFetch } from "../../../lib/api";
 import { assetSrc } from "../../../lib/assets";
+import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
 import type { ItemDetail } from "../../../lib/types";
 import { DeleteButton } from "./DeleteButton";
 
-function domainOf(url: string): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-}
+const { color, font } = tokens;
 
-const linkStyle: CSSProperties = {
-  fontFamily: tokens.font.mono,
+const backLink: CSSProperties = {
+  fontFamily: font.mono,
   fontSize: "0.78rem",
-  color: tokens.color.cobalt,
+  color: color.cobalt,
   textDecoration: "none",
 };
 
-function SourceLink({ url }: { url: string }) {
-  if (!url) return null;
-  const domain = domainOf(url);
+/** "ARTICLE · domain · 4 JUL 2026" — mono meta line above the title. */
+function metaLine(item: ItemDetail): string {
+  const kind = cardKind(item.cardType);
+  const parts: string[] = [typeLabel[kind]];
+  const domain = domainOf(item.url);
+  if (domain) parts.push(domain);
+  if (item.createdAt) {
+    const d = new Date(item.createdAt);
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(
+        d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      );
+    }
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * Lead image painted as a background-image layered over the type gradient, so a
+ * missing or broken (404) image reveals the gradient rather than a broken-image
+ * glyph — the same fallback the grid cards use.
+ */
+function ReaderImage({ src, alt, gradient }: { src?: string; alt: string; gradient: string }) {
   return (
-    <a href={url} target="_blank" rel="noreferrer" style={linkStyle}>
-      {domain ? `${domain} ` : ""}Open original ↗
-    </a>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        aspectRatio: "16 / 9",
+        borderRadius: 11,
+        overflow: "hidden",
+        background: gradient,
+      }}
+    >
+      {src ? (
+        <div
+          role="img"
+          aria-label={alt}
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${src}), ${gradient}`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
 
-function QuoteBlock({ text }: { text: string }) {
+function Title({ children }: { children: ReactNode }) {
   return (
-    <p
+    <h1
+      className="serif"
       style={{
-        fontFamily: tokens.font.quote,
-        fontStyle: "italic",
-        fontSize: "1.25rem",
-        lineHeight: 1.6,
-        color: tokens.color.ink,
-        margin: 0,
-        maxWidth: "65ch",
-        whiteSpace: "pre-wrap",
+        fontSize: 32,
+        fontWeight: 600,
+        lineHeight: 1.15,
+        letterSpacing: "-.02em",
+        color: color.ink,
+        margin: "14px 0 0",
       }}
     >
-      {text}
+      {children}
+    </h1>
+  );
+}
+
+function SummaryLead({ children }: { children: ReactNode }) {
+  return (
+    <p
+      className="serif"
+      style={{
+        fontSize: 16,
+        lineHeight: 1.7,
+        color: color.inkMuted,
+        margin: "18px 0 0",
+        maxWidth: "62ch",
+      }}
+    >
+      {children}
     </p>
   );
 }
 
 function Body({ body }: { body: string }) {
   const paragraphs = body.split("\n\n").filter((p) => p.trim().length > 0);
+  if (paragraphs.length === 0) return null;
   return (
-    <div style={{ maxWidth: "65ch" }}>
+    <div style={{ margin: "22px 0 0", maxWidth: "62ch" }}>
       {paragraphs.map((p, i) => (
         <p
           key={i}
           style={{
-            fontFamily: tokens.font.sans,
-            fontSize: "1rem",
-            lineHeight: 1.7,
-            color: tokens.color.ink,
+            fontFamily: font.sans,
+            fontSize: 14,
+            lineHeight: 1.75,
+            color: color.ink,
             margin: "0 0 1.1rem",
             whiteSpace: "pre-wrap",
           }}
@@ -77,46 +130,104 @@ function Body({ body }: { body: string }) {
   );
 }
 
-// PaletteSwatches shows the extracted colour palette as a labelled row of larger
-// dots. Falls back to a deterministic derived palette (see lib/palette) so the
-// row is present even before extraction or for items without a lead image.
-function PaletteSwatches({ item }: { item: ItemDetail }) {
+/** Dark editorial quote treatment — gold glyph, italic serif, matches the quote card. */
+function QuoteReader({ text }: { text: string }) {
+  return (
+    <div style={{ margin: "20px 0 0" }}>
+      <div className="serif" style={{ font: `600 46px/1 ${font.quote}`, color: color.gold, height: 26 }}>
+        &ldquo;
+      </div>
+      <p
+        className="serif"
+        style={{
+          fontStyle: "italic",
+          fontSize: 22,
+          lineHeight: 1.5,
+          color: color.ink,
+          margin: "10px 0 0",
+          maxWidth: "56ch",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function OpenOriginal({ url }: { url: string }) {
+  if (!url || url.startsWith("/assets/")) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="savebtn" style={{ textDecoration: "none" }}>
+      Open original ↗
+    </a>
+  );
+}
+
+/** Right-hand rail: palette swatches, tags, and the archive assurance line. */
+function Rail({ item }: { item: ItemDetail }) {
   const tags = item.tags ?? [];
   const colors =
     item.palette && item.palette.length > 0
       ? item.palette
       : derivedPalette(`${item.title ?? ""} ${tags.join(" ")}`.trim() || item.cardType || "item");
+  const divider = <div style={{ height: 1, background: color.hairline, margin: "18px 0" }} />;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <span
-        style={{
-          fontFamily: tokens.font.mono,
-          fontSize: "0.68rem",
-          letterSpacing: ".04em",
-          textTransform: "uppercase",
-          color: tokens.color.inkFaint,
-        }}
-      >
-        palette
-      </span>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Palette colors={colors} size={16} />
+    <aside
+      style={{
+        flex: "0 1 266px",
+        minWidth: 220,
+        background: color.panel,
+        borderLeft: `1px solid ${color.hairline}`,
+        padding: "26px 22px",
+      }}
+    >
+      <div className="meta" style={{ color: color.inkFaintAlt }}>
+        Palette
       </div>
-    </div>
-  );
-}
-
-function DetailBody({ item }: { item: ItemDetail }) {
-  if (item.status === "pending") {
-    return (
+      <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
+        <Palette colors={colors} size={24} />
+      </div>
+      {tags.length > 0 ? (
+        <>
+          {divider}
+          <div className="meta" style={{ color: color.inkFaintAlt }}>
+            Tags
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
+            {tags.map((t) => (
+              <span key={t} className="tag">
+                {t}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {divider}
       <p
+        className="meta"
         style={{
-          fontFamily: tokens.font.mono,
-          fontSize: "0.82rem",
-          color: tokens.color.cobalt,
+          color: color.inkFaint,
+          textTransform: "none",
+          letterSpacing: ".02em",
+          lineHeight: 1.5,
           margin: 0,
         }}
       >
+        Archived locally · link can&apos;t rot
+      </p>
+    </aside>
+  );
+}
+
+/** The type-aware reader body (left column content below the title). */
+function ReaderContent({ item }: { item: ItemDetail }) {
+  const kind = cardKind(item.cardType);
+  const gradient = typeGradient[kind];
+
+  if (item.status === "pending") {
+    return (
+      <p style={{ fontFamily: font.mono, fontSize: "0.82rem", color: color.cobalt, margin: "18px 0 0" }}>
         Still enriching…
       </p>
     );
@@ -124,149 +235,65 @@ function DetailBody({ item }: { item: ItemDetail }) {
 
   if (item.status === "failed") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <p
-          style={{
-            fontFamily: tokens.font.sans,
-            fontSize: "0.9rem",
-            color: tokens.color.ink,
-            opacity: 0.6,
-            margin: 0,
-          }}
-        >
+      <div style={{ margin: "18px 0 0", display: "flex", flexDirection: "column", gap: 16 }}>
+        <p style={{ fontFamily: font.sans, fontSize: 14, color: color.inkMuted, margin: 0 }}>
           Enrichment failed for this item.
         </p>
-        <SourceLink url={item.url} />
+        <OpenOriginal url={item.url} />
       </div>
     );
   }
 
-  if (item.cardType === "note") {
-    return <QuoteBlock text={item.body || item.summary || item.title || ""} />;
-  }
-
-  if (item.cardType === "image") {
+  if (kind === "quote") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {item.leadImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={assetSrc(item.leadImageUrl)}
-            alt={item.title ?? "saved image"}
-            loading="lazy"
-            style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
-          />
-        ) : null}
-        {item.title ? (
-          <h1
-            style={{
-              fontFamily: tokens.font.sans,
-              fontSize: "1.2rem",
-              fontWeight: 600,
-              color: tokens.color.ink,
-              margin: 0,
-            }}
-          >
-            {item.title}
-          </h1>
-        ) : null}
-        <SourceLink url={item.url} />
-      </div>
+      <>
+        <QuoteReader text={item.body || item.summary || item.title || ""} />
+        <Actions url={item.url} />
+      </>
     );
   }
 
-  if (item.cardType === "tweet" || item.cardType === "video") {
+  if (kind === "note") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {item.cardType === "video" && item.leadImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={assetSrc(item.leadImageUrl)}
-            alt={item.title ? `${item.title} (video thumbnail)` : "video thumbnail"}
-            loading="lazy"
-            style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
-          />
-        ) : null}
-        <QuoteBlock text={item.summary || item.body || item.title || ""} />
-        <SourceLink url={item.url} />
-      </div>
+      <>
+        <Body body={item.body || item.summary || item.title || ""} />
+        <Actions url={item.url} />
+      </>
     );
   }
 
-  // default: article / product / recipe / book / quote
-  const domain = domainOf(item.url);
-  const chips: ReactNode = item.tags && item.tags.length > 0 ? (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0.5rem 0 0" }}>
-      {item.tags.map((tag) => (
-        <span
-          key={tag}
-          style={{
-            fontFamily: tokens.font.mono,
-            fontSize: "0.7rem",
-            textTransform: "lowercase",
-            color: tokens.color.ink,
-            opacity: 0.7,
-            border: `1px solid ${tokens.color.line}`,
-            borderRadius: 999,
-            padding: "2px 8px",
-          }}
-        >
-          {tag}
-        </span>
-      ))}
-    </div>
-  ) : null;
+  if (kind === "image") {
+    return (
+      <>
+        <div style={{ margin: "18px 0 0" }}>
+          <ReaderImage src={assetSrc(item.leadImageUrl)} alt={item.title ?? "saved image"} gradient={gradient} />
+        </div>
+        <Actions url={item.url} />
+      </>
+    );
+  }
 
+  // article / product / book / recipe / video / tweet
+  const showHero = kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "video";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {item.leadImageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={assetSrc(item.leadImageUrl)}
-          alt={item.title ?? "lead image"}
-          loading="lazy"
-          style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
-        />
+    <>
+      {showHero && item.leadImageUrl ? (
+        <div style={{ margin: "18px 0 0" }}>
+          <ReaderImage src={assetSrc(item.leadImageUrl)} alt={item.title ? `${item.title}` : "lead image"} gradient={gradient} />
+        </div>
       ) : null}
-      <div>
-        {item.title ? (
-          <h1
-            style={{
-              fontFamily: tokens.font.sans,
-              fontSize: "1.6rem",
-              fontWeight: 600,
-              lineHeight: 1.3,
-              color: tokens.color.ink,
-              margin: "0 0 0.5rem",
-            }}
-          >
-            {item.title}
-          </h1>
-        ) : null}
-        {domain ? (
-          <a href={item.url} target="_blank" rel="noreferrer" style={linkStyle}>
-            {domain} · Open original ↗
-          </a>
-        ) : null}
-      </div>
-      {item.summary ? (
-        <p
-          style={{
-            fontFamily: tokens.font.sans,
-            fontSize: "0.95rem",
-            lineHeight: 1.6,
-            color: tokens.color.ink,
-            margin: 0,
-            maxWidth: "65ch",
-            borderLeft: `2px solid ${tokens.color.line}`,
-            paddingLeft: 16,
-          }}
-        >
-          {item.summary}
-        </p>
-      ) : null}
-      {chips}
+      {item.summary ? <SummaryLead>{item.summary}</SummaryLead> : null}
       {item.body ? <Body body={item.body} /> : null}
+      <Actions url={item.url} />
+    </>
+  );
+}
+
+function Actions({ url }: { url: string }) {
+  if (!url || url.startsWith("/assets/")) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, margin: "26px 0 0", flexWrap: "wrap" }}>
+      <OpenOriginal url={url} />
     </div>
   );
 }
@@ -278,26 +305,51 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const item = (await res.json()) as ItemDetail;
 
   return (
-    <main style={{ maxWidth: 760, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <div
+    <main
+      style={{
+        minHeight: "100vh",
+        background: color.canvas,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "flex-start",
+        padding: "40px 24px",
+      }}
+    >
+      <article
         style={{
+          width: 960,
+          maxWidth: "100%",
+          background: color.cardSurface,
+          borderRadius: 16,
+          border: `1px solid ${color.hairline}`,
+          overflow: "hidden",
+          boxShadow: "0 40px 90px -20px rgba(0,0,0,.6)",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "2rem",
+          flexWrap: "wrap",
         }}
       >
-        <Link href="/" style={linkStyle}>
-          ← library
-        </Link>
-        <DeleteButton id={item.id} />
-      </div>
-      <DetailBody item={item} />
-      {item.status === "enriched" ? (
-        <div style={{ marginTop: "2rem" }}>
-          <PaletteSwatches item={item} />
+        <div style={{ flex: "1 1 460px", minWidth: 0, padding: "40px 48px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <Link href="/" style={backLink}>
+              ← library
+            </Link>
+            <DeleteButton id={item.id} />
+          </div>
+          <div className="meta" style={{ color: color.inkFaint, marginTop: 22 }}>
+            {metaLine(item)}
+          </div>
+          {item.title ? <Title>{item.title}</Title> : null}
+          <ReaderContent item={item} />
         </div>
-      ) : null}
+        <Rail item={item} />
+      </article>
     </main>
   );
 }
