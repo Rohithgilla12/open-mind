@@ -8,19 +8,20 @@ export function Grid({ items }: { items: Item[] }) {
     return (
       <p
         style={{
-          fontFamily: tokens.font.sans,
-          color: tokens.color.ink,
-          opacity: 0.6,
+          fontFamily: tokens.font.quote,
+          fontStyle: "italic",
+          fontSize: "1.25rem",
+          color: tokens.color.inkMuted,
           marginTop: "2rem",
         }}
       >
-        Nothing here yet — drop a link or a thought above.
+        Nothing gathered yet — drop a link or a thought above.
       </p>
     );
   }
 
   return (
-    <div className="grid">
+    <div className="mind-col">
       {items.map((item) => (
         <Link
           key={item.id}

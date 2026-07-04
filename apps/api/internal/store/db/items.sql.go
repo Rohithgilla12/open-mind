@@ -13,7 +13,7 @@ import (
 )
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette
 `
 
 type CreateItemParams struct {
@@ -39,6 +39,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.SearchTsv,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Palette,
 	)
 	return i, err
 }
@@ -70,7 +71,7 @@ func (q *Queries) EnsureUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at FROM items WHERE user_id = $1 AND id = $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette FROM items WHERE user_id = $1 AND id = $2
 `
 
 type GetItemParams struct {
@@ -95,12 +96,13 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 		&i.SearchTsv,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Palette,
 	)
 	return i, err
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
 `
 
 type ListItemsParams struct {
@@ -131,6 +133,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 			&i.SearchTsv,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Palette,
 		); err != nil {
 			return nil, err
 		}
@@ -143,7 +146,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 }
 
 const listItemsForExport = `-- name: ListItemsForExport :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette FROM items WHERE user_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -169,6 +172,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 			&i.SearchTsv,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Palette,
 		); err != nil {
 			return nil, err
 		}
@@ -178,6 +182,21 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 		return nil, err
 	}
 	return items, nil
+}
+
+const setItemPalette = `-- name: SetItemPalette :exec
+UPDATE items SET palette = $3, updated_at = now() WHERE user_id = $1 AND id = $2
+`
+
+type SetItemPaletteParams struct {
+	UserID  uuid.UUID
+	ID      uuid.UUID
+	Palette []string
+}
+
+func (q *Queries) SetItemPalette(ctx context.Context, arg SetItemPaletteParams) error {
+	_, err := q.db.Exec(ctx, setItemPalette, arg.UserID, arg.ID, arg.Palette)
+	return err
 }
 
 const setItemStatus = `-- name: SetItemStatus :exec

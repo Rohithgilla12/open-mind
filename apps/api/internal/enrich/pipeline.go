@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pgvector/pgvector-go"
 	"github.com/rohithgilla12/openmind/api/internal/ai"
+	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -27,6 +29,10 @@ type Pipeline struct {
 	// sniff). When nil it defaults to a SafeHTTPClient; tests inject an
 	// httptest client.
 	HTTPClient *http.Client
+	// Assets backs palette extraction for uploaded images: it reads the stored
+	// blob referenced by an "/assets/<uuid>" lead image URL. When nil, palette
+	// extraction is skipped entirely.
+	Assets *assets.FSStore
 }
 
 // httpClient returns the pipeline's HTTP client, defaulting to a SafeHTTPClient
@@ -122,7 +128,58 @@ func (p *Pipeline) runUploadedImage(ctx context.Context, userID uuid.UUID, item 
 	}); err != nil {
 		return fmt.Errorf("saving uploaded-image metadata: %w", err)
 	}
+	p.extractPalette(ctx, userID, item.ID, item.LeadImageUrl)
 	return p.enrichText(ctx, userID, item.ID, title, title)
+}
+
+// extractPalette reads the uploaded asset blob referenced by an "/assets/<uuid>"
+// lead image URL and stores up to five dominant colours. It never fails the job:
+// a nil asset store, unparseable path, unreadable blob, or undecodable image
+// simply leaves the palette empty. Extraction is deterministic, so a re-run
+// reproduces the same palette (idempotent).
+//
+// Only uploaded images are covered — their bytes are already on local disk.
+// External image-URL cards are skipped: their bytes are not retained by the
+// HEAD sniff, and adding a fetch here is out of scope.
+func (p *Pipeline) extractPalette(ctx context.Context, userID, itemID uuid.UUID, leadImageURL string) {
+	if p.Assets == nil {
+		return
+	}
+	id, ok := assetIDFromURL(leadImageURL)
+	if !ok {
+		return
+	}
+	rc, err := p.Assets.Open(id)
+	if err != nil {
+		slog.Warn("palette: opening asset", "item_id", itemID, "err", err)
+		return
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		slog.Warn("palette: reading asset", "item_id", itemID, "err", err)
+		return
+	}
+	colours, err := DominantColors(data, 5)
+	if err != nil || len(colours) == 0 {
+		return
+	}
+	if err := p.Store.Queries.SetItemPalette(ctx, db.SetItemPaletteParams{UserID: userID, ID: itemID, Palette: colours}); err != nil {
+		slog.Warn("palette: saving", "item_id", itemID, "err", err)
+	}
+}
+
+// assetIDFromURL parses the asset UUID out of an "/assets/<uuid>" lead image URL.
+func assetIDFromURL(leadImageURL string) (uuid.UUID, bool) {
+	const prefix = "/assets/"
+	if !strings.HasPrefix(leadImageURL, prefix) {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(strings.TrimPrefix(leadImageURL, prefix))
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 // enrichText runs the summarise → tag → embed → status tail shared by the URL

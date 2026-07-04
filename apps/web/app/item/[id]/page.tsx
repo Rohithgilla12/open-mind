@@ -2,8 +2,10 @@ import { tokens } from "@openmind/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
+import { Palette } from "../../../components/Palette";
 import { apiFetch } from "../../../lib/api";
 import { assetSrc } from "../../../lib/assets";
+import { derivedPalette } from "../../../lib/palette";
 import type { ItemDetail } from "../../../lib/types";
 import { DeleteButton } from "./DeleteButton";
 
@@ -71,6 +73,35 @@ function Body({ body }: { body: string }) {
           {p}
         </p>
       ))}
+    </div>
+  );
+}
+
+// PaletteSwatches shows the extracted colour palette as a labelled row of larger
+// dots. Falls back to a deterministic derived palette (see lib/palette) so the
+// row is present even before extraction or for items without a lead image.
+function PaletteSwatches({ item }: { item: ItemDetail }) {
+  const tags = item.tags ?? [];
+  const colors =
+    item.palette && item.palette.length > 0
+      ? item.palette
+      : derivedPalette(`${item.title ?? ""} ${tags.join(" ")}`.trim() || item.cardType || "item");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span
+        style={{
+          fontFamily: tokens.font.mono,
+          fontSize: "0.68rem",
+          letterSpacing: ".04em",
+          textTransform: "uppercase",
+          color: tokens.color.inkFaint,
+        }}
+      >
+        palette
+      </span>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Palette colors={colors} size={16} />
+      </div>
     </div>
   );
 }
@@ -262,6 +293,11 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <DeleteButton id={item.id} />
       </div>
       <DetailBody item={item} />
+      {item.status === "enriched" ? (
+        <div style={{ marginTop: "2rem" }}>
+          <PaletteSwatches item={item} />
+        </div>
+      ) : null}
     </main>
   );
 }

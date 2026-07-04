@@ -250,6 +250,10 @@ func toAPIItem(it db.Item) Item {
 		tags := it.Tags
 		out.Tags = &tags
 	}
+	if len(it.Palette) > 0 {
+		palette := it.Palette
+		out.Palette = &palette
+	}
 	return out
 }
 
@@ -267,6 +271,7 @@ func toAPIItemDetail(it db.Item) ItemDetail {
 		Summary:      base.Summary,
 		LeadImageUrl: base.LeadImageUrl,
 		Tags:         base.Tags,
+		Palette:      base.Palette,
 		Body:         it.Body,
 	}
 	if base.CardType != nil {

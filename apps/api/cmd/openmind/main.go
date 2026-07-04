@@ -87,6 +87,10 @@ func run(ctx context.Context, args []string) error {
 	assetMaxBytes := assetMaxBytesFromEnv()
 	slog.Info("asset store ready", "dir", assetsDir, "max_bytes", assetMaxBytes)
 
+	// Give the pipeline read access to uploaded blobs so it can extract a colour
+	// palette from lead images during enrichment.
+	pipeline.Assets = assetStore
+
 	switch cmd {
 	case "serve":
 		client, err := jobs.NewRiverClient(pool, pipeline, false)

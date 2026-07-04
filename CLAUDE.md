@@ -71,7 +71,7 @@ Task definitions live in `Taskfile.yml` at the root. Use `deps:` for parallelism
 
 - pnpm workspaces + Turborepo. Strict TS everywhere.
 - Data fetching only through `packages/api-client`.
-- Design tokens live in `packages/ui` (paper `#F7F6F3`, ink `#191918`, cobalt `#2438FF`, line `#E7E5DF`; IBM Plex Sans/Mono, Newsreader italic for quotes). Don't hardcode colours in apps.
+- Design tokens live in `packages/ui` — warm palette: canvas `#E4DDCD`, paper `#F4F0E6`, panel `#EBE5D7`, card surface `#FCFBF6`, ink `#1C1A16`, ink-muted `#57534A`, ink-faint `#A39C8B`, hairline `rgba(28,26,22,.11)`; accents cobalt `#1B3FD1`, terracotta `#C24A2E`, gold `#E0B23A`, green `#2E7D5B`; note surface `#FBF4D8`; Instrument Sans (UI/body), JetBrains Mono (metadata), Newsreader italic for titles/quotes. Canonical palette lives in `docs/design/README.md` + `packages/ui`. Don't hardcode colours in apps.
 - Extension (WXT) and mobile (Expo) are thin clients: capture + display, no business logic. Enrichment logic lives server-side only.
 
 ## Product vocabulary (use these names, never mymind's)

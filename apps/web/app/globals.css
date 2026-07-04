@@ -1,19 +1,50 @@
-* {
-  box-sizing: border-box;
-}
+*{box-sizing:border-box}
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
+html,body{margin:0;padding:0}
 
-.grid {
-  columns: 4 280px;
-  column-gap: 16px;
-}
+body{-webkit-font-smoothing:antialiased}
 
-.grid > * {
-  break-inside: avoid;
-  margin-bottom: 16px;
-}
+::selection{background:#1B3FD1;color:#fff}
+
+/* --- Design-system helper classes (ported from docs/design/Openmind.dc.html) --- */
+
+.serif{font-family:var(--font-newsreader),'Newsreader',serif}
+
+.meta{font:500 9.5px/1.4 var(--font-jetbrains-mono),'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:#A39C8B}
+
+.tag{font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;letter-spacing:.02em;color:#6B655A;background:rgba(28,26,22,.055);border:1px solid rgba(28,26,22,.07);padding:4px 7px;border-radius:20px}
+
+.dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 1px rgba(28,26,22,.08) inset;flex:none}
+
+.card{background:#FCFBF6;border:1px solid rgba(28,26,22,.11);border-radius:11px;overflow:hidden;box-shadow:0 1px 2px rgba(28,26,22,.05),0 10px 26px -20px rgba(28,26,22,.45);transition:transform .18s ease,box-shadow .18s ease;cursor:pointer}
+
+.card:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(28,26,22,.06),0 20px 44px -20px rgba(28,26,22,.55)}
+
+.chip{font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;letter-spacing:.02em;color:#1C1A16;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s;text-decoration:none;display:inline-block}
+
+.chip:hover{border-color:rgba(28,26,22,.24)}
+
+.savebtn:hover{background:#17206b}
+
+/* Newsreader-italic placeholder for the editorial search pill. */
+.search-input::placeholder{font-family:var(--font-newsreader),'Newsreader',serif;font-style:italic;letter-spacing:.01em;color:#A39C8B;opacity:1}
+
+/* Decorative keyboard-shortcut badge (⌘K) inside the search pill. */
+.kbd{font:600 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;color:#8A8578;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.09);padding:4px 6px;border-radius:5px;flex:none}
+
+.savebtn{border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 var(--font-instrument-sans),'Instrument Sans',sans-serif;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(27,63,209,.7)}
+
+.mind-col{column-count:3;column-gap:16px}
+
+.mind-col>*{break-inside:avoid;margin-bottom:16px}
+
+@media (min-width:1400px){.mind-col{column-count:4}}
+
+@media (max-width:760px){.mind-col{column-count:2}}
+
+@media (max-width:460px){.mind-col{column-count:1}}
+
+/* Faint horizontal-rule paper texture; overlay behind card content. */
+.paper-texture{background:repeating-linear-gradient(#00000000 0 31px,rgba(28,26,22,.028) 31px 32px)}
+
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}

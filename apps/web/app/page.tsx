@@ -1,10 +1,12 @@
-import { tokens } from "@openmind/ui";
 import { apiFetch } from "../lib/api";
+import { cardKind } from "../lib/cards";
 import type { Item, SearchResult } from "../lib/types";
 import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
 import { ImageDrop } from "../components/ImageDrop";
-import { SearchBox } from "../components/SearchBox";
+import { Shell } from "../components/Shell";
+import { Topbar } from "../components/Topbar";
+import { FilterStrip } from "../components/FilterStrip";
 
 async function getRecents(): Promise<Item[]> {
   try {
@@ -32,48 +34,47 @@ async function getSearch(q: string): Promise<Item[]> {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; type?: string }>;
 }) {
-  const { q } = await searchParams;
-  const items = q ? await getSearch(q) : await getRecents();
+  const { q, type } = await searchParams;
+  const active = type ?? "all";
+
+  const fetched = q ? await getSearch(q) : await getRecents();
+  const items =
+    active === "all" ? fetched : fetched.filter((i) => cardKind(i.cardType) === active);
 
   return (
-    <main style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          margin: "0 0 1.25rem",
-        }}
-      >
-        <h1
-          style={{
-            fontFamily: tokens.font.sans,
-            fontSize: "1.4rem",
-            fontWeight: 600,
-            color: tokens.color.ink,
-            margin: 0,
-          }}
-        >
-          Openmind
-        </h1>
-        <a
-          href="/api/export"
-          style={{
-            fontFamily: tokens.font.mono,
-            fontSize: "0.75rem",
-            color: tokens.color.cobalt,
-            textDecoration: "none",
-          }}
-        >
-          Export JSON
-        </a>
+    <Shell>
+      <Topbar count={items.length} q={q} />
+      <FilterStrip active={active} q={q} />
+
+      <div style={{ position: "relative", flex: 1 }}>
+        <div
+          className="paper-texture"
+          style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        />
+        <div style={{ position: "relative", padding: "22px 28px 40px" }}>
+          <div
+            id="capture"
+            style={{
+              display: "flex",
+              gap: 16,
+              alignItems: "stretch",
+              flexWrap: "wrap",
+              marginBottom: 22,
+              scrollMarginTop: 20,
+            }}
+          >
+            <div style={{ flex: "2 1 320px", minWidth: 260 }}>
+              <QuickAdd />
+            </div>
+            <div style={{ flex: "1 1 220px", minWidth: 220 }}>
+              <ImageDrop />
+            </div>
+          </div>
+          <Grid items={items} />
+        </div>
       </div>
-      <QuickAdd />
-      <ImageDrop />
-      <SearchBox initial={q} />
-      <Grid items={items} />
-    </main>
+    </Shell>
   );
 }
