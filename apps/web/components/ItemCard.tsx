@@ -74,9 +74,11 @@ function Footer({
 }
 
 /**
- * Lead image with a gradient underlay. `src` sits absolutely over the gradient,
- * so a missing image (no src) shows the gradient cleanly and a broken image
- * (404) falls back to it too — `color:transparent` suppresses the alt glyph.
+ * Lead image with a gradient underlay. `src` is painted as a CSS
+ * `background-image` layered over the gradient (never an `<img>`), so a
+ * missing image (no src) shows the gradient cleanly and a broken image
+ * (404) falls back to it too — a failed background-image URL simply paints
+ * nothing, unlike an `<img>`, which shows the browser's broken-image glyph.
  */
 function LeadImage({
   src,
@@ -99,18 +101,16 @@ function LeadImage({
     <div style={{ position: "relative", height, background: gradient, overflow: "hidden" }}>
       {overlay ? <div style={{ position: "absolute", inset: 0, background: overlay }} /> : null}
       {src ? (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
+        <div
+          role="img"
+          aria-label={alt}
           style={{
             position: "absolute",
             inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-            color: "transparent",
+            backgroundImage: `url(${src}), ${gradient}`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
           }}
         />
       ) : null}
@@ -299,7 +299,7 @@ export function ItemCard({ item }: { item: Item }) {
                 width: 38,
                 height: 38,
                 borderRadius: "50%",
-                background: "rgba(244,240,230,.92)",
+                background: color.paper,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
