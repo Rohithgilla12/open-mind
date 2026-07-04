@@ -7,3 +7,4 @@ dist/
 apps/api/bin/
 *.tsbuildinfo
 data/
+.playwright-mcp/
