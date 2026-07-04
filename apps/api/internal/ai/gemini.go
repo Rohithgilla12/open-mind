@@ -75,8 +75,39 @@ func (g *Gemini) Embed(ctx context.Context, text string) ([]float32, error) {
 	return resp.Embeddings[0].Values, nil
 }
 
-// ParseQuery is a passthrough; Gemini does not currently rewrite queries.
-func (g *Gemini) ParseQuery(_ context.Context, q string) (string, error) { return q, nil }
+// ParseQuery interprets a natural-language query, splitting it into a text
+// portion, an optional colour, and card-type filters via a JSON-mode call.
+func (g *Gemini) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) {
+	cfg := &genai.GenerateContentConfig{
+		ResponseMIMEType: "application/json",
+		ResponseSchema: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"text":  {Type: genai.TypeString},
+				"color": {Type: genai.TypeString},
+				"types": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
+			},
+		},
+	}
+	prompt := fmt.Sprintf("%s\n\nQuery: %s", parseQueryInstruction, truncate(q, 2000))
+	resp, err := g.client.Models.GenerateContent(ctx, geminiGenModel, genai.Text(prompt), cfg)
+	if err != nil {
+		return ParsedQuery{}, fmt.Errorf("gemini parsequery: %w", classifyGeminiErr(err))
+	}
+	var parsed struct {
+		Text  string   `json:"text"`
+		Color string   `json:"color"`
+		Types []string `json:"types"`
+	}
+	if err := json.Unmarshal([]byte(resp.Text()), &parsed); err != nil {
+		return ParsedQuery{}, fmt.Errorf("parsing gemini query: %w", err)
+	}
+	return ParsedQuery{
+		Text:  strings.TrimSpace(parsed.Text),
+		Color: strings.TrimSpace(parsed.Color),
+		Types: sanitiseTypes(parsed.Types),
+	}, nil
+}
 
 // classifyGeminiErr inspects a genai SDK error and wraps it as a
 // RetryableError when it represents a transient failure (429 or 5xx), so the

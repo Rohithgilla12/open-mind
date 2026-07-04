@@ -37,7 +37,7 @@ const rrfK = 60
 // It is a text-only shortcut for Run; pass a colour term to Run directly for
 // colour-proximity or combined search.
 func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q string, limit int) ([]Result, error) {
-	return Run(ctx, s, p, userID, q, "", limit)
+	return Run(ctx, s, p, userID, q, "", nil, limit)
 }
 
 // Run fuses up to three ranked signals with RRF and returns up to limit results
@@ -47,9 +47,13 @@ func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID
 //     provider can embed), and
 //   - palette colour proximity to color (when color is non-empty).
 //
+// When types is non-empty the fused results are narrowed to items of those card
+// types before the limit is applied, so ranking is computed over all matches
+// and only then filtered.
+//
 // At least one of q or color should be non-empty; with both empty it returns no
 // results. An unrecognised color yields ErrBadColor before any query runs.
-func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, limit int) ([]Result, error) {
+func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, types []string, limit int) ([]Result, error) {
 	// Resolve the colour up front so a bad term fails fast, before any query.
 	var target rgb
 	var haveColor bool
@@ -123,6 +127,19 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 		}
 		return ids[i].String() > ids[j].String()
 	})
+	if len(types) > 0 {
+		allowed := make(map[string]bool, len(types))
+		for _, t := range types {
+			allowed[t] = true
+		}
+		filtered := make([]uuid.UUID, 0, len(ids))
+		for _, id := range ids {
+			if allowed[items[id].CardType] {
+				filtered = append(filtered, id)
+			}
+		}
+		ids = filtered
+	}
 	if len(ids) > limit {
 		ids = ids[:limit]
 	}

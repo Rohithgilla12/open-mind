@@ -17,4 +17,8 @@ func (*Noop) Tag(context.Context, string, string) ([]string, error) { return nil
 
 func (*Noop) Embed(context.Context, string) ([]float32, error) { return nil, ErrNotSupported }
 
-func (*Noop) ParseQuery(_ context.Context, q string) (string, error) { return q, nil }
+// ParseQuery does no interpretation: the whole query becomes the text portion,
+// so FTS-only search keeps working with no AI backend configured.
+func (*Noop) ParseQuery(_ context.Context, q string) (ParsedQuery, error) {
+	return ParsedQuery{Text: q}, nil
+}

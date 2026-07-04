@@ -7,13 +7,13 @@
 > Opened 2026-07-04. M1 "Now" was empty; remaining M1 "Next" items are either user decisions (name/domain), deferred (multi-user auth — parked until laptop access), or triage candidates now folded into this backlog. M2 scope per PRD §10: colour search, NL query parsing, Lenses, reader mode, imports.
 
 ### Now
-- [ ] NL query parsing — wire provider `ParseQuery` into `/search` so natural-language queries ("blue book about bread") split into text + colour + filters
+- (empty)
 
 ### Next
 - [ ] Lenses (saved query/rule collections) — schema + API + web
 - [ ] Reader mode polish (M1 shipped a type-aware detail view; M2 = distraction-free reading)
 - [ ] Imports: Pocket/Omnivore, RSS feeds, PDF capture (from Karakeep research, docs/research.md)
-- [ ] Web UI for colour search — search overlay with colour swatches + understood-as chips (design already specced, deferred in M1 design pass)
+- [ ] Web UI for colour search + NL parse — search overlay with colour swatches + understood-as chips. Backend now ready: `/search?parse=true` returns `understood {text,color,types}` (see M2 Done); wire the search box to pass `parse=true` and render the `understood` chips.
 
 ### Later
 - [ ] Lossless AVIF metadata stripping / re-allow AVIF uploads (M1 carry-over — AVIF currently 415s at upload pending a metadata-strip implementation)
@@ -24,6 +24,9 @@
 - [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode. **Deferred to laptop session (2026-07-04)**; schema is already multi-tenant, so this is login/accounts work, not a data-model change.
 
 ## Done
+
+### Milestone 2 — NL query parsing
+- [x] NL query parsing (2026-07-04) — `ParseQuery` is now structured: provider interface returns `ParsedQuery{Text, Color, Types}` instead of a bare string. Gemini + OpenAI-compatible providers gained real JSON-mode implementations (shared `parseQueryInstruction` prompt; model-proposed card types sanitised against the openapi enum); noop/fake stay identity (`{Text: q}`) so FTS-only search keeps working with no AI. `/search` gained an opt-in `parse=true` param: it runs `ParseQuery`, then fuses the split text + colour into the existing RRF search and narrows by card-type filter (new `types` arg on `search.Run`, applied post-ranking pre-limit). Explicit `color` param still wins over a parsed colour; a parse failure or empty split falls back to the raw query so search never breaks. Response shape changed from a bare `SearchResult[]` to `SearchResponse {results, understood?}` — `understood {text,color,types}` echoes what was actually searched, ready for the "understood-as chips" web overlay (still to come). Contract regenerated (Go + TS). Verified 2026-07-04: full `go test -p 1 ./...` green against local Postgres+pgvector (new DB-backed `TestSearchItemsParseSplitsQuery` drives `parse=true` end-to-end — colour+type split, understood echo, type filter drops the article; `TestRunFiltersByType`; unit `TestOpenAI_ParseQuery` covers JSON parse + unknown-type drop); web `tsc`+`build` green; real binary smoke test confirmed `parse=true` with noop degrades to `understood:{text:q}` and still returns FTS hits.
 
 ### Milestone 2 — colour search
 - [x] Colour search backend (2026-07-04) — `/search` gains an optional `color` param (hex `#RRGGBB`/shorthand or named colour incl. Openmind accents cobalt/terracotta/gold/green); `q` now optional, ≥1 of q/color required. New `search/color.go`: hex+name parse → sRGB→CIELAB, ΔE*76 nearest-palette-colour ranking over the stored `palette text[]`, fused into the existing RRF alongside FTS+vector so text+colour queries combine. New tenant-scoped `ListItemsWithPalette` query. Contract regenerated (Go + TS client). Unit tests (parse/ΔE ordering/ranking) green; DB-backed tests (`TestColorSearch*`) written — run in CI/laptop (no Docker daemon in web session). Web UI + NL colour parsing still to come.

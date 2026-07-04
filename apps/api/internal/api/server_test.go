@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -58,11 +59,29 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 // newSrvWithAssets instead.
 func newSrv(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string) http.Handler {
 	t.Helper()
+	return newSrvWithProvider(t, s, rc, token, ai.NewNoop())
+}
+
+// newSrvWithProvider builds a Server backed by a specific AI provider, so tests
+// can exercise natural-language query parsing with a scripted interpretation.
+func newSrvWithProvider(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string, p ai.Provider) http.Handler {
+	t.Helper()
 	as, err := assets.NewFSStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("asset store: %v", err)
 	}
-	return api.NewServer(s, rc, ai.NewNoop(), token, as, 10<<20)
+	return api.NewServer(s, rc, p, token, as, 10<<20)
+}
+
+// parseProvider is a noop provider whose ParseQuery returns a scripted result,
+// simulating an AI backend that interprets a natural-language query.
+type parseProvider struct {
+	*ai.Noop
+	parsed ai.ParsedQuery
+}
+
+func (p parseProvider) ParseQuery(context.Context, string) (ai.ParsedQuery, error) {
+	return p.parsed, nil
 }
 
 func postJSON(t *testing.T, url, body string) *http.Response {
@@ -390,9 +409,90 @@ func TestSearchItemsReturnsEmptyArray(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	body := make([]byte, 2)
-	resp.Body.Read(body)
-	if string(body) != "[]" {
-		t.Errorf("search body = %q, want []", string(body))
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Results == nil {
+		t.Errorf("results = nil, want non-null empty array")
+	}
+	if len(out.Results) != 0 {
+		t.Errorf("results = %v, want empty", out.Results)
+	}
+	if out.Understood != nil {
+		t.Errorf("understood = %+v, want nil without parse", out.Understood)
+	}
+}
+
+// seedEnriched inserts an enriched item owned by the dev user with the given
+// card type and palette, so search/parse tests have real rows to match.
+func seedEnriched(t *testing.T, s *store.Store, title, body, cardType string, palette []string) db.Item {
+	t.Helper()
+	ctx := context.Background()
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://example.com/" + title, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: api.DevUserID, ID: item.ID, Title: title, Body: body, CardType: cardType,
+	}); err != nil {
+		t.Fatalf("update extraction: %v", err)
+	}
+	if err := s.Queries.UpdateItemEnrichment(ctx, db.UpdateItemEnrichmentParams{
+		UserID: api.DevUserID, ID: item.ID, Summary: body, Tags: []string{title},
+	}); err != nil {
+		t.Fatalf("update enrichment: %v", err)
+	}
+	if len(palette) > 0 {
+		if err := s.Queries.SetItemPalette(ctx, db.SetItemPaletteParams{UserID: api.DevUserID, ID: item.ID, Palette: palette}); err != nil {
+			t.Fatalf("set palette: %v", err)
+		}
+	}
+	return item
+}
+
+// TestSearchItemsParseSplitsQuery drives the full parse=true path: the provider
+// splits "blue book about bread" into text+colour+type, the response echoes what
+// was understood, and the type filter narrows results to the matching card.
+func TestSearchItemsParseSplitsQuery(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	book := seedEnriched(t, s, "bread book", "a book about baking bread", "book", []string{"#1B3FD1"})
+	seedEnriched(t, s, "bread article", "an article about baking bread", "article", []string{"#D1291B"})
+
+	prov := parseProvider{Noop: ai.NewNoop(), parsed: ai.ParsedQuery{Text: "bread", Color: "blue", Types: []string{"book"}}}
+	srv := httptest.NewServer(newSrvWithProvider(t, s, rc, "", prov))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search?q=" + url.QueryEscape("blue book about bread") + "&parse=true")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if out.Understood == nil {
+		t.Fatal("understood = nil, want populated with parse=true")
+	}
+	if out.Understood.Text == nil || *out.Understood.Text != "bread" {
+		t.Errorf("understood.text = %v, want bread", out.Understood.Text)
+	}
+	if out.Understood.Color == nil || *out.Understood.Color != "blue" {
+		t.Errorf("understood.color = %v, want blue", out.Understood.Color)
+	}
+	if out.Understood.Types == nil || len(*out.Understood.Types) != 1 || (*out.Understood.Types)[0] != "book" {
+		t.Errorf("understood.types = %v, want [book]", out.Understood.Types)
+	}
+
+	if len(out.Results) != 1 {
+		t.Fatalf("results = %d, want 1 (type filter drops the article)", len(out.Results))
+	}
+	if out.Results[0].Item.Id.String() != book.ID.String() {
+		t.Errorf("result = %v, want book %v", out.Results[0].Item.Id, book.ID)
 	}
 }

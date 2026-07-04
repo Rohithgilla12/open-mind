@@ -58,6 +58,19 @@ const (
 	ItemDetailStatusPending  ItemDetailStatus = "pending"
 )
 
+// Defines values for UnderstoodQueryTypes.
+const (
+	Article UnderstoodQueryTypes = "article"
+	Book    UnderstoodQueryTypes = "book"
+	Image   UnderstoodQueryTypes = "image"
+	Note    UnderstoodQueryTypes = "note"
+	Product UnderstoodQueryTypes = "product"
+	Quote   UnderstoodQueryTypes = "quote"
+	Recipe  UnderstoodQueryTypes = "recipe"
+	Tweet   UnderstoodQueryTypes = "tweet"
+	Video   UnderstoodQueryTypes = "video"
+)
+
 // CreateItemRequest Exactly one of url or note must be provided.
 type CreateItemRequest struct {
 	Note *string `json:"note,omitempty"`
@@ -105,11 +118,34 @@ type ItemDetailCardType string
 // ItemDetailStatus defines model for ItemDetail.Status.
 type ItemDetailStatus string
 
+// SearchResponse defines model for SearchResponse.
+type SearchResponse struct {
+	Results []SearchResult `json:"results"`
+
+	// Understood How a natural-language query was interpreted (present only when parse=true). Reflects the values actually searched.
+	Understood *UnderstoodQuery `json:"understood,omitempty"`
+}
+
 // SearchResult defines model for SearchResult.
 type SearchResult struct {
 	Item  Item    `json:"item"`
 	Score float32 `json:"score"`
 }
+
+// UnderstoodQuery How a natural-language query was interpreted (present only when parse=true). Reflects the values actually searched.
+type UnderstoodQuery struct {
+	// Color The colour searched, if any.
+	Color *string `json:"color,omitempty"`
+
+	// Text The free-text portion searched.
+	Text *string `json:"text,omitempty"`
+
+	// Types Card-type filters applied, if any.
+	Types *[]UnderstoodQueryTypes `json:"types,omitempty"`
+}
+
+// UnderstoodQueryTypes defines model for UnderstoodQuery.Types.
+type UnderstoodQueryTypes string
 
 // CreateAssetMultipartBody defines parameters for CreateAsset.
 type CreateAssetMultipartBody struct {
@@ -127,6 +163,9 @@ type SearchItemsParams struct {
 
 	// Color Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour.
 	Color *string `form:"color,omitempty" json:"color,omitempty"`
+
+	// Parse Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured.
+	Parse *bool `form:"parse,omitempty" json:"parse,omitempty"`
 }
 
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
@@ -451,6 +490,14 @@ func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Re
 	err = runtime.BindQueryParameter("form", true, false, "color", r.URL.Query(), &params.Color)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "color", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "parse" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "parse", r.URL.Query(), &params.Parse)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "parse", Err: err})
 		return
 	}
 
