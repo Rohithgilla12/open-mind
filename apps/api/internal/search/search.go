@@ -25,37 +25,85 @@ type Result struct {
 	Score float64
 }
 
+// rrfK is the Reciprocal Rank Fusion constant: each ranked list contributes
+// 1/(k+rank+1) to an item's fused score, so top ranks dominate while lower
+// ranks still nudge the total.
+const rrfK = 60
+
 // Hybrid runs FTS and (when available) vector search for the user's query,
 // fuses the two rankings with RRF (k=60), and returns up to limit results
 // ordered by descending fused score. Every query is scoped to userID.
+//
+// It is a text-only shortcut for Run; pass a colour term to Run directly for
+// colour-proximity or combined search.
 func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q string, limit int) ([]Result, error) {
-	const k = 60
+	return Run(ctx, s, p, userID, q, "", limit)
+}
+
+// Run fuses up to three ranked signals with RRF and returns up to limit results
+// ordered by descending fused score, scoped to userID:
+//   - full-text search over q (when q is non-empty),
+//   - pgvector similarity over q's embedding (when q is non-empty and the
+//     provider can embed), and
+//   - palette colour proximity to color (when color is non-empty).
+//
+// At least one of q or color should be non-empty; with both empty it returns no
+// results. An unrecognised color yields ErrBadColor before any query runs.
+func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, limit int) ([]Result, error) {
+	// Resolve the colour up front so a bad term fails fast, before any query.
+	var target rgb
+	var haveColor bool
+	if color != "" {
+		c, ok := parseColor(color)
+		if !ok {
+			return nil, ErrBadColor
+		}
+		target, haveColor = c, true
+	}
+
 	scores := map[uuid.UUID]float64{}
 	items := map[uuid.UUID]db.Item{}
 
-	fts, err := s.Queries.SearchFTS(ctx, db.SearchFTSParams{UserID: userID, WebsearchToTsquery: q, Limit: int32(limit * 2)})
-	if err != nil {
-		return nil, fmt.Errorf("fts search: %w", err)
-	}
-	for rank, row := range fts {
-		scores[row.ID] += 1.0 / float64(k+rank+1)
-		items[row.ID] = ftsRowToItem(row)
+	if q != "" {
+		fts, err := s.Queries.SearchFTS(ctx, db.SearchFTSParams{UserID: userID, WebsearchToTsquery: q, Limit: int32(limit * 2)})
+		if err != nil {
+			return nil, fmt.Errorf("fts search: %w", err)
+		}
+		for rank, row := range fts {
+			scores[row.ID] += 1.0 / float64(rrfK+rank+1)
+			items[row.ID] = ftsRowToItem(row)
+		}
+
+		if vec, err := p.Embed(ctx, q); err == nil {
+			vres, err := s.Queries.SearchVector(ctx, db.SearchVectorParams{UserID: userID, Embedding: pgvector.NewVector(vec), Limit: int32(limit * 2)})
+			if err != nil {
+				// Degrade to FTS-only results rather than failing the request,
+				// mirroring the embed-failure fallback below.
+				slog.Warn("vector search failed; falling back to FTS only", "err", err)
+			} else {
+				for rank, row := range vres {
+					scores[row.ID] += 1.0 / float64(rrfK+rank+1)
+					items[row.ID] = vecRowToItem(row)
+				}
+			}
+		} else if !errors.Is(err, ai.ErrNotSupported) {
+			slog.Warn("query embedding failed; falling back to FTS only", "err", err)
+		}
 	}
 
-	if vec, err := p.Embed(ctx, q); err == nil {
-		vres, err := s.Queries.SearchVector(ctx, db.SearchVectorParams{UserID: userID, Embedding: pgvector.NewVector(vec), Limit: int32(limit * 2)})
+	if haveColor {
+		palette, err := s.Queries.ListItemsWithPalette(ctx, userID)
 		if err != nil {
-			// Degrade to FTS-only results rather than failing the request,
-			// mirroring the embed-failure fallback below.
-			slog.Warn("vector search failed; falling back to FTS only", "err", err)
-		} else {
-			for rank, row := range vres {
-				scores[row.ID] += 1.0 / float64(k+rank+1)
-				items[row.ID] = vecRowToItem(row)
-			}
+			return nil, fmt.Errorf("palette search: %w", err)
 		}
-	} else if !errors.Is(err, ai.ErrNotSupported) {
-		slog.Warn("query embedding failed; falling back to FTS only", "err", err)
+		ranked := rankByColor(palette, target)
+		if len(ranked) > limit*2 {
+			ranked = ranked[:limit*2]
+		}
+		for rank, it := range ranked {
+			scores[it.ID] += 1.0 / float64(rrfK+rank+1)
+			items[it.ID] = it
+		}
 	}
 
 	ids := make([]uuid.UUID, 0, len(scores))

@@ -112,8 +112,10 @@ paths:
   /search:
     get:
       operationId: searchItems
+      description: "Text search (q), colour-proximity search (color), or both fused. At least one of q or color is required."
       parameters:
-        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: color, in: query, required: false, schema: { type: string }, description: "Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour." }
       responses:
         "200":
           content:

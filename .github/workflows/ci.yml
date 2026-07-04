@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: API (Go)
+    runs-on: ubuntu-latest
+    services:
+      # pgvector image so the `CREATE EXTENSION vector` migration succeeds.
+      # Port 5433:5432 matches the default TEST_DATABASE_URL used by the tests.
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: openmind
+          POSTGRES_PASSWORD: openmind
+          POSTGRES_DB: openmind_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U openmind"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgres://openmind:openmind@localhost:5433/openmind_test
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        # -p 1 serializes package test binaries: the store/enrich/api integration
+        # tests share one Postgres and TRUNCATE at setup, so parallel binaries
+        # race. Mirrors the `test` task in Taskfile.yml.
+        run: go test -p 1 ./...
+
+  web:
+    name: Web (lint + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm turbo run lint
+      - name: Build
+        run: pnpm turbo run build
