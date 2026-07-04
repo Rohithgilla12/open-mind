@@ -159,8 +159,40 @@ func (o *OpenAI) Embed(ctx context.Context, text string) ([]float32, error) {
 	return vec, nil
 }
 
-// ParseQuery is a passthrough; OpenAI does not currently rewrite queries.
-func (o *OpenAI) ParseQuery(_ context.Context, q string) (string, error) { return q, nil }
+// ParseQuery interprets a natural-language query, splitting it into a text
+// portion, an optional colour, and card-type filters via chat/completions JSON
+// mode.
+func (o *OpenAI) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) {
+	req := chatRequest{
+		Model:          o.model,
+		Temperature:    0,
+		ResponseFormat: &responseFormat{Type: "json_object"},
+		Messages: []chatMessage{
+			{Role: "system", Content: parseQueryInstruction},
+			{Role: "user", Content: truncate(q, 2000)},
+		},
+	}
+	var resp chatResponse
+	if err := o.doJSON(ctx, "/chat/completions", req, &resp); err != nil {
+		return ParsedQuery{}, fmt.Errorf("openai parsequery: %w", err)
+	}
+	if len(resp.Choices) == 0 {
+		return ParsedQuery{}, fmt.Errorf("openai parsequery: empty response")
+	}
+	var parsed struct {
+		Text  string   `json:"text"`
+		Color string   `json:"color"`
+		Types []string `json:"types"`
+	}
+	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &parsed); err != nil {
+		return ParsedQuery{}, fmt.Errorf("parsing openai query: %w", err)
+	}
+	return ParsedQuery{
+		Text:  strings.TrimSpace(parsed.Text),
+		Color: strings.TrimSpace(parsed.Color),
+		Types: sanitiseTypes(parsed.Types),
+	}, nil
+}
 
 // doJSON performs a POST with a JSON body and decodes a JSON response,
 // classifying HTTP errors as RetryableError so the chain can fail over.

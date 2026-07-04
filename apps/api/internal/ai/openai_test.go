@@ -158,14 +158,28 @@ func TestOpenAI_Embed_NotSupported(t *testing.T) {
 	}
 }
 
-func TestOpenAI_ParseQueryPassthrough(t *testing.T) {
-	p := NewOpenAI("http://x", "k", "m", "")
-	out, err := p.ParseQuery(context.Background(), "  find blue things ")
+func TestOpenAI_ParseQuery(t *testing.T) {
+	var gotReq chatRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+		// The model may echo an unknown card type ("poster"); it must be dropped.
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"{\"text\":\"bread\",\"color\":\"blue\",\"types\":[\"book\",\"poster\"]}"}}]}`)
+	}))
+	defer srv.Close()
+
+	p := newTestOpenAI(t, srv, "m", "")
+	out, err := p.ParseQuery(context.Background(), "blue book about bread")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "  find blue things " {
-		t.Fatalf("ParseQuery = %q, want passthrough", out)
+	if out.Text != "bread" || out.Color != "blue" {
+		t.Fatalf("ParseQuery = %+v, want text=bread color=blue", out)
+	}
+	if len(out.Types) != 1 || out.Types[0] != "book" {
+		t.Fatalf("Types = %v, want [book] (unknown types dropped)", out.Types)
+	}
+	if gotReq.ResponseFormat == nil || gotReq.ResponseFormat.Type != "json_object" {
+		t.Fatalf("request response_format = %+v, want json_object", gotReq.ResponseFormat)
 	}
 }
 

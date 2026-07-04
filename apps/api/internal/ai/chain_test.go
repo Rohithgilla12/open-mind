@@ -14,7 +14,7 @@ type stub struct {
 	summary string
 	tags    []string
 	vec     []float32
-	query   string
+	query   ParsedQuery
 	err     error
 	calls   int
 }
@@ -36,7 +36,7 @@ func (s *stub) Embed(context.Context, string) ([]float32, error) {
 	return s.vec, s.err
 }
 
-func (s *stub) ParseQuery(context.Context, string) (string, error) {
+func (s *stub) ParseQuery(context.Context, string) (ParsedQuery, error) {
 	s.calls++
 	return s.query, s.err
 }

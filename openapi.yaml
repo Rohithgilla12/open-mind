@@ -112,17 +112,16 @@ paths:
   /search:
     get:
       operationId: searchItems
-      description: "Text search (q), colour-proximity search (color), or both fused. At least one of q or color is required."
+      description: "Text search (q), colour-proximity search (color), or both fused. Set parse=true to interpret q as a natural-language query — the AI provider splits it into a text portion, a colour, and card-type filters, all fused into one search. At least one of q or color is required."
       parameters:
         - { name: q, in: query, required: false, schema: { type: string } }
         - { name: color, in: query, required: false, schema: { type: string }, description: "Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour." }
+        - { name: parse, in: query, required: false, schema: { type: boolean }, description: "Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured." }
       responses:
         "200":
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/SearchResult" }
+              schema: { $ref: "#/components/schemas/SearchResponse" }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -160,3 +159,22 @@ components:
       properties:
         item: { $ref: "#/components/schemas/Item" }
         score: { type: number }
+    SearchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResult" }
+        understood:
+          $ref: "#/components/schemas/UnderstoodQuery"
+    UnderstoodQuery:
+      type: object
+      description: "How a natural-language query was interpreted (present only when parse=true). Reflects the values actually searched."
+      properties:
+        text: { type: string, description: "The free-text portion searched." }
+        color: { type: string, description: "The colour searched, if any." }
+        types:
+          type: array
+          description: "Card-type filters applied, if any."
+          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }

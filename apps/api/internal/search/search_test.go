@@ -135,7 +135,7 @@ func TestColorSearchRanksClosestPalette(t *testing.T) {
 	blue := seedColorItem(t, s, userID, "blue", []string{"#1B3FD1", "#F4F0E6"})
 	seedColorItem(t, s, userID, "red", []string{"#D1291B", "#FCFBF6"})
 
-	results, err := search.Run(ctx, s, np, userID, "", "cobalt", 10)
+	results, err := search.Run(ctx, s, np, userID, "", "cobalt", nil, 10)
 	if err != nil {
 		t.Fatalf("color search: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestColorSearchRanksClosestPalette(t *testing.T) {
 func TestColorSearchBadColor(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
-	_, err := search.Run(ctx, s, ai.NewNoop(), uuid.New(), "", "chartreuse-ish", 10)
+	_, err := search.Run(ctx, s, ai.NewNoop(), uuid.New(), "", "chartreuse-ish", nil, 10)
 	if !errors.Is(err, search.ErrBadColor) {
 		t.Fatalf("err = %v, want ErrBadColor", err)
 	}
@@ -167,12 +167,70 @@ func TestColorSearchTenantIsolation(t *testing.T) {
 		}
 	}
 	seedColorItem(t, s, owner, "blue", []string{"#1B3FD1"})
-	results, err := search.Run(ctx, s, ai.NewNoop(), other, "", "cobalt", 10)
+	results, err := search.Run(ctx, s, ai.NewNoop(), other, "", "cobalt", nil, 10)
 	if err != nil {
 		t.Fatalf("color search: %v", err)
 	}
 	if len(results) != 0 {
 		t.Errorf("cross-tenant results = %d, want 0", len(results))
+	}
+}
+
+// seedTypedItem creates an enriched item with the given card type and an
+// embedding, so type-filter tests can distinguish otherwise-identical matches.
+func seedTypedItem(t *testing.T, s *store.Store, p ai.Provider, userID uuid.UUID, title, body, cardType string) db.Item {
+	t.Helper()
+	ctx := context.Background()
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/" + title, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID, Title: title, Body: body, CardType: cardType,
+	}); err != nil {
+		t.Fatalf("update extraction: %v", err)
+	}
+	if err := s.Queries.UpdateItemEnrichment(ctx, db.UpdateItemEnrichmentParams{
+		UserID: userID, ID: item.ID, Summary: body, Tags: []string{title},
+	}); err != nil {
+		t.Fatalf("update enrichment: %v", err)
+	}
+	if vec, err := p.Embed(ctx, body); err == nil {
+		if err := s.Queries.UpsertEmbedding(ctx, db.UpsertEmbeddingParams{
+			ItemID: item.ID, UserID: userID, Embedding: pgvector.NewVector(vec),
+		}); err != nil {
+			t.Fatalf("upsert embedding: %v", err)
+		}
+	}
+	return item
+}
+
+func TestRunFiltersByType(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p := ai.NewFake()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	// Two items matching the same text, differing only by card type.
+	bookID := seedTypedItem(t, s, p, userID, "bread book", "a book about baking bread", "book").ID
+	seedTypedItem(t, s, p, userID, "bread article", "an article about baking bread", "article")
+
+	all, err := search.Run(ctx, s, p, userID, "bread", "", nil, 10)
+	if err != nil {
+		t.Fatalf("run (unfiltered): %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("unfiltered results = %d, want 2", len(all))
+	}
+
+	books, err := search.Run(ctx, s, p, userID, "bread", "", []string{"book"}, 10)
+	if err != nil {
+		t.Fatalf("run (book filter): %v", err)
+	}
+	if len(books) != 1 || books[0].Item.ID != bookID {
+		t.Fatalf("book-filtered results = %v, want [%v]", books, bookID)
 	}
 }
 

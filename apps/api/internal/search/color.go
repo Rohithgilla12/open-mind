@@ -51,6 +51,14 @@ var namedColors = map[string]string{
 	"gray":    "#8A857A",
 }
 
+// ValidColor reports whether s is a colour term Run accepts: a hex string
+// ("#RRGGBB", shorthand, or bare) or a recognised colour name. Callers use it
+// to decide whether a machine-parsed colour is worth forwarding to search.
+func ValidColor(s string) bool {
+	_, ok := parseColor(s)
+	return ok
+}
+
 // parseColor resolves a hex ("#RRGGBB" or "RRGGBB") or named colour to sRGB.
 // It is case-insensitive and tolerant of surrounding whitespace.
 func parseColor(s string) (rgb, bool) {

@@ -209,7 +209,36 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 		return
 	}
 	ctx := r.Context()
-	results, err := search.Run(ctx, s.store, s.provider, userID(ctx), q, color, defaultListLimit)
+
+	// text/color/types are the signals actually searched. Without parsing they
+	// are the raw params; with parse=true the AI provider splits q into them.
+	text := q
+	var types []string
+	var understood *UnderstoodQuery
+	if params.Parse != nil && *params.Parse && q != "" {
+		parsed, err := s.provider.ParseQuery(ctx, q)
+		if err != nil {
+			// A parse failure must never fail the search: fall back to the raw
+			// query and report nothing understood.
+			slog.Warn("query parse failed; searching raw query", "err", err)
+		} else {
+			text = strings.TrimSpace(parsed.Text)
+			types = parsed.Types
+			// A parsed colour applies only when the caller gave none explicitly,
+			// and only if it's a colour search can actually use.
+			if color == "" && parsed.Color != "" && search.ValidColor(parsed.Color) {
+				color = parsed.Color
+			}
+			// Never search nothing: if parsing stripped everything, fall back to
+			// the raw query as free text.
+			if text == "" && color == "" {
+				text = q
+			}
+			understood = buildUnderstood(text, color, types)
+		}
+	}
+
+	results, err := search.Run(ctx, s.store, s.provider, userID(ctx), text, color, types, defaultListLimit)
 	if errors.Is(err, search.ErrBadColor) {
 		writeError(w, http.StatusBadRequest, "invalid color")
 		return
@@ -219,11 +248,31 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 		writeError(w, http.StatusInternalServerError, "search failed")
 		return
 	}
-	out := make([]SearchResult, 0, len(results))
+	out := SearchResponse{Results: make([]SearchResult, 0, len(results)), Understood: understood}
 	for _, res := range results {
-		out = append(out, SearchResult{Item: toAPIItem(res.Item), Score: float32(res.Score)})
+		out.Results = append(out.Results, SearchResult{Item: toAPIItem(res.Item), Score: float32(res.Score)})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// buildUnderstood assembles the UnderstoodQuery echoed back to clients, omitting
+// empty fields so the response only carries what was actually searched.
+func buildUnderstood(text, color string, types []string) *UnderstoodQuery {
+	u := &UnderstoodQuery{}
+	if text != "" {
+		u.Text = &text
+	}
+	if color != "" {
+		u.Color = &color
+	}
+	if len(types) > 0 {
+		ts := make([]UnderstoodQueryTypes, 0, len(types))
+		for _, t := range types {
+			ts = append(ts, UnderstoodQueryTypes(t))
+		}
+		u.Types = &ts
+	}
+	return u
 }
 
 // validURL accepts only absolute http/https URLs.

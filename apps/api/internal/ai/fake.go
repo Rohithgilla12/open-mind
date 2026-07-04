@@ -37,4 +37,6 @@ func (*Fake) Embed(_ context.Context, text string) ([]float32, error) {
 	return vec, nil
 }
 
-func (*Fake) ParseQuery(_ context.Context, q string) (string, error) { return q, nil }
+func (*Fake) ParseQuery(_ context.Context, q string) (ParsedQuery, error) {
+	return ParsedQuery{Text: q}, nil
+}

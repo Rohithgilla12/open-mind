@@ -18,6 +18,17 @@ type Enrichment struct {
 	Tags    []string
 }
 
+// ParsedQuery is the structured interpretation of a natural-language search
+// query: the free-text portion to run text/vector search over, an optional
+// colour term (name or hex), and any card-type filters the user asked for.
+// Providers that cannot interpret queries (e.g. noop) return {Text: q}, which
+// keeps search fully functional without an AI backend.
+type ParsedQuery struct {
+	Text  string
+	Color string
+	Types []string
+}
+
 // Provider is the adapter interface every AI backend must implement.
 // The noop provider keeps the app fully functional without any AI backend
 // configured.
@@ -26,7 +37,42 @@ type Provider interface {
 	Summarise(ctx context.Context, title, body string) (string, error)
 	Tag(ctx context.Context, title, body string) ([]string, error)
 	Embed(ctx context.Context, text string) ([]float32, error)
-	ParseQuery(ctx context.Context, q string) (string, error)
+	ParseQuery(ctx context.Context, q string) (ParsedQuery, error)
+}
+
+// parseQueryInstruction is the shared system prompt for natural-language query
+// parsing. It is used verbatim by every provider that can interpret queries so
+// their behaviour stays consistent.
+const parseQueryInstruction = `You interpret a natural-language search over a personal knowledge library. ` +
+	`Split the query into three parts: "text" (the descriptive words to search for, with any colour word or item-type word removed), ` +
+	`"color" (a single colour name or #RRGGBB hex string if the user mentions a colour, otherwise ""), and ` +
+	`"types" (a subset of [article, product, book, recipe, video, tweet, image, note, quote] the user is asking for, otherwise []). ` +
+	`Respond with only a JSON object of the form {"text": string, "color": string, "types": [string]}. ` +
+	`Example: "blue book about bread" -> {"text":"bread","color":"blue","types":["book"]}.`
+
+// cardTypes is the set of card types ParseQuery may extract as filters. It must
+// stay in sync with the CardType enum in openapi.yaml.
+var cardTypes = map[string]bool{
+	"article": true, "product": true, "book": true, "recipe": true,
+	"video": true, "tweet": true, "image": true, "note": true, "quote": true,
+}
+
+// sanitiseTypes lowercases, trims, de-duplicates, and drops unknown values from
+// a model-proposed card-type filter list, returning nil when nothing remains.
+func sanitiseTypes(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, t := range in {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if cardTypes[t] && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // ErrNotSupported is returned by providers that don't implement a given

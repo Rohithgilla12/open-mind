@@ -137,8 +137,8 @@ func (c *Chain) Embed(ctx context.Context, text string) ([]float32, error) {
 }
 
 // ParseQuery tries each provider in order until one returns a parsed query.
-func (c *Chain) ParseQuery(ctx context.Context, q string) (string, error) {
-	return runChain(ctx, c, "parsequery", func(p Provider) (string, error) {
+func (c *Chain) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) {
+	return runChain(ctx, c, "parsequery", func(p Provider) (ParsedQuery, error) {
 		return p.ParseQuery(ctx, q)
 	})
 }

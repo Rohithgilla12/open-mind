@@ -108,7 +108,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Text search (q), colour-proximity search (color), or both fused. At least one of q or color is required. */
+        /** @description Text search (q), colour-proximity search (color), or both fused. Set parse=true to interpret q as a natural-language query — the AI provider splits it into a text portion, a colour, and card-type filters, all fused into one search. At least one of q or color is required. */
         get: operations["searchItems"];
         put?: never;
         post?: never;
@@ -150,6 +150,19 @@ export interface components {
         SearchResult: {
             item: components["schemas"]["Item"];
             score: number;
+        };
+        SearchResponse: {
+            results: components["schemas"]["SearchResult"][];
+            understood?: components["schemas"]["UnderstoodQuery"];
+        };
+        /** @description How a natural-language query was interpreted (present only when parse=true). Reflects the values actually searched. */
+        UnderstoodQuery: {
+            /** @description The free-text portion searched. */
+            text?: string;
+            /** @description The colour searched, if any. */
+            color?: string;
+            /** @description Card-type filters applied, if any. */
+            types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
         };
     };
     responses: never;
@@ -389,6 +402,8 @@ export interface operations {
                 q?: string;
                 /** @description Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour. */
                 color?: string;
+                /** @description Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured. */
+                parse?: boolean;
             };
             header?: never;
             path?: never;
@@ -401,7 +416,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SearchResult"][];
+                    "application/json": components["schemas"]["SearchResponse"];
                 };
             };
         };

@@ -1,6 +1,6 @@
 import { apiFetch } from "../lib/api";
 import { cardKind } from "../lib/cards";
-import type { Item, SearchResult } from "../lib/types";
+import type { Item, SearchResponse } from "../lib/types";
 import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
 import { ImageDrop } from "../components/ImageDrop";
@@ -23,9 +23,9 @@ async function getSearch(q: string): Promise<Item[]> {
   try {
     const res = await apiFetch(`/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) return [];
-    const results = ((await res.json()) as SearchResult[]) ?? [];
+    const body = (await res.json()) as SearchResponse;
     // score is intentionally unused for now: results are already rank-ordered by the API.
-    return results.map((r) => r.item);
+    return (body.results ?? []).map((r) => r.item);
   } catch {
     return [];
   }
