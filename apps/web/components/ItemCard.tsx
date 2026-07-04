@@ -1,30 +1,10 @@
 import { tokens } from "@openmind/ui";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { assetSrc } from "../lib/assets";
+import { cardKind, domainOf, typeDots, typeGradient, typeLabel } from "../lib/cards";
 import type { Item } from "../lib/types";
 
-const cardStyle: CSSProperties = {
-  backgroundColor: tokens.color.surface,
-  border: `1px solid ${tokens.color.line}`,
-  borderRadius: 10,
-  padding: 14,
-};
-
-const titleStyle: CSSProperties = {
-  fontFamily: tokens.font.sans,
-  fontSize: "0.95rem",
-  fontWeight: 600,
-  color: tokens.color.ink,
-  margin: "0 0 6px",
-};
-
-const domainStyle: CSSProperties = {
-  fontFamily: tokens.font.mono,
-  fontSize: "0.72rem",
-  color: tokens.color.ink,
-  opacity: 0.5,
-  margin: "8px 0 0",
-};
+const { color, font } = tokens;
 
 function clamp(lines: number): CSSProperties {
   return {
@@ -35,23 +15,15 @@ function clamp(lines: number): CSSProperties {
   };
 }
 
-function domainOf(url: string): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-}
-
 function Enriching() {
   return (
     <p
       style={{
-        fontFamily: tokens.font.mono,
+        fontFamily: font.mono,
         fontSize: "0.72rem",
-        color: tokens.color.cobalt,
-        margin: "8px 0 0",
+        letterSpacing: ".02em",
+        color: color.cobalt,
+        margin: "10px 0 0",
       }}
     >
       enriching…
@@ -59,123 +31,395 @@ function Enriching() {
   );
 }
 
-const imgWrapStyle: CSSProperties = {
-  aspectRatio: "16/9",
-  overflow: "hidden",
-  borderRadius: 6,
+function Tags({ tags }: { tags?: string[] }) {
+  if (!tags || tags.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 5, marginTop: 11, flexWrap: "wrap" }}>
+      {tags.slice(0, 4).map((t) => (
+        <span key={t} className="tag">
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Dots({ colors }: { colors: string[] }) {
+  return (
+    <>
+      {colors.map((c, i) => (
+        <span key={`${c}-${i}`} className="dot" style={{ background: c }} />
+      ))}
+    </>
+  );
+}
+
+function Footer({
+  dots,
+  meta,
+  metaColor,
+}: {
+  dots: string[];
+  meta: string;
+  metaColor?: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 11 }}>
+      <Dots colors={dots} />
+      <span className="meta" style={{ marginLeft: "auto", ...(metaColor ? { color: metaColor } : {}) }}>
+        {meta}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Lead image with a gradient underlay. `src` sits absolutely over the gradient,
+ * so a missing image (no src) shows the gradient cleanly and a broken image
+ * (404) falls back to it too — `color:transparent` suppresses the alt glyph.
+ */
+function LeadImage({
+  src,
+  alt,
+  gradient,
+  height,
+  overlay,
+  caption,
+  children,
+}: {
+  src?: string;
+  alt: string;
+  gradient: string;
+  height: number;
+  overlay?: string;
+  caption?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div style={{ position: "relative", height, background: gradient, overflow: "hidden" }}>
+      {overlay ? <div style={{ position: "absolute", inset: 0, background: overlay }} /> : null}
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            color: "transparent",
+          }}
+        />
+      ) : null}
+      {caption ? (
+        <span
+          className="meta"
+          style={{ position: "absolute", left: 12, bottom: 10, color: "rgba(255,255,255,.85)" }}
+        >
+          {caption}
+        </span>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function serifTitle(size: number): CSSProperties {
+  return {
+    fontFamily: font.quote,
+    fontSize: size,
+    fontWeight: 600,
+    lineHeight: 1.2,
+    letterSpacing: "-.01em",
+    color: color.ink,
+    margin: 0,
+  };
+}
+
+const summaryStyle: CSSProperties = {
+  fontFamily: font.sans,
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: color.inkMuted,
+  margin: "6px 0 0",
+  ...clamp(4),
 };
 
-const imgStyle: CSSProperties = {
-  display: "block",
-  width: "100%",
-  height: "100%",
-  objectFit: "cover",
+const specStyle: CSSProperties = {
+  fontFamily: font.mono,
+  fontSize: 10,
+  letterSpacing: ".02em",
+  color: color.inkFaintAlt,
+  margin: "6px 0 0",
 };
 
 export function ItemCard({ item }: { item: Item }) {
+  const kind = cardKind(item.cardType);
   const pending = item.status === "pending";
   const domain = domainOf(item.url);
-  const hasLeadImage = Boolean(item.leadImageUrl);
+  const img = assetSrc(item.leadImageUrl);
+  const dots = typeDots[kind];
+  const gradient = typeGradient[kind];
+  const withDomain = (label: string) => (domain ? `${label} · ${domain}` : label);
   const imageAlt = item.title ?? "saved image";
   const videoAlt = item.title ? `${item.title} (video thumbnail)` : "video thumbnail";
 
-  if (item.cardType === "image" && hasLeadImage) {
+  if (kind === "quote") {
+    const text = item.summary ?? item.title ?? "";
+    const attribution = item.summary && item.title ? item.title : null;
     return (
-      <article style={cardStyle}>
-        <div style={imgWrapStyle}>
-          <img src={assetSrc(item.leadImageUrl)} alt={imageAlt} loading="lazy" style={imgStyle} />
+      <article className="card" style={{ background: color.ink }}>
+        <div style={{ padding: "22px 18px 16px" }}>
+          <div
+            className="serif"
+            style={{ fontSize: 40, fontWeight: 600, lineHeight: 1, color: color.gold, height: 20, overflow: "hidden" }}
+          >
+            “
+          </div>
+          <div
+            className="serif"
+            style={{ fontSize: 20, lineHeight: 1.32, color: color.paper, fontStyle: "italic", fontWeight: 400, ...clamp(6) }}
+          >
+            {text}
+          </div>
+          <div className="meta" style={{ color: color.inkFaintAlt, marginTop: 14 }}>
+            {attribution ? `${attribution} — Quote` : "Quote"}
+          </div>
+          <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
+            <Dots colors={dots} />
+          </div>
+          {pending ? <Enriching /> : null}
         </div>
-        {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
-        {pending ? <Enriching /> : null}
       </article>
     );
   }
 
-  if (item.cardType === "video" && hasLeadImage) {
+  if (kind === "image") {
     return (
-      <article style={cardStyle}>
-        <div style={imgWrapStyle}>
-          <img src={assetSrc(item.leadImageUrl)} alt={videoAlt} loading="lazy" style={imgStyle} />
+      <article className="card">
+        <LeadImage
+          src={img}
+          alt={imageAlt}
+          gradient={gradient}
+          height={210}
+          overlay="radial-gradient(circle at 70% 25%, rgba(255,255,255,.3), transparent 45%)"
+          caption={item.title ?? undefined}
+        />
+        <div style={{ padding: "11px 13px", display: "flex", alignItems: "center", gap: 8 }}>
+          <Dots colors={dots} />
+          <span className="meta" style={{ marginLeft: "auto" }}>
+            {withDomain("Image")}
+          </span>
         </div>
-        {item.title ? <h2 style={{ ...titleStyle, marginTop: 8 }}>{item.title}</h2> : null}
-        {domain ? <p style={domainStyle}>{domain}</p> : null}
-        {pending ? <Enriching /> : null}
+        {pending ? <div style={{ padding: "0 13px 12px" }}><Enriching /></div> : null}
       </article>
     );
   }
 
-  if (item.cardType === "note") {
+  if (kind === "note") {
+    const text = item.summary ?? item.title ?? "Untitled note";
     return (
-      <article style={cardStyle}>
-        <p
-          style={{
-            fontFamily: tokens.font.quote,
-            fontStyle: "italic",
-            fontSize: "1rem",
-            color: tokens.color.ink,
-            margin: 0,
-            ...clamp(8),
-          }}
-        >
-          {item.summary ?? item.title ?? "Untitled note"}
-        </p>
-        {pending ? <Enriching /> : null}
+      <article className="card" style={{ background: color.noteSurface }}>
+        <div style={{ padding: "14px 15px" }}>
+          <div className="meta" style={{ color: color.gold }}>
+            Note
+          </div>
+          <div
+            className="serif"
+            style={{ fontSize: 15, lineHeight: 1.4, marginTop: 8, color: color.ink, ...clamp(8) }}
+          >
+            {text}
+          </div>
+          <Tags tags={item.tags} />
+          <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
+            <Dots colors={dots} />
+          </div>
+          {pending ? <Enriching /> : null}
+        </div>
       </article>
     );
   }
 
-  if (item.cardType === "tweet") {
+  if (kind === "tweet") {
+    const name = item.title ?? domain ?? "Saved post";
+    const text = item.summary ?? "";
     return (
-      <article style={cardStyle}>
-        <p
-          style={{
-            fontFamily: tokens.font.quote,
-            fontStyle: "italic",
-            fontSize: "0.95rem",
-            color: tokens.color.ink,
-            margin: 0,
-            ...clamp(8),
-          }}
-        >
-          {item.summary ?? item.title ?? ""}
-        </p>
-        {domain ? <p style={domainStyle}>{domain}</p> : null}
-        {pending ? <Enriching /> : null}
+      <article className="card">
+        <div style={{ padding: "14px 15px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${color.cobalt}, ${color.green})`,
+                flex: "none",
+              }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: font.sans, fontSize: 12.5, fontWeight: 600, color: color.ink }}>{name}</div>
+              {domain ? (
+                <div className="meta" style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaint }}>
+                  {domain}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {text ? (
+            <div style={{ fontFamily: font.sans, fontSize: 13.5, lineHeight: 1.5, marginTop: 10, color: color.ink, ...clamp(6) }}>
+              {text}
+            </div>
+          ) : null}
+          <Footer dots={dots} meta={withDomain("Post")} />
+          {pending ? <Enriching /> : null}
+        </div>
       </article>
     );
   }
 
-  // default: article / product / recipe / book / quote / video / image
-  // (image/video with a lead image are handled above; this covers the
-  // remaining types, plus image/video without a lead image as a fallback)
-  const isBareDomainCard = !item.title && !item.summary && Boolean(domain);
-  const defaultAlt = item.cardType === "video" ? videoAlt : imageAlt;
+  if (kind === "video") {
+    return (
+      <article className="card">
+        <LeadImage src={img} alt={videoAlt} gradient={gradient} height={120}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                background: "rgba(244,240,230,.92)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 0,
+                  height: 0,
+                  borderLeft: `11px solid ${color.ink}`,
+                  borderTop: "7px solid transparent",
+                  borderBottom: "7px solid transparent",
+                  marginLeft: 3,
+                }}
+              />
+            </div>
+          </div>
+        </LeadImage>
+        <div style={{ padding: "12px 14px" }}>
+          {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
+          {item.summary ? <p style={specStyle}>{item.summary}</p> : null}
+          <Footer dots={dots} meta={withDomain("Video")} />
+          {pending ? <Enriching /> : null}
+        </div>
+      </article>
+    );
+  }
 
+  if (kind === "product") {
+    return (
+      <article className="card">
+        <LeadImage src={img} alt={imageAlt} gradient={gradient} height={150} />
+        <div style={{ padding: "13px 14px" }}>
+          {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
+          {item.summary ? <p style={{ ...specStyle, ...clamp(2) }}>{item.summary}</p> : null}
+          <Tags tags={item.tags} />
+          <Footer dots={dots} meta={withDomain("Product")} />
+          {pending ? <Enriching /> : null}
+        </div>
+      </article>
+    );
+  }
+
+  if (kind === "book") {
+    return (
+      <article className="card">
+        {img ? (
+          <LeadImage src={img} alt={imageAlt} gradient={gradient} height={180} />
+        ) : (
+          <div
+            style={{
+              height: 180,
+              background: color.panel,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 18,
+            }}
+          >
+            <div
+              style={{
+                width: 96,
+                height: 140,
+                background: gradient,
+                borderRadius: "2px 5px 5px 2px",
+                boxShadow: "6px 8px 18px -6px rgba(0,0,0,.5)",
+                padding: "14px 12px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+              }}
+            >
+              <div
+                className="serif"
+                style={{ color: color.gold, fontSize: 12, fontStyle: "italic", lineHeight: 1.25, ...clamp(5) }}
+              >
+                {item.title ?? "Untitled"}
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={{ padding: "12px 14px" }}>
+          {item.title ? <h2 style={serifTitle(15.5)}>{item.title}</h2> : null}
+          <Tags tags={item.tags} />
+          <Footer dots={dots} meta={withDomain("Book")} />
+          {pending ? <Enriching /> : null}
+        </div>
+      </article>
+    );
+  }
+
+  if (kind === "recipe") {
+    return (
+      <article className="card">
+        <LeadImage src={img} alt={imageAlt} gradient={gradient} height={96} />
+        <div style={{ padding: "13px 14px" }}>
+          {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
+          {item.summary ? (
+            <div style={{ fontFamily: font.mono, fontSize: 12, lineHeight: 1.7, color: color.inkMuted, marginTop: 9, ...clamp(6) }}>
+              {item.summary}
+            </div>
+          ) : null}
+          <Footer dots={dots} meta={withDomain("Recipe")} />
+          {pending ? <Enriching /> : null}
+        </div>
+      </article>
+    );
+  }
+
+  // article (and default for any unknown type)
   return (
-    <article style={cardStyle}>
-      {hasLeadImage ? (
-        <div style={{ ...imgWrapStyle, marginBottom: 8 }}>
-          <img src={assetSrc(item.leadImageUrl)} alt={defaultAlt} loading="lazy" style={imgStyle} />
-        </div>
-      ) : null}
-      {item.title ? <h2 style={titleStyle}>{item.title}</h2> : null}
-      {item.summary ? (
-        <p
-          style={{
-            fontFamily: tokens.font.sans,
-            fontSize: "0.85rem",
-            color: tokens.color.ink,
-            opacity: 0.8,
-            margin: 0,
-            ...clamp(4),
-          }}
-        >
-          {item.summary}
-        </p>
-      ) : null}
-      {isBareDomainCard ? <h2 style={titleStyle}>{domain}</h2> : null}
-      {domain && !isBareDomainCard ? <p style={domainStyle}>{domain}</p> : null}
-      {pending ? <Enriching /> : null}
+    <article className="card">
+      <LeadImage src={img} alt={imageAlt} gradient={gradient} height={118} />
+      <div style={{ padding: "13px 14px" }}>
+        {item.title ? <h2 style={{ ...serifTitle(17), lineHeight: 1.2 }}>{item.title}</h2> : null}
+        {item.summary ? <p style={summaryStyle}>{item.summary}</p> : null}
+        <Tags tags={item.tags} />
+        <Footer dots={dots} meta={withDomain(typeLabel[kind])} />
+        {pending ? <Enriching /> : null}
+      </div>
     </article>
   );
 }

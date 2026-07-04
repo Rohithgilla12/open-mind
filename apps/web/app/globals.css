@@ -24,14 +24,17 @@ body{-webkit-font-smoothing:antialiased}
 
 .savebtn{border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 var(--font-instrument-sans),'Instrument Sans',sans-serif;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(27,63,209,.7)}
 
+.mind-col{column-count:3;column-gap:16px}
+
 .mind-col>*{break-inside:avoid;margin-bottom:16px}
+
+@media (min-width:1400px){.mind-col{column-count:4}}
+
+@media (max-width:760px){.mind-col{column-count:2}}
+
+@media (max-width:460px){.mind-col{column-count:1}}
 
 /* Faint horizontal-rule paper texture; overlay behind card content. */
 .paper-texture{background:repeating-linear-gradient(#00000000 0 31px,rgba(28,26,22,.028) 31px 32px)}
 
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-
-/* Existing masonry grid used by components/Grid.tsx */
-.grid{columns:4 280px;column-gap:16px}
-
-.grid>*{break-inside:avoid;margin-bottom:16px}
