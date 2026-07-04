@@ -41,7 +41,10 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test ./...
+        # -p 1 serializes package test binaries: the store/enrich/api integration
+        # tests share one Postgres and TRUNCATE at setup, so parallel binaries
+        # race. Mirrors the `test` task in Taskfile.yml.
+        run: go test -p 1 ./...
 
   web:
     name: Web (lint + build)
