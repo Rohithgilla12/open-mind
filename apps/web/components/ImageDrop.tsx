@@ -46,7 +46,7 @@ export function ImageDrop() {
   }
 
   return (
-    <div style={{ marginBottom: "1rem" }}>
+    <div style={{ height: "100%" }}>
       <div
         role="button"
         tabIndex={0}
@@ -72,16 +72,17 @@ export function ImageDrop() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "1rem",
+          minHeight: 46,
+          padding: "11px 14px",
           fontFamily: tokens.font.sans,
-          fontSize: "0.85rem",
-          color: dragging ? tokens.color.cobalt : tokens.color.ink,
-          opacity: dragging ? 1 : 0.7,
-          border: `1px dashed ${dragging ? tokens.color.cobalt : tokens.color.line}`,
-          borderRadius: 8,
-          backgroundColor: tokens.color.surface,
+          fontSize: 13,
+          color: dragging ? tokens.color.cobalt : tokens.color.inkMuted,
+          border: `1px dashed ${dragging ? tokens.color.cobalt : tokens.color.hairline}`,
+          borderRadius: 10,
+          backgroundColor: dragging ? "rgba(27,63,209,.05)" : tokens.color.cardSurface,
           cursor: "pointer",
           textAlign: "center",
+          transition: ".15s",
         }}
       >
         Drop images here, or click to upload
