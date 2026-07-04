@@ -109,6 +109,83 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ItemDetail" }
+  /lenses:
+    get:
+      operationId: listLenses
+      description: "List the caller's saved Lenses (saved query/rule collections), newest first."
+      responses:
+        "200":
+          description: lenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Lens" }
+    post:
+      operationId: createLens
+      description: "Create a Lens: a named, saved search rule. New saves matching the rule appear through it automatically."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateLensRequest" }
+      responses:
+        "201":
+          description: created lens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lens" }
+        "400": { description: bad request }
+  /lenses/{id}:
+    get:
+      operationId: getLens
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: lens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lens" }
+        "404": { description: not found }
+    patch:
+      operationId: updateLens
+      description: "Rename a Lens and/or replace its rule."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateLensRequest" }
+      responses:
+        "200":
+          description: updated lens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lens" }
+        "400": { description: bad request }
+        "404": { description: not found }
+    delete:
+      operationId: deleteLens
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: deleted }
+        "404": { description: not found }
+  /lenses/{id}/items:
+    get:
+      operationId: getLensItems
+      description: "Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: items matching the lens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse" }
+        "404": { description: not found }
   /search:
     get:
       operationId: searchItems
@@ -178,3 +255,27 @@ components:
           type: array
           description: "Card-type filters applied, if any."
           items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+    LensRule:
+      type: object
+      description: "A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type."
+      properties:
+        q: { type: string, description: "Free-text query." }
+        color: { type: string, description: "Hex (#RRGGBB) or named colour (e.g. cobalt)." }
+        types:
+          type: array
+          description: "Card types to include."
+          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+    Lens:
+      type: object
+      required: [id, name, rule, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        rule: { $ref: "#/components/schemas/LensRule" }
+        createdAt: { type: string, format: date-time }
+    CreateLensRequest:
+      type: object
+      required: [name, rule]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        rule: { $ref: "#/components/schemas/LensRule" }

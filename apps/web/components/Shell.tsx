@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { tokens } from "@openmind/ui";
+import { getLenses } from "../lib/lenses";
+import { lensDot } from "../lib/lens-format";
 
 const navBase = {
   display: "flex",
@@ -83,7 +86,15 @@ function MutedNav({
   );
 }
 
-export function Shell({ children }: { children: ReactNode }) {
+export async function Shell({
+  children,
+  activeLensId,
+}: {
+  children: ReactNode;
+  activeLensId?: string;
+}) {
+  const lenses = await getLenses();
+  const mindActive = !activeLensId;
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <aside
@@ -151,28 +162,18 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <MutedNav glyph="◵" label="Desk" />
 
-        {/* The Mind — the one live screen, shown active */}
-        <div
+        {/* The Mind — the home library. Active unless viewing a lens. */}
+        <Link
+          href="/"
           style={{
             ...navBase,
-            background: "rgba(27,63,209,.1)",
-            color: tokens.color.cobalt,
+            textDecoration: "none",
+            background: mindActive ? "rgba(27,63,209,.1)" : "transparent",
+            color: mindActive ? tokens.color.cobalt : tokens.color.ink,
           }}
         >
           <span style={{ fontSize: 15, width: 16 }}>◧</span> The Mind
-          <span
-            style={{
-              marginLeft: "auto",
-              fontFamily: tokens.font.mono,
-              fontSize: 12,
-              fontWeight: 500,
-              lineHeight: 1,
-              color: tokens.color.inkFaint,
-            }}
-          >
-            1,284
-          </span>
-        </div>
+        </Link>
 
         <MutedNav glyph="❍" label="Drift" />
 
@@ -183,13 +184,33 @@ export function Shell({ children }: { children: ReactNode }) {
           style={{ display: "flex", alignItems: "center", padding: "2px 10px 8px" }}
         >
           Lenses
-          <SoonTag />
         </div>
-        <MutedNav dot={tokens.color.cobalt} label="Design inspiration" count="214" />
-        <MutedNav dot={tokens.color.terracotta} label="Distributed systems" count="88" />
-        <MutedNav dot={tokens.color.green} label="Running & gear" count="37" />
-        <MutedNav dot="#8A7A3A" label="Books to read" count="52" />
-        <MutedNav glyph="+" label="New lens" trailing={false} />
+        {lenses.map((lens) => {
+          const active = lens.id === activeLensId;
+          return (
+            <Link
+              key={lens.id}
+              href={`/lens/${lens.id}`}
+              title={lens.name}
+              style={{
+                ...navBase,
+                textDecoration: "none",
+                background: active ? "rgba(27,63,209,.1)" : "transparent",
+                color: active ? tokens.color.cobalt : tokens.color.ink,
+              }}
+            >
+              <span className="dot" style={{ background: lensDot(lens.rule, tokens.color.cobalt) }} />
+              <span
+                style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              >
+                {lens.name}
+              </span>
+            </Link>
+          );
+        })}
+        <Link href="/lens/new" style={{ ...navBase, textDecoration: "none", color: tokens.color.inkMuted }}>
+          <span style={{ fontSize: 15, width: 16 }}>+</span> New lens
+        </Link>
 
         {/* Account row */}
         <div

@@ -75,6 +75,16 @@ export function SearchContext({
   const hasEcho = Boolean(colorTerm || types.length || refinedText);
   const activeColor = colorParam?.toLowerCase();
 
+  // "Save as lens" seeds the new-lens form with the effective search: the text
+  // actually searched (understood split, or the raw query), the colour, and any
+  // type filters. Shown whenever there is a rule worth saving.
+  const lensQuery: Record<string, string> = {};
+  const qForLens = (understood?.text ?? q ?? "").trim();
+  if (qForLens) lensQuery.q = qForLens;
+  if (colorTerm) lensQuery.color = colorTerm;
+  if (types.length) lensQuery.types = types.join(",");
+  const canSave = Object.keys(lensQuery).length > 0;
+
   return (
     <div
       style={{
@@ -112,8 +122,18 @@ export function SearchContext({
         </div>
       )}
 
+      {canSave && (
+        <Link
+          href={{ pathname: "/lens/new", query: lensQuery }}
+          className="chip"
+          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          <span aria-hidden>◫</span> Save as lens
+        </Link>
+      )}
+
       <div
-        style={{ display: "flex", alignItems: "center", gap: 7, marginLeft: "auto" }}
+        style={{ display: "flex", alignItems: "center", gap: 7, marginLeft: canSave ? 0 : "auto" }}
         role="group"
         aria-label="Filter by colour"
       >
