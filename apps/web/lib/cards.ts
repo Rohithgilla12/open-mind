@@ -59,19 +59,6 @@ export const typeGradient: Record<CardKind, string> = {
   recipe: `linear-gradient(135deg, ${color.terracotta}, ${color.gold})`,
 };
 
-/** Small derived palette-dot set per type (Task 4 will wire real palette). */
-export const typeDots: Record<CardKind, string[]> = {
-  article: [color.cobaltDeep, color.cobalt, color.paper],
-  quote: [color.gold, color.paper],
-  image: [color.terracotta, color.gold, color.paper],
-  product: [color.green, color.ink, color.panel],
-  note: [color.gold, color.green],
-  video: [color.ink, color.inkMuted],
-  tweet: [color.cobalt, color.green],
-  book: [color.terracotta, color.gold, color.ink],
-  recipe: [color.terracotta, color.gold],
-};
-
 /**
  * Per-type accent colour, used as a thin top rule on text-forward cards
  * (imageless article/product/book/recipe) as a subtle nod to the type.

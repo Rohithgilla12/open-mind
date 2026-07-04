@@ -1,8 +1,10 @@
 import { tokens } from "@openmind/ui";
 import type { CSSProperties, ReactNode } from "react";
 import { assetSrc } from "../lib/assets";
-import { cardKind, domainOf, typeAccent, typeDots, typeGradient, typeLabel } from "../lib/cards";
+import { cardKind, domainOf, typeAccent, typeGradient, typeLabel } from "../lib/cards";
+import { derivedPalette } from "../lib/palette";
 import type { Item } from "../lib/types";
+import { Palette } from "./Palette";
 
 const { color, font } = tokens;
 
@@ -44,16 +46,6 @@ function Tags({ tags }: { tags?: string[] }) {
   );
 }
 
-function Dots({ colors }: { colors: string[] }) {
-  return (
-    <>
-      {colors.map((c, i) => (
-        <span key={`${c}-${i}`} className="dot" style={{ background: c }} />
-      ))}
-    </>
-  );
-}
-
 function Footer({
   dots,
   meta,
@@ -65,7 +57,7 @@ function Footer({
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 11 }}>
-      <Dots colors={dots} />
+      <Palette colors={dots} />
       <span className="meta" style={{ marginLeft: "auto", ...(metaColor ? { color: metaColor } : {}) }}>
         {meta}
       </span>
@@ -169,7 +161,13 @@ export function ItemCard({ item }: { item: Item }) {
   const pending = item.status === "pending";
   const domain = domainOf(item.url);
   const img = assetSrc(item.leadImageUrl);
-  const dots = typeDots[kind];
+  // Real extracted palette when present; otherwise a deterministic placeholder
+  // derived from the title + tags (see lib/palette).
+  const tags = item.tags ?? [];
+  const dots =
+    item.palette && item.palette.length > 0
+      ? item.palette
+      : derivedPalette(`${item.title ?? ""} ${tags.join(" ")}`.trim() || kind);
   const gradient = typeGradient[kind];
   const accent = typeAccent[kind];
   const withDomain = (label: string) => (domain ? `${label} · ${domain}` : label);
@@ -198,7 +196,7 @@ export function ItemCard({ item }: { item: Item }) {
             {attribution ? `${attribution} — Quote` : "Quote"}
           </div>
           <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
-            <Dots colors={dots} />
+            <Palette colors={dots} />
           </div>
           {pending ? <Enriching /> : null}
         </div>
@@ -218,7 +216,7 @@ export function ItemCard({ item }: { item: Item }) {
           caption={item.title ?? undefined}
         />
         <div style={{ padding: "11px 13px", display: "flex", alignItems: "center", gap: 8 }}>
-          <Dots colors={dots} />
+          <Palette colors={dots} />
           <span className="meta" style={{ marginLeft: "auto" }}>
             {withDomain("Image")}
           </span>
@@ -244,7 +242,7 @@ export function ItemCard({ item }: { item: Item }) {
           </div>
           <Tags tags={item.tags} />
           <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
-            <Dots colors={dots} />
+            <Palette colors={dots} />
           </div>
           {pending ? <Enriching /> : null}
         </div>
