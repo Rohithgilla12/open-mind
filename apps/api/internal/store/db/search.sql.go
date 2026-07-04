@@ -14,7 +14,7 @@ import (
 )
 
 const searchFTS = `-- name: SearchFTS :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items
 WHERE user_id = $1 AND search_tsv @@ websearch_to_tsquery('english', $2)
 ORDER BY rank DESC LIMIT $3
@@ -40,6 +40,7 @@ type SearchFTSRow struct {
 	SearchTsv    interface{}
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
+	Palette      []string
 	Rank         float64
 }
 
@@ -66,6 +67,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 			&i.SearchTsv,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Palette,
 			&i.Rank,
 		); err != nil {
 			return nil, err
@@ -79,7 +81,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 }
 
 const searchVector = `-- name: SearchVector :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.search_tsv, i.created_at, i.updated_at, (1 - (e.embedding <=> $2))::float8 AS similarity
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.search_tsv, i.created_at, i.updated_at, i.palette, (1 - (e.embedding <=> $2))::float8 AS similarity
 FROM item_embeddings e JOIN items i ON i.id = e.item_id
 WHERE e.user_id = $1
 ORDER BY e.embedding <=> $2 LIMIT $3
@@ -105,6 +107,7 @@ type SearchVectorRow struct {
 	SearchTsv    interface{}
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
+	Palette      []string
 	Similarity   float64
 }
 
@@ -131,6 +134,7 @@ func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]S
 			&i.SearchTsv,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Palette,
 			&i.Similarity,
 		); err != nil {
 			return nil, err

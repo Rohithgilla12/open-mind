@@ -70,6 +70,7 @@ type Item struct {
 	CreatedAt    time.Time          `json:"createdAt"`
 	Id           openapi_types.UUID `json:"id"`
 	LeadImageUrl *string            `json:"leadImageUrl,omitempty"`
+	Palette      *[]string          `json:"palette,omitempty"`
 	Status       ItemStatus         `json:"status"`
 	Summary      *string            `json:"summary,omitempty"`
 	Tags         *[]string          `json:"tags,omitempty"`
@@ -90,6 +91,7 @@ type ItemDetail struct {
 	CreatedAt    time.Time           `json:"createdAt"`
 	Id           openapi_types.UUID  `json:"id"`
 	LeadImageUrl *string             `json:"leadImageUrl,omitempty"`
+	Palette      *[]string           `json:"palette,omitempty"`
 	Status       ItemDetailStatus    `json:"status"`
 	Summary      *string             `json:"summary,omitempty"`
 	Tags         *[]string           `json:"tags,omitempty"`

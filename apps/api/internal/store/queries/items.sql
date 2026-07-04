@@ -27,6 +27,9 @@ WHERE user_id = $1 AND id = $2;
 -- name: SetItemStatus :exec
 UPDATE items SET status = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 
+-- name: SetItemPalette :exec
+UPDATE items SET palette = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
+
 -- name: UpsertEmbedding :exec
 INSERT INTO item_embeddings (item_id, user_id, embedding) VALUES ($1, $2, $3)
 ON CONFLICT (item_id) DO UPDATE SET embedding = EXCLUDED.embedding;

@@ -34,6 +34,7 @@ type Item struct {
 	SearchTsv    interface{}
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
+	Palette      []string
 }
 
 type ItemEmbedding struct {

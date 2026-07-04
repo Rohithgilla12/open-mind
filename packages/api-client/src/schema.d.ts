@@ -135,6 +135,7 @@ export interface components {
             summary?: string;
             leadImageUrl?: string;
             tags?: string[];
+            palette?: string[];
             /** @enum {string} */
             cardType?: "article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote";
             /** @enum {string} */
