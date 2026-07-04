@@ -40,14 +40,20 @@ function SoonTag() {
 }
 
 // Not-yet-built nav rows: muted, non-interactive, no link — never a dead click.
+// Rows with a `count` (lenses) show it in the `.navk` mono style instead of
+// the "soon" badge, matching the mockup; both are equally non-clickable.
 function MutedNav({
   glyph,
   label,
   dot,
+  count,
+  trailing = true,
 }: {
   glyph?: string;
   label: string;
   dot?: string;
+  count?: string;
+  trailing?: boolean;
 }) {
   return (
     <div style={{ ...navBase, color: tokens.color.inkFaint, cursor: "default" }}>
@@ -57,7 +63,22 @@ function MutedNav({
         <span style={{ fontSize: 15, width: 16 }}>{glyph}</span>
       )}
       {label}
-      <SoonTag />
+      {count ? (
+        <span
+          style={{
+            marginLeft: "auto",
+            fontFamily: tokens.font.mono,
+            fontSize: 10,
+            fontWeight: 500,
+            lineHeight: 1,
+            color: tokens.color.inkFaint,
+          }}
+        >
+          {count}
+        </span>
+      ) : trailing ? (
+        <SoonTag />
+      ) : null}
     </div>
   );
 }
@@ -128,6 +149,8 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
         </div>
 
+        <MutedNav glyph="◵" label="Desk" />
+
         {/* The Mind — the one live screen, shown active */}
         <div
           style={{
@@ -151,7 +174,6 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
         </div>
 
-        <MutedNav glyph="◵" label="Desk" />
         <MutedNav glyph="❍" label="Drift" />
 
         <div style={{ ...softDivider, margin: "16px 8px" }} />
@@ -163,9 +185,11 @@ export function Shell({ children }: { children: ReactNode }) {
           Lenses
           <SoonTag />
         </div>
-        <MutedNav dot={tokens.color.cobalt} label="Design inspiration" />
-        <MutedNav dot={tokens.color.terracotta} label="Distributed systems" />
-        <MutedNav dot={tokens.color.green} label="Running & gear" />
+        <MutedNav dot={tokens.color.cobalt} label="Design inspiration" count="214" />
+        <MutedNav dot={tokens.color.terracotta} label="Distributed systems" count="88" />
+        <MutedNav dot={tokens.color.green} label="Running & gear" count="37" />
+        <MutedNav dot="#8A7A3A" label="Books to read" count="52" />
+        <MutedNav glyph="+" label="New lens" trailing={false} />
 
         {/* Account row */}
         <div
@@ -218,7 +242,7 @@ export function Shell({ children }: { children: ReactNode }) {
               style={{
                 textTransform: "none",
                 letterSpacing: ".02em",
-                color: "#8A8578",
+                color: tokens.color.inkFaintAlt,
                 marginTop: 3,
               }}
             >
@@ -256,7 +280,7 @@ export function Shell({ children }: { children: ReactNode }) {
               marginTop: 6,
               textTransform: "none",
               letterSpacing: ".02em",
-              color: "#8A8578",
+              color: tokens.color.inkFaintAlt,
             }}
           >
             3.1 GB / 9 GB archived

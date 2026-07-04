@@ -11,6 +11,7 @@ export const tokens = {
     ink: "#1C1A16", // primary text
     inkMuted: "#57534A", // secondary text
     inkFaint: "#A39C8B", // mono metadata
+    inkFaintAlt: "#8A8578", // secondary caption text (account subtext, storage caption)
     hairline: "rgba(28,26,22,.11)", // card & panel borders
     line: "rgba(28,26,22,.11)", // alias of hairline for existing consumers
     cobalt: "#1B3FD1", // primary accent — buttons, links, active states
