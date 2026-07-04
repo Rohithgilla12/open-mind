@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { tokens } from "@openmind/ui";
+import { fontVariables } from "../lib/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,8 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+        className={fontVariables}
         style={{
-          backgroundColor: tokens.color.paper,
+          backgroundColor: tokens.color.canvas,
           color: tokens.color.ink,
           fontFamily: tokens.font.sans,
           minHeight: "100vh",

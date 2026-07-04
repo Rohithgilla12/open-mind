@@ -5,6 +5,7 @@ import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
 import { ImageDrop } from "../components/ImageDrop";
 import { SearchBox } from "../components/SearchBox";
+import { Shell } from "../components/Shell";
 
 async function getRecents(): Promise<Item[]> {
   try {
@@ -38,7 +39,8 @@ export default async function Page({
   const items = q ? await getSearch(q) : await getRecents();
 
   return (
-    <main style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem 1.5rem" }}>
+    <Shell>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem 1.5rem" }}>
       <div
         style={{
           display: "flex",
@@ -74,6 +76,7 @@ export default async function Page({
       <ImageDrop />
       <SearchBox initial={q} />
       <Grid items={items} />
-    </main>
+      </main>
+    </Shell>
   );
 }
