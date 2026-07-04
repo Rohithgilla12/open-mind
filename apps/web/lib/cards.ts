@@ -72,6 +72,22 @@ export const typeDots: Record<CardKind, string[]> = {
   recipe: [color.terracotta, color.gold],
 };
 
+/**
+ * Per-type accent colour, used as a thin top rule on text-forward cards
+ * (imageless article/product/book/recipe) as a subtle nod to the type.
+ */
+export const typeAccent: Record<CardKind, string> = {
+  article: color.cobalt,
+  quote: color.gold,
+  image: color.terracotta,
+  product: color.green,
+  note: color.gold,
+  video: color.ink,
+  tweet: color.cobalt,
+  book: color.terracotta,
+  recipe: color.gold,
+};
+
 /** Meta-line label per type (matches mockup: tweet reads "Post"). */
 export const typeLabel: Record<CardKind, string> = {
   article: "Article",

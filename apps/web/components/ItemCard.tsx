@@ -1,7 +1,7 @@
 import { tokens } from "@openmind/ui";
 import type { CSSProperties, ReactNode } from "react";
 import { assetSrc } from "../lib/assets";
-import { cardKind, domainOf, typeDots, typeGradient, typeLabel } from "../lib/cards";
+import { cardKind, domainOf, typeAccent, typeDots, typeGradient, typeLabel } from "../lib/cards";
 import type { Item } from "../lib/types";
 
 const { color, font } = tokens;
@@ -127,6 +127,14 @@ function LeadImage({
   );
 }
 
+/**
+ * Thin top accent rule for text-forward (imageless) cards: a subtle nod to
+ * the card type's accent colour in place of the gradient hero slab.
+ */
+function TopAccent({ color: accent }: { color: string }) {
+  return <div style={{ height: 3, background: accent }} />;
+}
+
 function serifTitle(size: number): CSSProperties {
   return {
     fontFamily: font.quote,
@@ -163,6 +171,7 @@ export function ItemCard({ item }: { item: Item }) {
   const img = assetSrc(item.leadImageUrl);
   const dots = typeDots[kind];
   const gradient = typeGradient[kind];
+  const accent = typeAccent[kind];
   const withDomain = (label: string) => (domain ? `${label} · ${domain}` : label);
   const imageAlt = item.title ?? "saved image";
   const videoAlt = item.title ? `${item.title} (video thumbnail)` : "video thumbnail";
@@ -331,7 +340,11 @@ export function ItemCard({ item }: { item: Item }) {
   if (kind === "product") {
     return (
       <article className="card">
-        <LeadImage src={img} alt={imageAlt} gradient={gradient} height={150} />
+        {img ? (
+          <LeadImage src={img} alt={imageAlt} gradient={gradient} height={150} />
+        ) : (
+          <TopAccent color={accent} />
+        )}
         <div style={{ padding: "13px 14px" }}>
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
           {item.summary ? <p style={{ ...specStyle, ...clamp(2) }}>{item.summary}</p> : null}
@@ -349,37 +362,7 @@ export function ItemCard({ item }: { item: Item }) {
         {img ? (
           <LeadImage src={img} alt={imageAlt} gradient={gradient} height={180} />
         ) : (
-          <div
-            style={{
-              height: 180,
-              background: color.panel,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 18,
-            }}
-          >
-            <div
-              style={{
-                width: 96,
-                height: 140,
-                background: gradient,
-                borderRadius: "2px 5px 5px 2px",
-                boxShadow: "6px 8px 18px -6px rgba(0,0,0,.5)",
-                padding: "14px 12px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-              }}
-            >
-              <div
-                className="serif"
-                style={{ color: color.gold, fontSize: 12, fontStyle: "italic", lineHeight: 1.25, ...clamp(5) }}
-              >
-                {item.title ?? "Untitled"}
-              </div>
-            </div>
-          </div>
+          <TopAccent color={accent} />
         )}
         <div style={{ padding: "12px 14px" }}>
           {item.title ? <h2 style={serifTitle(15.5)}>{item.title}</h2> : null}
@@ -394,7 +377,11 @@ export function ItemCard({ item }: { item: Item }) {
   if (kind === "recipe") {
     return (
       <article className="card">
-        <LeadImage src={img} alt={imageAlt} gradient={gradient} height={96} />
+        {img ? (
+          <LeadImage src={img} alt={imageAlt} gradient={gradient} height={96} />
+        ) : (
+          <TopAccent color={accent} />
+        )}
         <div style={{ padding: "13px 14px" }}>
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
           {item.summary ? (
@@ -412,7 +399,11 @@ export function ItemCard({ item }: { item: Item }) {
   // article (and default for any unknown type)
   return (
     <article className="card">
-      <LeadImage src={img} alt={imageAlt} gradient={gradient} height={118} />
+      {img ? (
+        <LeadImage src={img} alt={imageAlt} gradient={gradient} height={118} />
+      ) : (
+        <TopAccent color={accent} />
+      )}
       <div style={{ padding: "13px 14px" }}>
         {item.title ? <h2 style={{ ...serifTitle(17), lineHeight: 1.2 }}>{item.title}</h2> : null}
         {item.summary ? <p style={summaryStyle}>{item.summary}</p> : null}
