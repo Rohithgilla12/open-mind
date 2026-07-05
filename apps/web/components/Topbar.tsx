@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { tokens } from "@openmind/ui";
 import { SearchBox } from "./SearchBox";
 
@@ -62,6 +63,20 @@ export function Topbar({ count, q }: { count: number; q?: string }) {
         <a href="#capture" className="savebtn" style={{ flex: "none", textDecoration: "none" }}>
           Save something
         </a>
+
+        <Link
+          href="/import"
+          style={{
+            flex: "none",
+            fontFamily: font.mono,
+            fontSize: 11,
+            letterSpacing: ".04em",
+            color: color.cobalt,
+            textDecoration: "none",
+          }}
+        >
+          Import
+        </Link>
 
         <a
           href="/api/export"

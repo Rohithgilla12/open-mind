@@ -98,6 +98,21 @@ type CreateLensRequest struct {
 	Rule LensRule `json:"rule"`
 }
 
+// ImportResult Summary of a bulk import.
+type ImportResult struct {
+	// Failed Links rejected (not a valid http(s) URL) or that failed to save.
+	Failed int `json:"failed"`
+
+	// Imported New items created (and queued for enrichment).
+	Imported int `json:"imported"`
+
+	// Skipped Links skipped as already saved or duplicated within the file.
+	Skipped int `json:"skipped"`
+
+	// Total Links found in the file.
+	Total int `json:"total"`
+}
+
 // Item defines model for Item.
 type Item struct {
 	CardType     *ItemCardType      `json:"cardType,omitempty"`
@@ -198,6 +213,11 @@ type CreateAssetMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// ImportItemsMultipartBody defines parameters for ImportItems.
+type ImportItemsMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
 // ListItemsParams defines parameters for ListItems.
 type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -216,6 +236,9 @@ type SearchItemsParams struct {
 
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
 type CreateAssetMultipartRequestBody CreateAssetMultipartBody
+
+// ImportItemsMultipartRequestBody defines body for ImportItems for multipart/form-data ContentType.
+type ImportItemsMultipartRequestBody ImportItemsMultipartBody
 
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = CreateItemRequest
@@ -240,6 +263,9 @@ type ServerInterface interface {
 
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+
+	// (POST /import)
+	ImportItems(w http.ResponseWriter, r *http.Request)
 
 	// (GET /items)
 	ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams)
@@ -296,6 +322,11 @@ func (_ Unimplemented) ExportItems(w http.ResponseWriter, r *http.Request) {
 
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /import)
+func (_ Unimplemented) ImportItems(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -439,6 +470,26 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportItems operation middleware
+func (siw *ServerInterfaceWrapper) ImportItems(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportItems(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -900,6 +951,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/import", wrapper.ImportItems)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items", wrapper.ListItems)

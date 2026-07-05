@@ -10,7 +10,8 @@
 - (empty)
 
 ### Next
-- [ ] Imports: Pocket/Omnivore, RSS feeds, PDF capture (from Karakeep research, docs/research.md)
+- [ ] Imports — remaining formats: **RSS feeds** (one-shot feed-URL import → item per entry; ongoing subscription would need a River periodic job — decide scope), **PDF capture** (upload → text extraction → item; needs a PDF text extractor dependency + asset storage of the PDF), **Omnivore JSON** export (zip-of-JSON schema). File import (HTML bookmarks / CSV / URL list) shipped — see Done.
+- [ ] Import tag preservation — bookmark/CSV exports often carry tags; currently dropped because enrichment overwrites `items.tags`. Needs a tag `source` distinction (ai|user) per the PRD data model before imported tags can survive enrichment.
 
 ### Later
 - [ ] Lossless AVIF metadata stripping / re-allow AVIF uploads (M1 carry-over — AVIF currently 415s at upload pending a metadata-strip implementation)
@@ -21,6 +22,9 @@
 - [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode. **Deferred to laptop session (2026-07-04)**; schema is already multi-tenant, so this is login/accounts work, not a data-model change.
 
 ## Done
+
+### Milestone 2 — imports (file-based)
+- [x] Bulk file import (2026-07-04) — `POST /import` (multipart `file`). New `internal/importer` package parses, dependency-free, three formats auto-detected by filename+content: **Netscape bookmark HTML** (browsers, Pocket, Raindrop, Pinboard, Instapaper — regex over `<A HREF>` + stdlib `html` entity decode), **CSV** with a URL column (Pocket/Raindrop — `encoding/csv`, header-name column detection), and a **plain newline-delimited URL list**. Handler creates a pending item per new/valid/not-already-saved URL and queues enrichment via the normal capture path (async, cheap models); de-dupes against existing URLs (`ListItemURLs` query) and within the file, so **re-import is idempotent**; caps at 10k items/request; returns `ImportResult {total, imported, skipped, failed}`. Contract regenerated (Go + TS). **Web:** `/import` page (file picker, live result summary with imported/skipped/failed tiles + supported-sources list), `/api/import` multipart proxy, "Import" link in the topbar beside Export JSON, `ImportResult` type. **Tests:** unit `TestParse*` (HTML/CSV/CSV-by-content/text/empty — green here); DB-backed `TestImportBookmarksIsIdempotent` (counts + item/job rows + idempotent re-import) and `TestImportRejectsEmptyFile` (run in CI). Verified 2026-07-04: `go build`/`vet` + importer unit tests green; web `tsc`/`build` green; drove the built `/import` page (headless Chromium) — uploaded a bookmark file, submitted, saw the 9/2/1 summary render. RSS + PDF + Omnivore-JSON split out to Next.
 
 ### Milestone 2 — reader mode
 - [x] Distraction-free reader (2026-07-04) — new `/item/[id]/read` route: a single calm reading column on paper, no sidebar/rail, just a slim sticky top bar (← Back to card · Open original ↗). Mono kicker, large Newsreader title, italic-serif summary lead, and the archived body rendered as serif paragraphs at a generous 19px/1.85 over a ~680px measure; graceful empty/pending state with an open-original fallback. Detail page (`/item/[id]`) gained a "Read ↗" affordance (shown for text-forward types — article/product/book/recipe/note — with a body > 120 chars). Web-only, no backend/contract change. Verified 2026-07-04: web `tsc`/`build` green; drove the built pages (headless Chromium) — detail shows "Read ↗", reader renders the full article distraction-free. (Highlights-as-quote-cards from PRD §5.7 deferred — needs a `highlights` table + selection UI, out of scope for this slice.)

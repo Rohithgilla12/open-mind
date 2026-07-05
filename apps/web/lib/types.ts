@@ -20,3 +20,6 @@ export type LensRule = Lens["rule"];
 
 export type CreateLensRequest =
   paths["/lenses"]["post"]["requestBody"]["content"]["application/json"];
+
+export type ImportResult =
+  paths["/import"]["post"]["responses"]["200"]["content"]["application/json"];

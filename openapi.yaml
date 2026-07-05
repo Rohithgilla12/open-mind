@@ -109,6 +109,27 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ItemDetail" }
+  /import:
+    post:
+      operationId: importItems
+      description: "Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe."
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: import summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportResult" }
+        "400": { description: bad request / unparseable file }
+        "413": { description: payload too large }
   /lenses:
     get:
       operationId: listLenses
@@ -279,3 +300,12 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         rule: { $ref: "#/components/schemas/LensRule" }
+    ImportResult:
+      type: object
+      description: "Summary of a bulk import."
+      required: [total, imported, skipped, failed]
+      properties:
+        total: { type: integer, description: "Links found in the file." }
+        imported: { type: integer, description: "New items created (and queued for enrichment)." }
+        skipped: { type: integer, description: "Links skipped as already saved or duplicated within the file." }
+        failed: { type: integer, description: "Links rejected (not a valid http(s) URL) or that failed to save." }

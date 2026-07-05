@@ -101,6 +101,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe. */
+        post: operations["importItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/lenses": {
         parameters: {
             query?: never;
@@ -236,6 +253,17 @@ export interface components {
         CreateLensRequest: {
             name: string;
             rule: components["schemas"]["LensRule"];
+        };
+        /** @description Summary of a bulk import. */
+        ImportResult: {
+            /** @description Links found in the file. */
+            total: number;
+            /** @description New items created (and queued for enrichment). */
+            imported: number;
+            /** @description Links skipped as already saved or duplicated within the file. */
+            skipped: number;
+            /** @description Links rejected (not a valid http(s) URL) or that failed to save. */
+            failed: number;
         };
     };
     responses: never;
@@ -466,6 +494,47 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ItemDetail"][];
                 };
+            };
+        };
+    };
+    importItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description import summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description bad request / unparseable file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description payload too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

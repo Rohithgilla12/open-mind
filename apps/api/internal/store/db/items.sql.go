@@ -101,6 +101,30 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 	return i, err
 }
 
+const listItemURLs = `-- name: ListItemURLs :many
+SELECT url FROM items WHERE user_id = $1 AND url <> ''
+`
+
+func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listItemURLs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, err
+		}
+		items = append(items, url)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItems = `-- name: ListItems :many
 SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, search_tsv, created_at, updated_at, palette FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
 `
