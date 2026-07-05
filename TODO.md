@@ -10,7 +10,6 @@
 - (empty)
 
 ### Next
-- [ ] Reader mode polish (M1 shipped a type-aware detail view; M2 = distraction-free reading)
 - [ ] Imports: Pocket/Omnivore, RSS feeds, PDF capture (from Karakeep research, docs/research.md)
 
 ### Later
@@ -22,6 +21,9 @@
 - [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode. **Deferred to laptop session (2026-07-04)**; schema is already multi-tenant, so this is login/accounts work, not a data-model change.
 
 ## Done
+
+### Milestone 2 — reader mode
+- [x] Distraction-free reader (2026-07-04) — new `/item/[id]/read` route: a single calm reading column on paper, no sidebar/rail, just a slim sticky top bar (← Back to card · Open original ↗). Mono kicker, large Newsreader title, italic-serif summary lead, and the archived body rendered as serif paragraphs at a generous 19px/1.85 over a ~680px measure; graceful empty/pending state with an open-original fallback. Detail page (`/item/[id]`) gained a "Read ↗" affordance (shown for text-forward types — article/product/book/recipe/note — with a body > 120 chars). Web-only, no backend/contract change. Verified 2026-07-04: web `tsc`/`build` green; drove the built pages (headless Chromium) — detail shows "Read ↗", reader renders the full article distraction-free. (Highlights-as-quote-cards from PRD §5.7 deferred — needs a `highlights` table + selection UI, out of scope for this slice.)
 
 ### Milestone 2 — Lenses
 - [x] Lenses — schema + API + web (2026-07-04). A Lens = a named, saved search rule (`{q?, color?, types?}`); viewing one re-runs the rule so new saves appear automatically (no manual filing). **Schema:** migration `0004_lenses.sql` (`lenses(id, user_id, name, rule jsonb, created_at, updated_at)`, user-scoped index). **Contract:** `/lenses` (GET list, POST create), `/lenses/{id}` (GET, PATCH rename+re-rule, DELETE), `/lenses/{id}/items` (GET — runs the rule, returns a `SearchResponse`); new `Lens`/`LensRule`/`CreateLensRequest` schemas; Go + TS regenerated. **Store:** sqlc `lenses.sql` (Create/List/Get/Update/Delete), all `user_id`-scoped. **Handlers** (`internal/api/lenses.go`): rule validated + canonicalised on write (trim, dedupe types, reject unknown colour/type, require ≥1 signal) and stored as jsonb; `runLensRule` reuses `search.Run` for text/colour rules and falls back to recent-items-filtered-by-type for a types-only rule; a stored colour that later fails to parse degrades to an empty view, not a 500. **Web:** sidebar Lenses list is now live (real fetch, colour dot from the rule, active highlight; "New lens" link; dropped the mock rows + "soon"); `/lens/[id]` view (header with rule summary + live count, duplicate/delete, items grid); `/lens/new` create form (name, query, colour swatches, card-type chips) that seeds from the current search; "Save as lens" affordance added to the search-context strip; client mutations proxied via `/api/lenses`. **Tests:** unit `TestParseRule`/`TestMarshalRuleRoundTrip` (green here, no DB); DB-backed `TestLensCRUD`, `TestLensCreateValidation`, `TestLensItemsIsLiveView` (run in CI/laptop — no Docker daemon in web session). Verified 2026-07-04: `go build`/`vet` + rule unit tests green; web `tsc`/`build` green; drove the built web app (headless Chromium against a mock API) across home (live lenses sidebar), a parsed search showing "Save as lens", the empty + prefilled new-lens form, and a lens view rendering its matched items.
