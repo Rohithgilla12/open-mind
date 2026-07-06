@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
-import { useState } from "react";
+import { Link, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -29,8 +29,21 @@ type Status =
 
 export default function CaptureScreen() {
   const { configured, loading } = useSettingsContext();
+  const params = useLocalSearchParams<{ shared?: string }>();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+
+  // Prefill from a share-sheet intent (routed here by ShareIntentGate). Apply
+  // each distinct shared value once so revisiting the tab doesn't clobber edits.
+  const appliedShareRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const shared = typeof params.shared === "string" ? params.shared : undefined;
+    if (shared && shared !== appliedShareRef.current) {
+      appliedShareRef.current = shared;
+      setText(shared);
+      setStatus({ kind: "idle" });
+    }
+  }, [params.shared]);
 
   const trimmed = text.trim();
   const isUrl = URL_RE.test(trimmed);
