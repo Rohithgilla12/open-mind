@@ -13,19 +13,36 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { saveItem } from "@/lib/api";
+import { listItems, saveItem } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
 const URL_RE = /^https?:\/\//i;
+const RECOVERY_WINDOW_MS = 2 * 60 * 1000;
 
 type Status =
   | { kind: "idle" }
   | { kind: "saving" }
-  | { kind: "saved" }
+  | { kind: "saved"; recovered?: boolean }
   | { kind: "rejected" }
   | { kind: "unreachable" }
+  | { kind: "unreachable-note" }
   | { kind: "error" };
+
+// After a status-0 (network error/timeout) response, the POST may have
+// actually landed. For URL saves we can check: list the newest items and
+// look for this exact URL created just now.
+async function wasRecentlySaved(url: string): Promise<boolean> {
+  const res = await listItems(10);
+  if (!res.ok) return false;
+  const now = Date.now();
+  return res.items.some((item) => {
+    if (item.url !== url) return false;
+    if (!item.createdAt) return true;
+    const created = Date.parse(item.createdAt);
+    return Number.isNaN(created) || now - created <= RECOVERY_WINDOW_MS;
+  });
+}
 
 export default function CaptureScreen() {
   const { configured, loading } = useSettingsContext();
@@ -53,13 +70,19 @@ export default function CaptureScreen() {
   async function onSave() {
     const value = text.trim();
     if (!value) return;
+    const url = URL_RE.test(value);
     setStatus({ kind: "saving" });
-    const res = await saveItem(URL_RE.test(value) ? { url: value } : { note: value });
+    const res = await saveItem(url ? { url: value } : { note: value });
     if (res.ok) {
       setText("");
       setStatus({ kind: "saved" });
     } else if (res.status === 0) {
-      setStatus({ kind: "unreachable" });
+      if (url && (await wasRecentlySaved(value))) {
+        setText("");
+        setStatus({ kind: "saved", recovered: true });
+        return;
+      }
+      setStatus({ kind: url ? "unreachable" : "unreachable-note" });
     } else if (res.status === 401) {
       setStatus({ kind: "rejected" });
     } else {
@@ -140,7 +163,7 @@ function StatusMessage({ status }: { status: Status }) {
         <View style={styles.savedRow}>
           <Ionicons name="checkmark-circle" size={16} color={colors.cobalt} />
           <Text style={[styles.status, { color: colors.cobalt }]}>
-            Saved — it'll appear in your Library.
+            {status.recovered ? "Saved — connection was slow." : "Saved — it'll appear in your Library."}
           </Text>
         </View>
       );
@@ -150,6 +173,12 @@ function StatusMessage({ status }: { status: Status }) {
       return (
         <Text style={[styles.status, { color: colors.danger }]}>
           Instance unreachable — check your connection.
+        </Text>
+      );
+    case "unreachable-note":
+      return (
+        <Text style={[styles.status, { color: colors.danger }]}>
+          Connection problem — the note may or may not have saved. Check your Library before retrying.
         </Text>
       );
     case "error":
