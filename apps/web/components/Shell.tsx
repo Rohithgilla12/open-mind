@@ -18,85 +18,19 @@ const navBase = {
 
 const softDivider = { height: 1, background: "rgba(28,26,22,.09)" } as const;
 
-// A small "soon" badge sits beside features that aren't built yet, so the nav
-// reads as a roadmap rather than a set of dead links.
-function SoonTag() {
-  return (
-    <span
-      style={{
-        marginLeft: "auto",
-        fontFamily: tokens.font.mono,
-        fontSize: 8.5,
-        fontWeight: 500,
-        lineHeight: 1,
-        letterSpacing: ".08em",
-        textTransform: "uppercase",
-        color: tokens.color.inkFaint,
-        border: `1px solid ${tokens.color.hairline}`,
-        borderRadius: 5,
-        padding: "3px 5px",
-      }}
-    >
-      soon
-    </span>
-  );
-}
-
-// Not-yet-built nav rows: muted, non-interactive, no link — never a dead click.
-// Rows with a `count` (lenses) show it in the `.navk` mono style instead of
-// the "soon" badge, matching the mockup; both are equally non-clickable.
-function MutedNav({
-  glyph,
-  label,
-  dot,
-  count,
-  trailing = true,
-}: {
-  glyph?: string;
-  label: string;
-  dot?: string;
-  count?: string;
-  trailing?: boolean;
-}) {
-  return (
-    <div style={{ ...navBase, color: tokens.color.inkFaint, cursor: "default" }}>
-      {dot ? (
-        <span className="dot" style={{ background: dot }} />
-      ) : (
-        <span style={{ fontSize: 15, width: 16 }}>{glyph}</span>
-      )}
-      {label}
-      {count ? (
-        <span
-          style={{
-            marginLeft: "auto",
-            fontFamily: tokens.font.mono,
-            fontSize: 10,
-            fontWeight: 500,
-            lineHeight: 1,
-            color: tokens.color.inkFaint,
-          }}
-        >
-          {count}
-        </span>
-      ) : trailing ? (
-        <SoonTag />
-      ) : null}
-    </div>
-  );
-}
-
 export async function Shell({
   children,
   activeLensId,
   activeDesk,
+  activeDrift,
 }: {
   children: ReactNode;
   activeLensId?: string;
   activeDesk?: boolean;
+  activeDrift?: boolean;
 }) {
   const lenses = await getLenses();
-  const mindActive = !activeLensId && !activeDesk;
+  const mindActive = !activeLensId && !activeDesk && !activeDrift;
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <aside
@@ -188,7 +122,18 @@ export async function Shell({
           <span style={{ fontSize: 15, width: 16 }}>◧</span> The Mind
         </Link>
 
-        <MutedNav glyph="❍" label="Drift" />
+        {/* Drift — calm, finite resurfacing of forgotten saves. */}
+        <Link
+          href="/drift"
+          style={{
+            ...navBase,
+            textDecoration: "none",
+            background: activeDrift ? "rgba(27,63,209,.1)" : "transparent",
+            color: activeDrift ? tokens.color.cobalt : tokens.color.ink,
+          }}
+        >
+          <span style={{ fontSize: 15, width: 16 }}>❍</span> Drift
+        </Link>
 
         <div style={{ ...softDivider, margin: "16px 8px" }} />
 
