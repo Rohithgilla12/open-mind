@@ -162,6 +162,14 @@ Tags you enter are canonicalised on save: trimmed, lowercased, deduplicated, cap
 
 > Caveat: tag search uses `array_to_tsvector`, which indexes tags as literal lexemes without English stemming. A single-morpheme tag like `mine` matches a search for `mine`; a tag like `favourite` will not match a query for `favourite` if Postgres's English text-search config would otherwise stem it to a different form. Exact tag lookups are unaffected.
 
+## Desk (pinboard)
+
+Pin whatever you're actively working with to a Desk — a small board separate from your full library, for the handful of items you want one click away right now.
+
+- **Pin/unpin**: the pin toggle on an item's detail page, or `PATCH /items/{id} {"pinned": true}` (and `{"pinned": false}` to unpin) directly. Combine with `userTags` in the same request if you like — both are optional and independent.
+- **View**: the `/desk` page in the web UI, also live in the sidebar nav. Backed by `GET /desk`, which returns your pinned items newest-pinned-first (never affects enrichment or search — pinning is purely organisational).
+- **Scope**: pinning is per-account like everything else; unpinning never deletes the item, it only removes it from the board.
+
 ## Browser extension
 
 The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.
