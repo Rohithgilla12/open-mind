@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { assetSrc } from "../lib/assets";
 import { cardKind, domainOf, typeAccent, typeGradient, typeLabel } from "../lib/cards";
 import { derivedPalette } from "../lib/palette";
+import { unionTags } from "../lib/tags";
 import type { Item } from "../lib/types";
 import { Palette } from "./Palette";
 
@@ -240,7 +241,7 @@ export function ItemCard({ item }: { item: Item }) {
           >
             {text}
           </div>
-          <Tags tags={item.tags} />
+          <Tags tags={unionTags(item.tags, item.userTags)} />
           <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
             <Palette colors={dots} />
           </div>
@@ -346,7 +347,7 @@ export function ItemCard({ item }: { item: Item }) {
         <div style={{ padding: "13px 14px" }}>
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
           {item.summary ? <p style={{ ...specStyle, ...clamp(2) }}>{item.summary}</p> : null}
-          <Tags tags={item.tags} />
+          <Tags tags={unionTags(item.tags, item.userTags)} />
           <Footer dots={dots} meta={withDomain("Product")} />
           {pending ? <Enriching /> : null}
         </div>
@@ -364,7 +365,7 @@ export function ItemCard({ item }: { item: Item }) {
         )}
         <div style={{ padding: "12px 14px" }}>
           {item.title ? <h2 style={serifTitle(15.5)}>{item.title}</h2> : null}
-          <Tags tags={item.tags} />
+          <Tags tags={unionTags(item.tags, item.userTags)} />
           <Footer dots={dots} meta={withDomain("Book")} />
           {pending ? <Enriching /> : null}
         </div>
@@ -405,7 +406,7 @@ export function ItemCard({ item }: { item: Item }) {
       <div style={{ padding: "13px 14px" }}>
         {item.title ? <h2 style={{ ...serifTitle(17), lineHeight: 1.2 }}>{item.title}</h2> : null}
         {item.summary ? <p style={summaryStyle}>{item.summary}</p> : null}
-        <Tags tags={item.tags} />
+        <Tags tags={unionTags(item.tags, item.userTags)} />
         <Footer dots={dots} meta={withDomain(typeLabel[kind])} />
         {pending ? <Enriching /> : null}
       </div>

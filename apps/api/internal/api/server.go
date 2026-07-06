@@ -312,6 +312,13 @@ func toAPIItem(it db.Item) Item {
 		tags := it.Tags
 		out.Tags = &tags
 	}
+	// user tags are always emitted (empty array, never null) so clients can
+	// render/edit the set without a nil check.
+	userTags := it.UserTags
+	if userTags == nil {
+		userTags = []string{}
+	}
+	out.UserTags = &userTags
 	if len(it.Palette) > 0 {
 		palette := it.Palette
 		out.Palette = &palette
@@ -333,6 +340,7 @@ func toAPIItemDetail(it db.Item) ItemDetail {
 		Summary:      base.Summary,
 		LeadImageUrl: base.LeadImageUrl,
 		Tags:         base.Tags,
+		UserTags:     base.UserTags,
 		Palette:      base.Palette,
 		Body:         it.Body,
 	}

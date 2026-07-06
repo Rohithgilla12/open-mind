@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -277,6 +278,70 @@ func TestPipelineUploadedImageSkipsFetch(t *testing.T) {
 	again, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
 	if again.CardType != got.CardType || again.Title != got.Title || again.Summary != got.Summary || again.Status != got.Status || again.LeadImageUrl != got.LeadImageUrl {
 		t.Errorf("uploaded-image pipeline not idempotent:\nfirst  %+v\nsecond %+v", got, again)
+	}
+}
+
+// TestEnrichmentPreservesUserTags proves user-set tags survive a full
+// enrichment run: the AI tags land in Tags while UserTags is left untouched.
+func TestEnrichmentPreservesUserTags(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	srv := serveFixture(t, "testdata/article.html")
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: srv.URL, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+
+	userTags := []string{"mine", "keep"}
+	rows, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{UserID: userID, ID: item.ID, UserTags: userTags})
+	if err != nil {
+		t.Fatalf("set user tags: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("SetUserTags affected %d rows, want 1", rows)
+	}
+
+	p := &enrich.Pipeline{Store: s, AI: ai.NewFake(), Extractor: enrich.NewTrafilatura(srv.Client())}
+	if err := p.Run(ctx, userID, item.ID); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	got, _ := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if len(got.Tags) == 0 {
+		t.Errorf("Tags = %v, want non-empty AI tags", got.Tags)
+	}
+	if !slices.Equal(got.UserTags, userTags) {
+		t.Errorf("UserTags = %v, want %v (must be untouched by enrichment)", got.UserTags, userTags)
+	}
+}
+
+// TestSetUserTagsCrossTenant proves SetUserTags is user-scoped: setting tags
+// under a different user_id matches no row.
+func TestSetUserTagsCrossTenant(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	owner := uuid.New()
+	other := uuid.New()
+	for _, u := range []uuid.UUID{owner, other} {
+		if err := s.Queries.EnsureUser(ctx, u); err != nil {
+			t.Fatalf("ensure user: %v", err)
+		}
+	}
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: owner, Url: "https://example.com", Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+
+	rows, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{UserID: other, ID: item.ID, UserTags: []string{"nope"}})
+	if err != nil {
+		t.Fatalf("set user tags: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("cross-tenant SetUserTags affected %d rows, want 0", rows)
 	}
 }
 

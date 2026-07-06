@@ -6,3 +6,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const res = await apiFetch(`/items/${id}`, { method: "DELETE" }, req);
   return new NextResponse(null, { status: res.status });
 }
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = await req.text();
+  const res = await apiFetch(`/items/${id}`, { method: "PATCH", body }, req);
+  return new NextResponse(res.body, {
+    status: res.status,
+    headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+  });
+}

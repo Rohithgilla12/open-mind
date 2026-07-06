@@ -93,6 +93,45 @@ func TestImportBookmarksIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestImportPreservesTags(t *testing.T) {
+	s, rc, pool := testDeps(t)
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+
+	html := `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+  <DT><A HREF="https://tagged.example.com/a" TAGS="Go, Rust, Go">Tagged</A>
+  <DT><A HREF="https://tagged.example.com/b">Untagged</A>
+</DL>`
+
+	res, status := postImport(t, srv.URL, "tagged.html", html)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if res["imported"] != 2 {
+		t.Fatalf("imported = %d, want 2", res["imported"])
+	}
+
+	// Tagged item carries canonicalised (lowercased, deduped) user tags.
+	var tags []string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT user_tags FROM items WHERE url = 'https://tagged.example.com/a'`).Scan(&tags); err != nil {
+		t.Fatalf("query tagged: %v", err)
+	}
+	if len(tags) != 2 || tags[0] != "go" || tags[1] != "rust" {
+		t.Errorf("user_tags = %v, want [go rust]", tags)
+	}
+
+	// Untagged item has no user tags.
+	if err := pool.QueryRow(context.Background(),
+		`SELECT user_tags FROM items WHERE url = 'https://tagged.example.com/b'`).Scan(&tags); err != nil {
+		t.Fatalf("query untagged: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("untagged user_tags = %v, want empty", tags)
+	}
+}
+
 func TestImportRejectsEmptyFile(t *testing.T) {
 	s, rc, _ := testDeps(t)
 	srv := httptest.NewServer(newSrv(t, s, rc, ""))

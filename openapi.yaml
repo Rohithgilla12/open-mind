@@ -54,6 +54,24 @@ paths:
               schema: { $ref: "#/components/schemas/ItemDetail" }
         "404":
           description: not found
+    patch:
+      operationId: patchItem
+      description: "Edit an item. Currently supports replacing the full user-tags list (userTags). Tags are canonicalised server-side (trimmed, lowercased, deduped, capped)."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateItemRequest" }
+      responses:
+        "200":
+          description: updated item detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemDetail" }
+        "400": { description: bad request }
+        "404": { description: not found }
     delete:
       operationId: deleteItem
       parameters:
@@ -278,6 +296,7 @@ components:
         summary: { type: string }
         leadImageUrl: { type: string }
         tags: { type: array, items: { type: string } }
+        userTags: { type: array, items: { type: string } }
         palette: { type: array, items: { type: string } }
         cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
         status: { type: string, enum: [pending, enriched, failed] }
@@ -289,6 +308,11 @@ components:
           required: [body]
           properties:
             body: { type: string }
+    UpdateItemRequest:
+      type: object
+      description: "Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request."
+      properties:
+        userTags: { type: array, items: { type: string }, description: "Full replacement user-tags list. An empty array clears all user tags." }
     SearchResult:
       type: object
       required: [item, score]

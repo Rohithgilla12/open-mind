@@ -149,6 +149,19 @@ Subscribe to an RSS 2.0 or Atom feed and Openmind keeps saving new entries as no
 - **SSRF-safe**: feed URLs are user-supplied, so fetches go through the same private-IP-blocking, redirect-capped HTTP client used for extracting article content. A feed that can't be fetched or parsed is never persisted (`POST /feeds` returns `502`); a feed that later starts failing on a scheduled poll just records an error status (`last_status` on `GET /feeds`) rather than breaking the poll loop for other feeds.
 - **Formats**: RSS 2.0 and Atom via the standard library XML parser only (no new dependency); RSS 1.0/RDF and podcast-specific tags are out of scope.
 
+## Tags
+
+Every item has two independent tag lists:
+
+- **AI tags** (`tags`) — set by the enrichment pipeline when an AI provider is configured; overwritten on every re-enrichment. Read-only in the UI.
+- **Your tags** (`userTags`) — set by you (the detail page's tag editor, or `PATCH /items/{id} {"userTags": [...]}` directly) or preserved from an import. Enrichment never touches this list, so your tags survive re-enrichment.
+
+Tags you enter are canonicalised on save: trimmed, lowercased, deduplicated, capped at 30 tags of up to 50 characters each. Both lists feed full-text search (`GET /search?q=...`), and the web UI shows the deduplicated union of AI + your tags on cards and in the detail view.
+
+**Imports keep their tags.** Netscape bookmark exports (`TAGS="a,b"` on an `<A>` element) and CSV exports with a `tags` column (Pocket, Raindrop) are captured as your tags on the created item — they are not lost when enrichment later sets the AI tags.
+
+> Caveat: tag search uses `array_to_tsvector`, which indexes tags as literal lexemes without English stemming. A single-morpheme tag like `mine` matches a search for `mine`; a tag like `favourite` will not match a query for `favourite` if Postgres's English text-search config would otherwise stem it to a different form. Exact tag lookups are unaffected.
+
 ## Browser extension
 
 The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.

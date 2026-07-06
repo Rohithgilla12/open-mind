@@ -101,6 +101,14 @@ func (s *Server) ImportItems(w http.ResponseWriter, r *http.Request) {
 			result.Failed++
 			continue
 		}
+		// Preserve any tags the source file carried as user tags. Best-effort: a
+		// failure here doesn't undo the save (enrichment never touches user_tags,
+		// so order vs. enqueue is irrelevant).
+		if tags := canonicalTags(link.Tags); len(tags) > 0 {
+			if _, err := s.store.Queries.SetUserTags(ctx, db.SetUserTagsParams{UserID: uid, ID: item.ID, UserTags: tags}); err != nil {
+				slog.Error("setting user tags for imported item", "item_id", item.ID, "err", err)
+			}
+		}
 		if _, err := s.riverClient.Insert(ctx, jobs.EnrichArgs{UserID: uid, ItemID: item.ID}, nil); err != nil {
 			// The item is saved; a failed enqueue can be re-run later. Don't count
 			// it as failed — capture succeeded.

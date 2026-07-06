@@ -145,6 +145,7 @@ type Item struct {
 	Tags         *[]string          `json:"tags,omitempty"`
 	Title        *string            `json:"title,omitempty"`
 	Url          string             `json:"url"`
+	UserTags     *[]string          `json:"userTags,omitempty"`
 }
 
 // ItemCardType defines model for Item.CardType.
@@ -166,6 +167,7 @@ type ItemDetail struct {
 	Tags         *[]string           `json:"tags,omitempty"`
 	Title        *string             `json:"title,omitempty"`
 	Url          string              `json:"url"`
+	UserTags     *[]string           `json:"userTags,omitempty"`
 }
 
 // ItemDetailCardType defines model for ItemDetail.CardType.
@@ -228,6 +230,12 @@ type UnderstoodQuery struct {
 // UnderstoodQueryTypes defines model for UnderstoodQuery.Types.
 type UnderstoodQueryTypes string
 
+// UpdateItemRequest Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request.
+type UpdateItemRequest struct {
+	// UserTags Full replacement user-tags list. An empty array clears all user tags.
+	UserTags *[]string `json:"userTags,omitempty"`
+}
+
 // CreateAssetMultipartBody defines parameters for CreateAsset.
 type CreateAssetMultipartBody struct {
 	File openapi_types.File `json:"file"`
@@ -265,6 +273,9 @@ type ImportItemsMultipartRequestBody ImportItemsMultipartBody
 
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = CreateItemRequest
+
+// PatchItemJSONRequestBody defines body for PatchItem for application/json ContentType.
+type PatchItemJSONRequestBody = UpdateItemRequest
 
 // CreateLensJSONRequestBody defines body for CreateLens for application/json ContentType.
 type CreateLensJSONRequestBody = CreateLensRequest
@@ -310,6 +321,9 @@ type ServerInterface interface {
 
 	// (GET /items/{id})
 	GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (PATCH /items/{id})
+	PatchItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /lenses)
 	ListLenses(w http.ResponseWriter, r *http.Request)
@@ -394,6 +408,11 @@ func (_ Unimplemented) DeleteItem(w http.ResponseWriter, r *http.Request, id ope
 
 // (GET /items/{id})
 func (_ Unimplemented) GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /items/{id})
+func (_ Unimplemented) PatchItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -723,6 +742,37 @@ func (siw *ServerInterfaceWrapper) GetItem(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchItem operation middleware
+func (siw *ServerInterfaceWrapper) PatchItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchItem(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1093,6 +1143,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items/{id}", wrapper.GetItem)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/items/{id}", wrapper.PatchItem)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/lenses", wrapper.ListLenses)
