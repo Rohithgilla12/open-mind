@@ -47,6 +47,7 @@ type Item struct {
 	Palette      []string
 	UserTags     []string
 	SearchTsv    interface{}
+	PinnedAt     pgtype.Timestamptz
 }
 
 type ItemEmbedding struct {

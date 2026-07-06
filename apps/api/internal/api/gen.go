@@ -140,12 +140,15 @@ type Item struct {
 	Id           openapi_types.UUID `json:"id"`
 	LeadImageUrl *string            `json:"leadImageUrl,omitempty"`
 	Palette      *[]string          `json:"palette,omitempty"`
-	Status       ItemStatus         `json:"status"`
-	Summary      *string            `json:"summary,omitempty"`
-	Tags         *[]string          `json:"tags,omitempty"`
-	Title        *string            `json:"title,omitempty"`
-	Url          string             `json:"url"`
-	UserTags     *[]string          `json:"userTags,omitempty"`
+
+	// PinnedAt When the item was pinned to the Desk; null if not pinned.
+	PinnedAt *time.Time `json:"pinnedAt"`
+	Status   ItemStatus `json:"status"`
+	Summary  *string    `json:"summary,omitempty"`
+	Tags     *[]string  `json:"tags,omitempty"`
+	Title    *string    `json:"title,omitempty"`
+	Url      string     `json:"url"`
+	UserTags *[]string  `json:"userTags,omitempty"`
 }
 
 // ItemCardType defines model for Item.CardType.
@@ -162,12 +165,15 @@ type ItemDetail struct {
 	Id           openapi_types.UUID  `json:"id"`
 	LeadImageUrl *string             `json:"leadImageUrl,omitempty"`
 	Palette      *[]string           `json:"palette,omitempty"`
-	Status       ItemDetailStatus    `json:"status"`
-	Summary      *string             `json:"summary,omitempty"`
-	Tags         *[]string           `json:"tags,omitempty"`
-	Title        *string             `json:"title,omitempty"`
-	Url          string              `json:"url"`
-	UserTags     *[]string           `json:"userTags,omitempty"`
+
+	// PinnedAt When the item was pinned to the Desk; null if not pinned.
+	PinnedAt *time.Time       `json:"pinnedAt"`
+	Status   ItemDetailStatus `json:"status"`
+	Summary  *string          `json:"summary,omitempty"`
+	Tags     *[]string        `json:"tags,omitempty"`
+	Title    *string          `json:"title,omitempty"`
+	Url      string           `json:"url"`
+	UserTags *[]string        `json:"userTags,omitempty"`
 }
 
 // ItemDetailCardType defines model for ItemDetail.CardType.
@@ -230,8 +236,11 @@ type UnderstoodQuery struct {
 // UnderstoodQueryTypes defines model for UnderstoodQuery.Types.
 type UnderstoodQueryTypes string
 
-// UpdateItemRequest Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request.
+// UpdateItemRequest Fields to update on an item. Both userTags and pinned are optional; omit both for a no-op edit that is rejected as a bad request.
 type UpdateItemRequest struct {
+	// Pinned Pin (true) or unpin (false) the item on the Desk. Pinning sets pinnedAt to now; unpinning clears it.
+	Pinned *bool `json:"pinned,omitempty"`
+
 	// UserTags Full replacement user-tags list. An empty array clears all user tags.
 	UserTags *[]string `json:"userTags,omitempty"`
 }
@@ -291,6 +300,9 @@ type ServerInterface interface {
 
 	// (GET /assets/{id})
 	GetAsset(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /desk)
+	GetDesk(w http.ResponseWriter, r *http.Request)
 
 	// (GET /export)
 	ExportItems(w http.ResponseWriter, r *http.Request)
@@ -358,6 +370,11 @@ func (_ Unimplemented) CreateAsset(w http.ResponseWriter, r *http.Request) {
 
 // (GET /assets/{id})
 func (_ Unimplemented) GetAsset(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /desk)
+func (_ Unimplemented) GetDesk(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -502,6 +519,26 @@ func (siw *ServerInterfaceWrapper) GetAsset(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAsset(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDesk operation middleware
+func (siw *ServerInterfaceWrapper) GetDesk(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDesk(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1113,6 +1150,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/assets/{id}", wrapper.GetAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/desk", wrapper.GetDesk)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/export", wrapper.ExportItems)
