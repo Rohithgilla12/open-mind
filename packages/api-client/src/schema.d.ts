@@ -170,6 +170,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List the caller's RSS/Atom feed subscriptions, newest first. */
+        get: operations["listFeeds"];
+        put?: never;
+        /** @description Subscribe to an RSS/Atom feed. Its current entries are backfilled as pending items immediately; a periodic poll saves new entries as they publish. */
+        post: operations["createFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feeds/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Unsubscribe from a feed. Already-imported items are kept; polling stops. */
+        delete: operations["deleteFeed"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search": {
         parameters: {
             query?: never;
@@ -253,6 +288,26 @@ export interface components {
         CreateLensRequest: {
             name: string;
             rule: components["schemas"]["LensRule"];
+        };
+        Feed: {
+            /** Format: uuid */
+            id: string;
+            url: string;
+            title: string;
+            siteUrl: string;
+            /**
+             * Format: date-time
+             * @description Absent until the feed has been polled at least once.
+             */
+            lastPolledAt?: string;
+            /** @description 'ok' or 'error: …' from the most recent poll; empty before the first poll. */
+            lastStatus: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateFeedRequest: {
+            /** Format: uri */
+            url: string;
         };
         /** @description Summary of a bulk import. */
         ImportResult: {
@@ -704,6 +759,98 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SearchResponse"];
                 };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listFeeds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description feeds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Feed"][];
+                };
+            };
+        };
+    };
+    createFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFeedRequest"];
+            };
+        };
+        responses: {
+            /** @description created feed subscription */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Feed"];
+                };
+            };
+            /** @description invalid url */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description already subscribed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description feed could not be fetched or parsed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description not found */
             404: {

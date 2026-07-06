@@ -84,6 +84,11 @@ const (
 	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
 )
 
+// CreateFeedRequest defines model for CreateFeedRequest.
+type CreateFeedRequest struct {
+	Url string `json:"url"`
+}
+
 // CreateItemRequest Exactly one of url or note must be provided.
 type CreateItemRequest struct {
 	Note *string `json:"note,omitempty"`
@@ -96,6 +101,21 @@ type CreateLensRequest struct {
 
 	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
 	Rule LensRule `json:"rule"`
+}
+
+// Feed defines model for Feed.
+type Feed struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// LastPolledAt Absent until the feed has been polled at least once.
+	LastPolledAt *time.Time `json:"lastPolledAt,omitempty"`
+
+	// LastStatus 'ok' or 'error: …' from the most recent poll; empty before the first poll.
+	LastStatus string `json:"lastStatus"`
+	SiteUrl    string `json:"siteUrl"`
+	Title      string `json:"title"`
+	Url        string `json:"url"`
 }
 
 // ImportResult Summary of a bulk import.
@@ -237,6 +257,9 @@ type SearchItemsParams struct {
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
 type CreateAssetMultipartRequestBody CreateAssetMultipartBody
 
+// CreateFeedJSONRequestBody defines body for CreateFeed for application/json ContentType.
+type CreateFeedJSONRequestBody = CreateFeedRequest
+
 // ImportItemsMultipartRequestBody defines body for ImportItems for multipart/form-data ContentType.
 type ImportItemsMultipartRequestBody ImportItemsMultipartBody
 
@@ -260,6 +283,15 @@ type ServerInterface interface {
 
 	// (GET /export)
 	ExportItems(w http.ResponseWriter, r *http.Request)
+
+	// (GET /feeds)
+	ListFeeds(w http.ResponseWriter, r *http.Request)
+
+	// (POST /feeds)
+	CreateFeed(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /feeds/{id})
+	DeleteFeed(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -317,6 +349,21 @@ func (_ Unimplemented) GetAsset(w http.ResponseWriter, r *http.Request, id opena
 
 // (GET /export)
 func (_ Unimplemented) ExportItems(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /feeds)
+func (_ Unimplemented) ListFeeds(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /feeds)
+func (_ Unimplemented) CreateFeed(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /feeds/{id})
+func (_ Unimplemented) DeleteFeed(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -456,6 +503,77 @@ func (siw *ServerInterfaceWrapper) ExportItems(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ExportItems(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFeeds operation middleware
+func (siw *ServerInterfaceWrapper) ListFeeds(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFeeds(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateFeed operation middleware
+func (siw *ServerInterfaceWrapper) CreateFeed(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateFeed(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFeed operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFeed(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFeed(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -948,6 +1066,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/export", wrapper.ExportItems)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/feeds", wrapper.ListFeeds)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/feeds", wrapper.CreateFeed)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/feeds/{id}", wrapper.DeleteFeed)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)

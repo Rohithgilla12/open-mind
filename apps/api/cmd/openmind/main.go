@@ -20,6 +20,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/api"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
+	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 )
@@ -91,25 +92,34 @@ func run(ctx context.Context, args []string) error {
 	// palette from lead images during enrichment.
 	pipeline.Assets = assetStore
 
+	// The feed service and River client are mutually dependent: the poll worker
+	// drives the service, and the service enqueues enrichment through the client.
+	// Build the service first, construct the client with it, then set the client
+	// back on the service (River is a settable field) so enqueue works.
+	feedSvc := feeds.NewService(s)
+
 	switch cmd {
 	case "serve":
-		client, err := jobs.NewRiverClient(pool, pipeline, false)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, false)
 		if err != nil {
 			return err
 		}
-		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes)
+		feedSvc.River = client
+		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc)
 	case "work":
-		client, err := jobs.NewRiverClient(pool, pipeline, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, true)
 		if err != nil {
 			return err
 		}
+		feedSvc.River = client
 		return work(ctx, client)
 	case "all":
-		client, err := jobs.NewRiverClient(pool, pipeline, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, true)
 		if err != nil {
 			return err
 		}
-		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes)
+		feedSvc.River = client
+		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -136,11 +146,11 @@ func assetMaxBytesFromEnv() int64 {
 
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -177,7 +187,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -186,7 +196,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

@@ -138,6 +138,17 @@ The `items_embedding` table's vector column is declared as `vector(768)` (`apps/
 
 A link to a full JSON export is on the web UI's home page (top-level nav). It calls `GET /api/export` (bearer-token or logged-in-cookie authenticated, scoped to your account) and returns every saved item as a JSON array, including each item's extracted text (`body`), title, tags, and metadata — so you always have a portable, lock-in-free copy of everything you've saved.
 
+## Feeds (RSS/Atom subscriptions)
+
+Subscribe to an RSS 2.0 or Atom feed and Openmind keeps saving new entries as normal items — no manual re-import.
+
+- **Subscribe**: the `/feeds` page in the web UI (add-feed form), or `POST /feeds {"url":"<feed url>"}` directly (bearer-token auth like the rest of the API). Returns `201` with the feed's title/site URL and immediately backfills the feed's current entries as pending items (enriched asynchronously, same as any other save).
+- **Poll interval**: subscribed feeds are re-polled automatically every 30 minutes by a River periodic job (`poll_feeds`) running inside the same `api` container — no extra service, no cron needed. A fresh subscription is also polled once immediately.
+- **Dedup**: entries are matched against your existing saved URLs, so re-polling (or re-adding a feed) never double-saves an item.
+- **Unsubscribing**: `DELETE /feeds/{id}` (`204`) stops future polling but does **not** delete items already imported from that feed — they stay in your library like any other save.
+- **SSRF-safe**: feed URLs are user-supplied, so fetches go through the same private-IP-blocking, redirect-capped HTTP client used for extracting article content. A feed that can't be fetched or parsed is never persisted (`POST /feeds` returns `502`); a feed that later starts failing on a scheduled poll just records an error status (`last_status` on `GET /feeds`) rather than breaking the poll loop for other feeds.
+- **Formats**: RSS 2.0 and Atom via the standard library XML parser only (no new dependency); RSS 1.0/RDF and podcast-specific tags are out of scope.
+
 ## Browser extension
 
 The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.

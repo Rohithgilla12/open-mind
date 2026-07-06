@@ -207,6 +207,44 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SearchResponse" }
         "404": { description: not found }
+  /feeds:
+    get:
+      operationId: listFeeds
+      description: "List the caller's RSS/Atom feed subscriptions, newest first."
+      responses:
+        "200":
+          description: feeds
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Feed" }
+    post:
+      operationId: createFeed
+      description: "Subscribe to an RSS/Atom feed. Its current entries are backfilled as pending items immediately; a periodic poll saves new entries as they publish."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateFeedRequest" }
+      responses:
+        "201":
+          description: created feed subscription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Feed" }
+        "400": { description: invalid url }
+        "409": { description: already subscribed }
+        "502": { description: feed could not be fetched or parsed }
+  /feeds/{id}:
+    delete:
+      operationId: deleteFeed
+      description: "Unsubscribe from a feed. Already-imported items are kept; polling stops."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: deleted }
+        "404": { description: not found }
   /search:
     get:
       operationId: searchItems
@@ -300,6 +338,22 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         rule: { $ref: "#/components/schemas/LensRule" }
+    Feed:
+      type: object
+      required: [id, url, title, siteUrl, lastStatus, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string }
+        title: { type: string }
+        siteUrl: { type: string }
+        lastPolledAt: { type: string, format: date-time, description: "Absent until the feed has been polled at least once." }
+        lastStatus: { type: string, description: "'ok' or 'error: …' from the most recent poll; empty before the first poll." }
+        createdAt: { type: string, format: date-time }
+    CreateFeedRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
     ImportResult:
       type: object
       description: "Summary of a bulk import."

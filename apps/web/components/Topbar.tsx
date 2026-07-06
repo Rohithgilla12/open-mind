@@ -65,6 +65,20 @@ export function Topbar({ count, q }: { count: number; q?: string }) {
         </a>
 
         <Link
+          href="/feeds"
+          style={{
+            flex: "none",
+            fontFamily: font.mono,
+            fontSize: 11,
+            letterSpacing: ".04em",
+            color: color.cobalt,
+            textDecoration: "none",
+          }}
+        >
+          Feeds
+        </Link>
+
+        <Link
           href="/import"
           style={{
             flex: "none",

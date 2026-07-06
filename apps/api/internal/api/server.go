@@ -17,6 +17,7 @@ import (
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
+	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/search"
 	"github.com/rohithgilla12/openmind/api/internal/store"
@@ -39,14 +40,15 @@ type Server struct {
 	provider     ai.Provider
 	assetStore   *assets.FSStore
 	assetMaxByte int64
+	feeds        *feeds.Service
 }
 
 // NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
 // per-IP rate limiting, and generated routing. When token is empty, auth is
 // disabled (single-user self-host) — the caller is warned at startup.
 // assetStore backs the image upload/serve endpoints and maxBytes caps upload size.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64) http.Handler {
-	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes}
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service) http.Handler {
+	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc}
 	r := chi.NewRouter()
 	r.Use(devUser)
 	// Rate limiting runs before bearer auth so failed token guesses consume
