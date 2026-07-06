@@ -59,9 +59,14 @@ func NewService(s *store.Store) *Service {
 }
 
 // Add subscribes the user to feedURL: it validates the URL, fetches and parses
-// the feed, persists a feed row, and backfills the feed's current entries as
-// pending items. A fetch or parse failure returns an error and the feed is NOT
-// persisted. A URL the user is already subscribed to returns ErrAlreadySubscribed.
+// the feed, backfills the feed's current entries as pending items, and only
+// then persists the feed row. Backfilled items are standalone (deduped by URL,
+// idempotent) and don't need the feed row to exist, so ordering backfill before
+// persistence means a failure at any point before CreateFeed leaves no feed row
+// behind — a retry starts clean rather than tripping ErrAlreadySubscribed on a
+// feed that never backfilled. A fetch, parse, or backfill failure returns an
+// error and the feed is NOT persisted. A URL the user is already subscribed to
+// returns ErrAlreadySubscribed.
 func (s *Service) Add(ctx context.Context, userID uuid.UUID, feedURL string) (db.Feed, int, error) {
 	feedURL = strings.TrimSpace(feedURL)
 	if !validFeedURL(feedURL) {
@@ -83,6 +88,11 @@ func (s *Service) Add(ctx context.Context, userID uuid.UUID, feedURL string) (db
 		return db.Feed{}, 0, fmt.Errorf("fetching feed: %w", err)
 	}
 
+	added, err := s.saveEntries(ctx, userID, parsed.Entries)
+	if err != nil {
+		return db.Feed{}, 0, fmt.Errorf("backfilling feed: %w", err)
+	}
+
 	feed, err := s.Store.Queries.CreateFeed(ctx, db.CreateFeedParams{
 		UserID:  userID,
 		Url:     feedURL,
@@ -91,11 +101,6 @@ func (s *Service) Add(ctx context.Context, userID uuid.UUID, feedURL string) (db
 	})
 	if err != nil {
 		return db.Feed{}, 0, fmt.Errorf("creating feed: %w", err)
-	}
-
-	added, err := s.saveEntries(ctx, userID, parsed.Entries)
-	if err != nil {
-		return db.Feed{}, 0, fmt.Errorf("backfilling feed: %w", err)
 	}
 
 	polled := nowTS()
@@ -116,11 +121,13 @@ func (s *Service) Refresh(ctx context.Context, feed db.Feed) (int, error) {
 	parsed, err := s.fetchAndParse(ctx, feed.Url)
 	if err != nil {
 		s.recordStatus(ctx, feed, "error: "+shortErr(err))
+		slog.Warn("feed refresh failed", "feed_id", feed.ID, "url", feed.Url, "err", err)
 		return 0, nil
 	}
 	added, err := s.saveEntries(ctx, feed.UserID, parsed.Entries)
 	if err != nil {
 		s.recordStatus(ctx, feed, "error: "+shortErr(err))
+		slog.Warn("feed refresh failed", "feed_id", feed.ID, "url", feed.Url, "err", err)
 		return 0, nil
 	}
 	s.recordStatus(ctx, feed, "ok")
