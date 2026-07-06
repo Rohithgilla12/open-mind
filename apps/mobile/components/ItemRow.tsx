@@ -20,12 +20,13 @@ export function ItemRow({ item, onPress }: ItemRowProps) {
   const primary = item.title?.trim() || host || item.url || "Untitled";
   const pending = item.status === "pending";
 
-  // Caption: enrichment state takes priority, else host, else card type.
+  // Caption: enrichment state takes priority; otherwise show card type and
+  // host together (both are useful hints), falling back to status.
   let caption: string;
   if (pending) {
     caption = "enriching…";
   } else {
-    caption = host || item.cardType || item.status;
+    caption = [item.cardType, host].filter(Boolean).join(" · ") || item.status;
   }
 
   return (

@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -13,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ItemRow } from "@/components/ItemRow";
 import { listItems, type Item } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
-import { colors, fonts, spacing } from "@/lib/theme";
+import { colors, fonts, radius, spacing } from "@/lib/theme";
 
 type LoadState =
   | { kind: "loading" }
@@ -74,6 +75,7 @@ export default function LibraryScreen() {
         state={state}
         refreshing={refreshing}
         onRefresh={() => void load(true)}
+        onRetry={() => void load(false)}
         onOpen={onOpen}
       />
     </SafeAreaView>
@@ -84,10 +86,11 @@ type BodyProps = {
   state: LoadState;
   refreshing: boolean;
   onRefresh: () => void;
+  onRetry: () => void;
   onOpen: (item: Item) => void;
 };
 
-function Body({ state, refreshing, onRefresh, onOpen }: BodyProps) {
+function Body({ state, refreshing, onRefresh, onRetry, onOpen }: BodyProps) {
   if (state.kind === "loading") {
     return (
       <View style={styles.centre}>
@@ -97,13 +100,18 @@ function Body({ state, refreshing, onRefresh, onOpen }: BodyProps) {
   }
 
   if (state.kind === "unreachable") {
-    return <Message text="Instance unreachable — check your connection or the URL in Settings." />;
+    return (
+      <Message
+        text="Instance unreachable — check your connection or the URL in Settings."
+        onRetry={onRetry}
+      />
+    );
   }
   if (state.kind === "rejected") {
-    return <Message text="Token rejected — check Settings." />;
+    return <Message text="Token rejected — check Settings." onRetry={onRetry} />;
   }
   if (state.kind === "error") {
-    return <Message text="Couldn't load your library. Pull to try again." />;
+    return <Message text="Couldn't load your library." onRetry={onRetry} />;
   }
 
   return (
@@ -125,10 +133,18 @@ function Body({ state, refreshing, onRefresh, onOpen }: BodyProps) {
   );
 }
 
-function Message({ text }: { text: string }) {
+function Message({ text, onRetry }: { text: string; onRetry?: () => void }) {
   return (
     <View style={styles.centre}>
       <Text style={styles.messageText}>{text}</Text>
+      {onRetry ? (
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+          onPress={onRetry}
+        >
+          <Text style={styles.retryButtonText}>Try again</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -152,4 +168,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
+  retryButton: {
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cobalt,
+    borderRadius: radius.button,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+  },
+  retryButtonPressed: { opacity: 0.7 },
+  retryButtonText: { color: colors.cobalt, fontSize: 14, fontWeight: "600" },
 });
