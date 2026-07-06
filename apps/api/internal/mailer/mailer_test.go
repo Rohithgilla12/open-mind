@@ -207,6 +207,42 @@ func TestSend_NoAttachment(t *testing.T) {
 	}
 }
 
+func TestSend_UTF8BodyDeclaredAs8Bit(t *testing.T) {
+	addr, data := fakeSMTP(t)
+	host, port := splitHostPort(t, addr)
+
+	m := New(SMTPConfig{
+		Host: host,
+		Port: port,
+		From: "sender@example.com",
+	})
+
+	msg := Message{
+		To:       "reader@example.com",
+		Subject:  "Em-dash test",
+		BodyText: "Openmind saves anything — links, notes, images — instantly.",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := m.Send(ctx, msg); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	payload := data.String()
+
+	if !strings.Contains(payload, "Content-Transfer-Encoding: 8bit") {
+		t.Fatalf("payload missing 8bit content-transfer-encoding for text part: %s", payload)
+	}
+	if strings.Contains(payload, "Content-Transfer-Encoding: 7bit") {
+		t.Fatalf("payload still declares 7bit somewhere: %s", payload)
+	}
+	if !strings.Contains(payload, "Openmind saves anything — links, notes, images — instantly.") {
+		t.Fatalf("payload does not contain the em-dash body un-mangled: %s", payload)
+	}
+}
+
 func TestSend_NoAuthWhenUsernameEmpty(t *testing.T) {
 	addr, data := fakeSMTP(t)
 	host, port := splitHostPort(t, addr)

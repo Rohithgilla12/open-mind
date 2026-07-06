@@ -129,6 +129,34 @@ func TestBuild_ChapterAndNavFilesAreWellFormedXML(t *testing.T) {
 	}
 }
 
+// TestBuild_XMLPrologIsRawNotEscaped guards against html/template mangling
+// the "<?xml ...?>" prolog: if the prolog were rendered through the
+// template (rather than written as raw bytes ahead of it), html/template's
+// HTML5 tokenizer would treat "<?" as a bogus comment and HTML-escape it to
+// "&lt;?xml ...", which is not well-formed XML even though Go's lenient
+// encoding/xml decoder wouldn't complain.
+func TestBuild_XMLPrologIsRawNotEscaped(t *testing.T) {
+	doc := buildTestDoc()
+	r := mustBuild(t, doc)
+
+	const wantPrefix = `<?xml version="1.0" encoding="UTF-8"?>` + "\n"
+
+	names := []string{"OEBPS/content.opf", "OEBPS/nav.xhtml"}
+	for i := range doc.Chapters {
+		names = append(names, "OEBPS/"+chapterFileName(i))
+	}
+
+	for _, name := range names {
+		content := readZipFile(t, r, name)
+		if !strings.HasPrefix(content, wantPrefix) {
+			t.Fatalf("%s does not start with raw XML prolog %q: %s", name, wantPrefix, content)
+		}
+		if strings.Contains(content, "&lt;?") {
+			t.Fatalf("%s contains an HTML-escaped XML prolog (&lt;?): %s", name, content)
+		}
+	}
+}
+
 func TestBuild_HTMLEscapesChapterBody(t *testing.T) {
 	doc := buildTestDoc()
 	r := mustBuild(t, doc)
@@ -162,7 +190,7 @@ func TestBuild_EmptyChaptersProducesValidEPUB(t *testing.T) {
 	}
 }
 
-func TestBuild_DeterministicUUID(t *testing.T) {
+func TestBuild_DeterministicID(t *testing.T) {
 	doc := buildTestDoc()
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
@@ -178,5 +206,8 @@ func TestBuild_DeterministicUUID(t *testing.T) {
 	opf2 := readZipFile(t, r2, "OEBPS/content.opf")
 	if opf1 != opf2 {
 		t.Fatalf("Build is not deterministic for identical input")
+	}
+	if !strings.Contains(opf1, "urn:openmind:") {
+		t.Fatalf("opf missing urn:openmind: identifier scheme: %s", opf1)
 	}
 }

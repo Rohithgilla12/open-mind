@@ -119,9 +119,11 @@ func (m *smtpMailer) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("closing data writer: %w", err)
 	}
 
-	if err := client.Quit(); err != nil {
-		return fmt.Errorf("quit: %w", err)
-	}
+	// The message was already accepted by the server (Data/Close above
+	// succeeded), so the mail is delivered regardless of how the session
+	// teardown goes. A failed QUIT doesn't undo that, so it's not a Send
+	// failure — just let the deferred client.Close() clean up the connection.
+	_ = client.Quit()
 	return nil
 }
 
@@ -158,7 +160,12 @@ func buildMessage(cfg SMTPConfig, msg Message) ([]byte, error) {
 
 	textHeader := textproto.MIMEHeader{}
 	textHeader.Set("Content-Type", `text/plain; charset="utf-8"`)
-	textHeader.Set("Content-Transfer-Encoding", "7bit")
+	// BodyText may carry arbitrary UTF-8 (em-dashes, curly quotes, etc.), so
+	// it can't be declared 7bit. We assume 8BITMIME support here (we don't
+	// negotiate the extension explicitly, but every server we target in
+	// practice for this self-host mailer advertises it) rather than
+	// quoted-printable/base64-encoding the body.
+	textHeader.Set("Content-Transfer-Encoding", "8bit")
 	textPart, err := mpw.CreatePart(textHeader)
 	if err != nil {
 		return nil, fmt.Errorf("creating text part: %w", err)

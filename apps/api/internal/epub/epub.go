@@ -26,16 +26,22 @@ type Document struct {
 	Chapters []Chapter
 }
 
-const containerXML = `<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+// xmlProlog is written as raw bytes directly to each zip entry, ahead of the
+// html/template output. html/template's HTML5 tokenizer treats a leading
+// "<?xml ...?>" as a bogus comment and HTML-escapes it (producing
+// "&lt;?xml ...") if it's part of the template source, so the prolog must
+// never appear inside a template — it's prepended to the rendered bytes
+// instead.
+const xmlProlog = `<?xml version="1.0" encoding="UTF-8"?>` + "\n"
+
+const containerXML = xmlProlog + `<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
     <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
 </container>
 `
 
-var chapterTemplate = template.Must(template.New("chapter").Parse(`<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
+var chapterTemplate = template.Must(template.New("chapter").Parse(`<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
 <head>
   <title>{{.Title}}</title>
   <meta charset="UTF-8"/>
@@ -47,8 +53,7 @@ var chapterTemplate = template.Must(template.New("chapter").Parse(`<?xml version
 </html>
 `))
 
-var navTemplate = template.Must(template.New("nav").Parse(`<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
+var navTemplate = template.Must(template.New("nav").Parse(`<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
 <head>
   <title>Table of Contents</title>
   <meta charset="UTF-8"/>
@@ -63,10 +68,9 @@ var navTemplate = template.Must(template.New("nav").Parse(`<?xml version="1.0" e
 </html>
 `))
 
-var opfTemplate = template.Must(template.New("opf").Parse(`<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en">
+var opfTemplate = template.Must(template.New("opf").Parse(`<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="book-id">urn:uuid:{{.UUID}}</dc:identifier>
+    <dc:identifier id="book-id">urn:openmind:{{.ID}}</dc:identifier>
     <dc:title>{{.Title}}</dc:title>
     <dc:creator>{{.Author}}</dc:creator>
     <dc:language>en</dc:language>
@@ -89,7 +93,7 @@ type chapterView struct {
 }
 
 type opfView struct {
-	UUID     string
+	ID       string
 	Title    string
 	Author   string
 	Chapters []chapterView
@@ -118,12 +122,16 @@ func paragraphs(body string) []string {
 	return out
 }
 
-// documentUUID derives a deterministic urn:uuid-shaped identifier from the
-// document's title and chapters so repeated builds of the same content
-// produce byte-identical output.
-func documentUUID(doc Document) string {
+// documentID derives a deterministic, opaque identifier from the document's
+// title, author, and chapters so repeated builds of the same content produce
+// byte-identical output. It is deliberately not shaped like a UUID (the
+// SHA-256 digest doesn't carry valid RFC 4122 version/variant bits) — it's
+// used under the "urn:openmind:" scheme instead of "urn:uuid:".
+func documentID(doc Document) string {
 	h := sha256.New()
 	h.Write([]byte(doc.Title))
+	h.Write([]byte{0})
+	h.Write([]byte(doc.Author))
 	for _, c := range doc.Chapters {
 		h.Write([]byte{0})
 		h.Write([]byte(c.Title))
@@ -131,8 +139,7 @@ func documentUUID(doc Document) string {
 		h.Write([]byte(c.Body))
 	}
 	sum := h.Sum(nil)
-	s := hex.EncodeToString(sum[:16])
-	return fmt.Sprintf("%s-%s-%s-%s-%s", s[0:8], s[8:12], s[12:16], s[16:20], s[20:32])
+	return hex.EncodeToString(sum[:16])
 }
 
 // Build writes an EPUB 3 archive for doc to w.
@@ -157,12 +164,13 @@ func Build(w io.Writer, doc Document) error {
 	}
 
 	opf := opfView{
-		UUID:     documentUUID(doc),
+		ID:       documentID(doc),
 		Title:    doc.Title,
 		Author:   doc.Author,
 		Chapters: chapterViews,
 	}
 	var opfBuf strings.Builder
+	opfBuf.WriteString(xmlProlog)
 	if err := opfTemplate.Execute(&opfBuf, opf); err != nil {
 		return fmt.Errorf("rendering content.opf: %w", err)
 	}
@@ -171,6 +179,7 @@ func Build(w io.Writer, doc Document) error {
 	}
 
 	var navBuf strings.Builder
+	navBuf.WriteString(xmlProlog)
 	if err := navTemplate.Execute(&navBuf, opf); err != nil {
 		return fmt.Errorf("rendering nav.xhtml: %w", err)
 	}
@@ -180,6 +189,7 @@ func Build(w io.Writer, doc Document) error {
 
 	for i, c := range doc.Chapters {
 		var chBuf strings.Builder
+		chBuf.WriteString(xmlProlog)
 		data := struct {
 			Title      string
 			Paragraphs []string
