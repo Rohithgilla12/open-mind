@@ -36,6 +36,25 @@ UPDATE items SET pinned_at = $3, updated_at = now() WHERE user_id = $1 AND id = 
 -- name: ListPinned :many
 SELECT * FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC;
 
+-- name: ListDriftCandidates :many
+SELECT * FROM items
+WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
+  AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
+ORDER BY last_drifted_at NULLS FIRST, created_at ASC
+LIMIT $2;
+
+-- name: CountDriftCandidates :one
+SELECT count(*) FROM items
+WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
+  AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days');
+
+-- name: DriftAction :execrows
+UPDATE items
+SET last_drifted_at = now(),
+    pinned_at = CASE WHEN sqlc.arg(keep)::boolean THEN now() ELSE pinned_at END,
+    updated_at = now()
+WHERE user_id = $1 AND id = $2;
+
 -- name: SetItemStatus :exec
 UPDATE items SET status = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 

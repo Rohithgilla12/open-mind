@@ -223,6 +223,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Today's Drift batch: up to 5 resurfacing candidates (enriched, unpinned, not drifted in the last 30 days) ordered never-drifted-first then oldest-saved, plus the total candidate count. */
+        get: operations["getDrift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drift/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Act on a drifted item: always marks it drifted now (won't resurface for 30 days); when keep is true, also pins it to the Desk. */
+        post: operations["driftItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search": {
         parameters: {
             query?: never;
@@ -281,6 +315,15 @@ export interface components {
             userTags?: string[];
             /** @description Pin (true) or unpin (false) the item on the Desk. Pinning sets pinnedAt to now; unpinning clears it. */
             pinned?: boolean;
+        };
+        DriftResponse: {
+            items: components["schemas"]["Item"][];
+            /** @description Total current drift candidates (for the 'n of total' line). */
+            total: number;
+        };
+        DriftActionRequest: {
+            /** @description Keep the item (pins it to the Desk); false lets it go. */
+            keep: boolean;
         };
         SearchResult: {
             item: components["schemas"]["Item"];
@@ -949,6 +992,61 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Item"][];
                 };
+            };
+        };
+    };
+    getDrift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description drift batch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftResponse"];
+                };
+            };
+        };
+    };
+    driftItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description acted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                    };
+                };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

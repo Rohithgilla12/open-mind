@@ -32,22 +32,23 @@ type Feed struct {
 }
 
 type Item struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Url          string
-	Title        string
-	Body         string
-	LeadImageUrl string
-	Summary      string
-	Tags         []string
-	CardType     string
-	Status       string
-	CreatedAt    pgtype.Timestamptz
-	UpdatedAt    pgtype.Timestamptz
-	Palette      []string
-	UserTags     []string
-	SearchTsv    interface{}
-	PinnedAt     pgtype.Timestamptz
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Url           string
+	Title         string
+	Body          string
+	LeadImageUrl  string
+	Summary       string
+	Tags          []string
+	CardType      string
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	Palette       []string
+	UserTags      []string
+	SearchTsv     interface{}
+	PinnedAt      pgtype.Timestamptz
+	LastDriftedAt pgtype.Timestamptz
 }
 
 type ItemEmbedding struct {

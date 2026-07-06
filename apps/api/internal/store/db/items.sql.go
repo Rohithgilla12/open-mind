@@ -13,8 +13,21 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
+const countDriftCandidates = `-- name: CountDriftCandidates :one
+SELECT count(*) FROM items
+WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
+  AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
+`
+
+func (q *Queries) CountDriftCandidates(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDriftCandidates, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at
 `
 
 type CreateItemParams struct {
@@ -43,6 +56,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.UserTags,
 		&i.SearchTsv,
 		&i.PinnedAt,
+		&i.LastDriftedAt,
 	)
 	return i, err
 }
@@ -64,6 +78,28 @@ func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const driftAction = `-- name: DriftAction :execrows
+UPDATE items
+SET last_drifted_at = now(),
+    pinned_at = CASE WHEN $3::boolean THEN now() ELSE pinned_at END,
+    updated_at = now()
+WHERE user_id = $1 AND id = $2
+`
+
+type DriftActionParams struct {
+	UserID uuid.UUID
+	ID     uuid.UUID
+	Keep   bool
+}
+
+func (q *Queries) DriftAction(ctx context.Context, arg DriftActionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, driftAction, arg.UserID, arg.ID, arg.Keep)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensureUser = `-- name: EnsureUser :exec
 INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING
 `
@@ -74,7 +110,7 @@ func (q *Queries) EnsureUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 AND id = $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items WHERE user_id = $1 AND id = $2
 `
 
 type GetItemParams struct {
@@ -102,8 +138,60 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 		&i.UserTags,
 		&i.SearchTsv,
 		&i.PinnedAt,
+		&i.LastDriftedAt,
 	)
 	return i, err
+}
+
+const listDriftCandidates = `-- name: ListDriftCandidates :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items
+WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
+  AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
+ORDER BY last_drifted_at NULLS FIRST, created_at ASC
+LIMIT $2
+`
+
+type ListDriftCandidatesParams struct {
+	UserID uuid.UUID
+	Limit  int32
+}
+
+func (q *Queries) ListDriftCandidates(ctx context.Context, arg ListDriftCandidatesParams) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listDriftCandidates, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Title,
+			&i.Body,
+			&i.LeadImageUrl,
+			&i.Summary,
+			&i.Tags,
+			&i.CardType,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Palette,
+			&i.UserTags,
+			&i.SearchTsv,
+			&i.PinnedAt,
+			&i.LastDriftedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listItemURLs = `-- name: ListItemURLs :many
@@ -131,7 +219,7 @@ func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string,
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
 `
 
 type ListItemsParams struct {
@@ -165,6 +253,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -177,7 +266,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 }
 
 const listItemsForExport = `-- name: ListItemsForExport :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -206,6 +295,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -218,7 +308,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 }
 
 const listPinned = `-- name: ListPinned :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
 `
 
 func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -247,6 +337,7 @@ func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, err
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 		); err != nil {
 			return nil, err
 		}

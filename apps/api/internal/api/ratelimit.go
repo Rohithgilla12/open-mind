@@ -72,6 +72,8 @@ func guarded(method, path string) bool {
 		(method == http.MethodPatch && strings.HasPrefix(path, "/items/")) ||
 		(method == http.MethodGet && path == "/search") ||
 		(method == http.MethodGet && path == "/desk") ||
+		(method == http.MethodGet && path == "/drift") ||
+		(method == http.MethodPost && strings.HasPrefix(path, "/drift/")) ||
 		(method == http.MethodGet && path == "/export") ||
 		(method == http.MethodPost && path == "/assets") ||
 		(method == http.MethodPost && path == "/feeds")
