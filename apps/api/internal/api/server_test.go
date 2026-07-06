@@ -19,6 +19,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/api"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
+	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
@@ -39,7 +40,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 	if err := store.Migrate(ctx, pool); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, river_job CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, feeds, river_job CASCADE`); err != nil {
 		t.Fatalf("truncating: %v", err)
 	}
 	s := store.New(pool)
@@ -47,7 +48,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 		t.Fatalf("ensure user: %v", err)
 	}
 	p := &enrich.Pipeline{Store: s, AI: ai.NewNoop(), Extractor: enrich.NewTrafilatura(nil)}
-	rc, err := jobs.NewRiverClient(pool, p, false)
+	rc, err := jobs.NewRiverClient(pool, p, nil, false)
 	if err != nil {
 		t.Fatalf("river client: %v", err)
 	}
@@ -70,7 +71,9 @@ func newSrvWithProvider(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], 
 	if err != nil {
 		t.Fatalf("asset store: %v", err)
 	}
-	return api.NewServer(s, rc, p, token, as, 10<<20)
+	feedSvc := feeds.NewService(s)
+	feedSvc.River = rc
+	return api.NewServer(s, rc, p, token, as, 10<<20, feedSvc)
 }
 
 // parseProvider is a noop provider whose ParseQuery returns a scripted result,

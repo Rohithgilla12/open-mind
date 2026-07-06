@@ -23,6 +23,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/api"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
+	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 )
 
@@ -35,7 +36,9 @@ func newSrvWithAssets(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], ma
 	if err != nil {
 		t.Fatalf("asset store: %v", err)
 	}
-	return api.NewServer(s, rc, ai.NewNoop(), "", as, maxBytes), dir
+	feedSvc := feeds.NewService(s)
+	feedSvc.River = rc
+	return api.NewServer(s, rc, ai.NewNoop(), "", as, maxBytes, feedSvc), dir
 }
 
 func pngBytes(t *testing.T) []byte {

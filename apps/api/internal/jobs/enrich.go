@@ -35,15 +35,26 @@ func (w *EnrichWorker) Work(ctx context.Context, job *river.Job[EnrichArgs]) err
 }
 
 // NewRiverClient builds a River client over the given pool. When workersOn is
-// true it registers the enrichment worker and a default queue; otherwise it
-// returns an insert-only client (for the API process).
-func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, workersOn bool) (*river.Client[pgx.Tx], error) {
+// true it registers the enrichment and feed-poll workers, a default queue, and
+// the periodic feed-poll job; otherwise it returns an insert-only client (for
+// the API process), which enqueues jobs but runs none. feedService is only used
+// when workersOn (the poll worker + periodic job); the insert-only path ignores
+// it and may be passed nil.
+func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, workersOn bool) (*river.Client[pgx.Tx], error) {
 	cfg := &river.Config{}
 	if workersOn {
 		workers := river.NewWorkers()
 		river.AddWorker(workers, &EnrichWorker{Pipeline: p})
+		river.AddWorker(workers, &PollFeedsWorker{Service: feedService})
 		cfg.Workers = workers
 		cfg.Queues = map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}}
+		cfg.PeriodicJobs = []*river.PeriodicJob{
+			river.NewPeriodicJob(
+				river.PeriodicInterval(pollInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return PollFeedsArgs{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: true},
+			),
+		}
 	}
 	client, err := river.NewClient(riverpgxv5.New(pool), cfg)
 	if err != nil {
