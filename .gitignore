@@ -8,3 +8,5 @@ apps/api/bin/
 *.tsbuildinfo
 data/
 .playwright-mcp/
+apps/dock/src-tauri/target/
+apps/dock/src-tauri/gen/

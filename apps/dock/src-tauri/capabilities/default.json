@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "panel"
+  ],
+  "permissions": [
+    "core:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "notification:default",
+    "opener:default"
+  ]
+}
