@@ -26,3 +26,6 @@ export type ImportResult =
 
 export type Feed =
   paths["/feeds"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+export type DriftResponse =
+  paths["/drift"]["get"]["responses"]["200"]["content"]["application/json"];

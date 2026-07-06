@@ -103,6 +103,20 @@ type CreateLensRequest struct {
 	Rule LensRule `json:"rule"`
 }
 
+// DriftActionRequest defines model for DriftActionRequest.
+type DriftActionRequest struct {
+	// Keep Keep the item (pins it to the Desk); false lets it go.
+	Keep bool `json:"keep"`
+}
+
+// DriftResponse defines model for DriftResponse.
+type DriftResponse struct {
+	Items []Item `json:"items"`
+
+	// Total Total current drift candidates (for the 'n of total' line).
+	Total int `json:"total"`
+}
+
 // Feed defines model for Feed.
 type Feed struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -274,6 +288,9 @@ type SearchItemsParams struct {
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
 type CreateAssetMultipartRequestBody CreateAssetMultipartBody
 
+// DriftItemJSONRequestBody defines body for DriftItem for application/json ContentType.
+type DriftItemJSONRequestBody = DriftActionRequest
+
 // CreateFeedJSONRequestBody defines body for CreateFeed for application/json ContentType.
 type CreateFeedJSONRequestBody = CreateFeedRequest
 
@@ -303,6 +320,12 @@ type ServerInterface interface {
 
 	// (GET /desk)
 	GetDesk(w http.ResponseWriter, r *http.Request)
+
+	// (GET /drift)
+	GetDrift(w http.ResponseWriter, r *http.Request)
+
+	// (POST /drift/{id})
+	DriftItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /export)
 	ExportItems(w http.ResponseWriter, r *http.Request)
@@ -375,6 +398,16 @@ func (_ Unimplemented) GetAsset(w http.ResponseWriter, r *http.Request, id opena
 
 // (GET /desk)
 func (_ Unimplemented) GetDesk(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /drift)
+func (_ Unimplemented) GetDrift(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /drift/{id})
+func (_ Unimplemented) DriftItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -539,6 +572,57 @@ func (siw *ServerInterfaceWrapper) GetDesk(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDesk(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDrift operation middleware
+func (siw *ServerInterfaceWrapper) GetDrift(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDrift(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DriftItem operation middleware
+func (siw *ServerInterfaceWrapper) DriftItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DriftItem(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1153,6 +1237,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/desk", wrapper.GetDesk)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/drift", wrapper.GetDrift)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/drift/{id}", wrapper.DriftItem)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/export", wrapper.ExportItems)

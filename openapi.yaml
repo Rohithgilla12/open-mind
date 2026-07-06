@@ -275,6 +275,38 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Item" }
+  /drift:
+    get:
+      operationId: getDrift
+      description: "Today's Drift batch: up to 5 resurfacing candidates (enriched, unpinned, not drifted in the last 30 days) ordered never-drifted-first then oldest-saved, plus the total candidate count."
+      responses:
+        "200":
+          description: drift batch
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DriftResponse" }
+  /drift/{id}:
+    post:
+      operationId: driftItem
+      description: "Act on a drifted item: always marks it drifted now (won't resurface for 30 days); when keep is true, also pins it to the Desk."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DriftActionRequest" }
+      responses:
+        "200":
+          description: acted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "404": { description: not found }
   /search:
     get:
       operationId: searchItems
@@ -327,6 +359,19 @@ components:
       properties:
         userTags: { type: array, items: { type: string }, description: "Full replacement user-tags list. An empty array clears all user tags." }
         pinned: { type: boolean, description: "Pin (true) or unpin (false) the item on the Desk. Pinning sets pinnedAt to now; unpinning clears it." }
+    DriftResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Item" }
+        total: { type: integer, description: "Total current drift candidates (for the 'n of total' line)." }
+    DriftActionRequest:
+      type: object
+      required: [keep]
+      properties:
+        keep: { type: boolean, description: "Keep the item (pins it to the Desk); false lets it go." }
     SearchResult:
       type: object
       required: [item, score]

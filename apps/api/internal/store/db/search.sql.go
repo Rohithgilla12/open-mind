@@ -14,7 +14,7 @@ import (
 )
 
 const listItemsWithPalette = `-- name: ListItemsWithPalette :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 AND cardinality(palette) > 0
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at FROM items WHERE user_id = $1 AND cardinality(palette) > 0
 `
 
 func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -43,6 +43,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -55,7 +56,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 }
 
 const searchFTS = `-- name: SearchFTS :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at, last_drifted_at, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items
 WHERE user_id = $1 AND search_tsv @@ websearch_to_tsquery('english', $2)
 ORDER BY rank DESC LIMIT $3
@@ -68,23 +69,24 @@ type SearchFTSParams struct {
 }
 
 type SearchFTSRow struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Url          string
-	Title        string
-	Body         string
-	LeadImageUrl string
-	Summary      string
-	Tags         []string
-	CardType     string
-	Status       string
-	CreatedAt    pgtype.Timestamptz
-	UpdatedAt    pgtype.Timestamptz
-	Palette      []string
-	UserTags     []string
-	SearchTsv    interface{}
-	PinnedAt     pgtype.Timestamptz
-	Rank         float64
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Url           string
+	Title         string
+	Body          string
+	LeadImageUrl  string
+	Summary       string
+	Tags          []string
+	CardType      string
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	Palette       []string
+	UserTags      []string
+	SearchTsv     interface{}
+	PinnedAt      pgtype.Timestamptz
+	LastDriftedAt pgtype.Timestamptz
+	Rank          float64
 }
 
 func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchFTSRow, error) {
@@ -113,6 +115,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 			&i.Rank,
 		); err != nil {
 			return nil, err
@@ -126,7 +129,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 }
 
 const searchVector = `-- name: SearchVector :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.search_tsv, i.pinned_at, (1 - (e.embedding <=> $2))::float8 AS similarity
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.search_tsv, i.pinned_at, i.last_drifted_at, (1 - (e.embedding <=> $2))::float8 AS similarity
 FROM item_embeddings e JOIN items i ON i.id = e.item_id
 WHERE e.user_id = $1
 ORDER BY e.embedding <=> $2 LIMIT $3
@@ -139,23 +142,24 @@ type SearchVectorParams struct {
 }
 
 type SearchVectorRow struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Url          string
-	Title        string
-	Body         string
-	LeadImageUrl string
-	Summary      string
-	Tags         []string
-	CardType     string
-	Status       string
-	CreatedAt    pgtype.Timestamptz
-	UpdatedAt    pgtype.Timestamptz
-	Palette      []string
-	UserTags     []string
-	SearchTsv    interface{}
-	PinnedAt     pgtype.Timestamptz
-	Similarity   float64
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Url           string
+	Title         string
+	Body          string
+	LeadImageUrl  string
+	Summary       string
+	Tags          []string
+	CardType      string
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	Palette       []string
+	UserTags      []string
+	SearchTsv     interface{}
+	PinnedAt      pgtype.Timestamptz
+	LastDriftedAt pgtype.Timestamptz
+	Similarity    float64
 }
 
 func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]SearchVectorRow, error) {
@@ -184,6 +188,7 @@ func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]S
 			&i.UserTags,
 			&i.SearchTsv,
 			&i.PinnedAt,
+			&i.LastDriftedAt,
 			&i.Similarity,
 		); err != nil {
 			return nil, err
