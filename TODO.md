@@ -79,6 +79,9 @@
 
 ### Milestone 1 — extension
 - [x] WXT extension: save page / selection / image, options page (instance URL + token, validate/save), e2e verified 2026-07-03: browser extension capture (url + note) via Bearer token auth against a fresh local build (`pnpm --filter extension build`); server-side confirmed with `GET /api/auth/check` (200 correct token / 401 wrong token) and `POST /api/items` for both `{url}` and `{note}` payloads (201).
+- [x] Extension polish: popup quick-tag after save + recent-saves list, `Ctrl/Cmd+Shift+S` save-page shortcut. e2e verified 2026-07-06 against local `docker compose` (Bearer path, no cookie) on `http://localhost:3000/api/*`: `POST /api/items {url}` → 201 (+id); `PATCH /api/items/{id} {userTags:["from-extension"]}` → 200 and the item carries the tag; `GET /api/items?limit=5` → 200 array incl. the tagged item; `GET /api/auth/check` → 200 (right token) / 401 (wrong token). Confirmed `apiFetch` honours the incoming `Authorization: Bearer` header. **Fixed** a proxy gap: the web `/api/items` route had only `POST` (no `GET`), so recent-saves returned 405 → empty list; added a `GET` pass-through handler (`apps/web/app/api/items/route.ts`) and re-verified. README documents popup features, shortcut + rebind, load-unpacked + settings. User must reload the unpacked extension (`.output/chrome-mv3`) and redeploy the web app to pick up the GET-proxy fix.
+
+Next slice: **Expo mobile app** (share-sheet-first capture) — user chose both mobile + extension, extension first.
 
 ### Milestone 1 — expose-ready web
 - [x] SSRF hardening for extractor fetches (private-IP dialer guard, redirect re-check) + bearer auth + per-IP rate limiting before public exposure

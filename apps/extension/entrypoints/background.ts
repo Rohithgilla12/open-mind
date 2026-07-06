@@ -25,6 +25,20 @@ export default defineBackground(() => {
     });
   });
 
+  browser.commands.onCommand.addListener(async (command) => {
+    if (command !== "save-page") return;
+    const [active] = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (!active?.url) {
+      await flashBadge("!");
+      return;
+    }
+    const res = await saveItem({ url: active.url });
+    await flashBadge(res.ok ? "✓" : "!");
+  });
+
   browser.contextMenus.onClicked.addListener(async (info, tab) => {
     const body =
       info.menuItemId === "om-selection" && info.selectionText
