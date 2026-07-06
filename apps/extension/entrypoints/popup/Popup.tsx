@@ -38,6 +38,15 @@ export function Popup() {
 
   const [recent, setRecent] = useState<Item[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
+  const [recentStatus, setRecentStatus] = useState<number | null>(null);
+
+  async function loadRecent() {
+    setRecentLoading(true);
+    const res = await recentItems(5);
+    setRecent(res.items);
+    setRecentStatus(res.status);
+    setRecentLoading(false);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -62,9 +71,7 @@ export function Popup() {
         setTab({ title: active.title ?? active.url, url: active.url });
       }
 
-      const res = await recentItems(5);
-      setRecent(res.items);
-      setRecentLoading(false);
+      await loadRecent();
     })();
   }, []);
 
@@ -81,8 +88,10 @@ export function Popup() {
       setSavedItem(res.item);
       setTags(res.item.userTags ?? []);
       setState("saved");
+      void loadRecent();
     } else if (res.ok) {
       setState("saved");
+      void loadRecent();
     } else if (res.status === 401) {
       setState("error");
       setErrorText("Token rejected — open options.");
@@ -241,6 +250,8 @@ export function Popup() {
         <div style={styles.sectionTitle}>Recently saved</div>
         {recentLoading ? (
           <p style={styles.muted}>Loading…</p>
+        ) : recent.length === 0 && recentStatus === 401 ? (
+          <p style={styles.muted}>Token rejected — check options</p>
         ) : recent.length === 0 ? (
           <p style={styles.muted}>Nothing saved yet</p>
         ) : (
