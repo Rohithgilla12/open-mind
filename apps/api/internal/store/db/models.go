@@ -20,6 +20,17 @@ type Asset struct {
 	CreatedAt        pgtype.Timestamptz
 }
 
+type Feed struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Url          string
+	Title        string
+	SiteUrl      string
+	LastPolledAt pgtype.Timestamptz
+	LastStatus   string
+	CreatedAt    pgtype.Timestamptz
+}
+
 type Item struct {
 	ID           uuid.UUID
 	UserID       uuid.UUID
