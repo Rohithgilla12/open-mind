@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tokens } from "@openmind/ui";
 import { checkToken } from "../lib/api";
 import { setSettings, type Settings } from "../lib/settings";
@@ -62,8 +63,15 @@ export function SettingsView({
     onSaved(settings);
   }
 
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      void getCurrentWindow().hide();
+    }
+  }
+
   return (
-    <div style={styles.page}>
+    <div style={styles.page} onKeyDown={onKeyDown}>
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
         {onCancel ? (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { tokens } from "@openmind/ui";
@@ -75,6 +76,15 @@ export function Panel() {
       inputRef.current?.focus();
     }
   }, [view]);
+
+  // Tray menu's "Settings" item shows the panel and emits this to switch view.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen("open-settings", () => setView("settings")).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
