@@ -19,7 +19,15 @@ const FILTERS: readonly { label: string; type: string }[] = [
  * Type filter strip. Chips are links to `?type=<cardType>` (preserving any
  * active `q`); the page filters items server-side. The active chip is ink-filled.
  */
-export function FilterStrip({ active = "all", q }: { active?: string; q?: string }) {
+export function FilterStrip({
+  active = "all",
+  q,
+  color: colorParam,
+}: {
+  active?: string;
+  q?: string;
+  color?: string;
+}) {
   return (
     <div
       style={{
@@ -36,6 +44,7 @@ export function FilterStrip({ active = "all", q }: { active?: string; q?: string
         const isActive = f.type === active;
         const params = new URLSearchParams();
         if (q) params.set("q", q);
+        if (colorParam) params.set("color", colorParam);
         if (f.type !== "all") params.set("type", f.type);
         const qs = params.toString();
         return (

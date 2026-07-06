@@ -12,3 +12,14 @@ export type UnderstoodQuery = NonNullable<SearchResponse["understood"]>;
 
 export type ItemDetail =
   paths["/items/{id}"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export type Lens =
+  paths["/lenses"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+export type LensRule = Lens["rule"];
+
+export type CreateLensRequest =
+  paths["/lenses"]["post"]["requestBody"]["content"]["application/json"];
+
+export type ImportResult =
+  paths["/import"]["post"]["responses"]["200"]["content"]["application/json"];

@@ -1,12 +1,13 @@
 import { apiFetch } from "../lib/api";
 import { cardKind } from "../lib/cards";
-import type { Item, SearchResponse } from "../lib/types";
+import type { Item, SearchResponse, UnderstoodQuery } from "../lib/types";
 import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
 import { ImageDrop } from "../components/ImageDrop";
 import { Shell } from "../components/Shell";
 import { Topbar } from "../components/Topbar";
 import { FilterStrip } from "../components/FilterStrip";
+import { SearchContext } from "../components/SearchContext";
 
 async function getRecents(): Promise<Item[]> {
   try {
@@ -19,34 +20,52 @@ async function getRecents(): Promise<Item[]> {
   }
 }
 
-async function getSearch(q: string): Promise<Item[]> {
+interface SearchOutcome {
+  items: Item[];
+  understood?: UnderstoodQuery;
+}
+
+// Runs a search. When q is present we set parse=true so the AI provider can
+// split it into text + colour + type filters (it degrades to a plain text
+// search under the noop provider). An explicit colour filter fuses in too.
+async function getSearch(q?: string, color?: string): Promise<SearchOutcome> {
+  const params = new URLSearchParams();
+  if (q) {
+    params.set("q", q);
+    params.set("parse", "true");
+  }
+  if (color) params.set("color", color);
   try {
-    const res = await apiFetch(`/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return [];
+    const res = await apiFetch(`/search?${params.toString()}`);
+    if (!res.ok) return { items: [] };
     const body = (await res.json()) as SearchResponse;
     // score is intentionally unused for now: results are already rank-ordered by the API.
-    return (body.results ?? []).map((r) => r.item);
+    return { items: (body.results ?? []).map((r) => r.item), understood: body.understood };
   } catch {
-    return [];
+    return { items: [] };
   }
 }
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; color?: string }>;
 }) {
-  const { q, type } = await searchParams;
+  const { q, type, color } = await searchParams;
   const active = type ?? "all";
+  const searching = Boolean(q || color);
 
-  const fetched = q ? await getSearch(q) : await getRecents();
+  const { items: fetched, understood } = searching
+    ? await getSearch(q, color)
+    : { items: await getRecents(), understood: undefined };
   const items =
     active === "all" ? fetched : fetched.filter((i) => cardKind(i.cardType) === active);
 
   return (
     <Shell>
       <Topbar count={items.length} q={q} />
-      <FilterStrip active={active} q={q} />
+      <FilterStrip active={active} q={q} color={color} />
+      <SearchContext q={q} understood={understood} colorParam={color} />
 
       <div style={{ position: "relative", flex: 1 }}>
         <div

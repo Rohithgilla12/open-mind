@@ -19,6 +19,16 @@ const backLink: CSSProperties = {
   textDecoration: "none",
 };
 
+/**
+ * Whether an item has long-form text worth opening in distraction-free reader
+ * mode: a text-forward type with a non-trivial archived body.
+ */
+function readableBody(item: ItemDetail): boolean {
+  const kind = cardKind(item.cardType);
+  const textForward = kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "note";
+  return textForward && (item.body ?? "").trim().length > 120;
+}
+
 /** "ARTICLE · domain · 4 JUL 2026" — mono meta line above the title. */
 function metaLine(item: ItemDetail): string {
   const kind = cardKind(item.cardType);
@@ -340,7 +350,14 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             <Link href="/" style={backLink}>
               ← library
             </Link>
-            <DeleteButton id={item.id} />
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              {readableBody(item) ? (
+                <Link href={`/item/${item.id}/read`} style={{ ...backLink, color: color.ink }}>
+                  Read ↗
+                </Link>
+              ) : null}
+              <DeleteButton id={item.id} />
+            </div>
           </div>
           <div className="meta" style={{ color: color.inkFaint, marginTop: 22 }}>
             {metaLine(item)}

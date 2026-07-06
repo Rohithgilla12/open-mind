@@ -44,6 +44,15 @@ type ItemEmbedding struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Lense struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Rule      []byte
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
 type User struct {
 	ID        uuid.UUID
 	CreatedAt pgtype.Timestamptz

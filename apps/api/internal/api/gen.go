@@ -58,23 +58,59 @@ const (
 	ItemDetailStatusPending  ItemDetailStatus = "pending"
 )
 
+// Defines values for LensRuleTypes.
+const (
+	LensRuleTypesArticle LensRuleTypes = "article"
+	LensRuleTypesBook    LensRuleTypes = "book"
+	LensRuleTypesImage   LensRuleTypes = "image"
+	LensRuleTypesNote    LensRuleTypes = "note"
+	LensRuleTypesProduct LensRuleTypes = "product"
+	LensRuleTypesQuote   LensRuleTypes = "quote"
+	LensRuleTypesRecipe  LensRuleTypes = "recipe"
+	LensRuleTypesTweet   LensRuleTypes = "tweet"
+	LensRuleTypesVideo   LensRuleTypes = "video"
+)
+
 // Defines values for UnderstoodQueryTypes.
 const (
-	Article UnderstoodQueryTypes = "article"
-	Book    UnderstoodQueryTypes = "book"
-	Image   UnderstoodQueryTypes = "image"
-	Note    UnderstoodQueryTypes = "note"
-	Product UnderstoodQueryTypes = "product"
-	Quote   UnderstoodQueryTypes = "quote"
-	Recipe  UnderstoodQueryTypes = "recipe"
-	Tweet   UnderstoodQueryTypes = "tweet"
-	Video   UnderstoodQueryTypes = "video"
+	UnderstoodQueryTypesArticle UnderstoodQueryTypes = "article"
+	UnderstoodQueryTypesBook    UnderstoodQueryTypes = "book"
+	UnderstoodQueryTypesImage   UnderstoodQueryTypes = "image"
+	UnderstoodQueryTypesNote    UnderstoodQueryTypes = "note"
+	UnderstoodQueryTypesProduct UnderstoodQueryTypes = "product"
+	UnderstoodQueryTypesQuote   UnderstoodQueryTypes = "quote"
+	UnderstoodQueryTypesRecipe  UnderstoodQueryTypes = "recipe"
+	UnderstoodQueryTypesTweet   UnderstoodQueryTypes = "tweet"
+	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
 )
 
 // CreateItemRequest Exactly one of url or note must be provided.
 type CreateItemRequest struct {
 	Note *string `json:"note,omitempty"`
 	Url  *string `json:"url,omitempty"`
+}
+
+// CreateLensRequest defines model for CreateLensRequest.
+type CreateLensRequest struct {
+	Name string `json:"name"`
+
+	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+	Rule LensRule `json:"rule"`
+}
+
+// ImportResult Summary of a bulk import.
+type ImportResult struct {
+	// Failed Links rejected (not a valid http(s) URL) or that failed to save.
+	Failed int `json:"failed"`
+
+	// Imported New items created (and queued for enrichment).
+	Imported int `json:"imported"`
+
+	// Skipped Links skipped as already saved or duplicated within the file.
+	Skipped int `json:"skipped"`
+
+	// Total Links found in the file.
+	Total int `json:"total"`
 }
 
 // Item defines model for Item.
@@ -118,6 +154,31 @@ type ItemDetailCardType string
 // ItemDetailStatus defines model for ItemDetail.Status.
 type ItemDetailStatus string
 
+// Lens defines model for Lens.
+type Lens struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+	Rule LensRule `json:"rule"`
+}
+
+// LensRule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+type LensRule struct {
+	// Color Hex (#RRGGBB) or named colour (e.g. cobalt).
+	Color *string `json:"color,omitempty"`
+
+	// Q Free-text query.
+	Q *string `json:"q,omitempty"`
+
+	// Types Card types to include.
+	Types *[]LensRuleTypes `json:"types,omitempty"`
+}
+
+// LensRuleTypes defines model for LensRule.Types.
+type LensRuleTypes string
+
 // SearchResponse defines model for SearchResponse.
 type SearchResponse struct {
 	Results []SearchResult `json:"results"`
@@ -152,6 +213,11 @@ type CreateAssetMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// ImportItemsMultipartBody defines parameters for ImportItems.
+type ImportItemsMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
 // ListItemsParams defines parameters for ListItems.
 type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -171,8 +237,17 @@ type SearchItemsParams struct {
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
 type CreateAssetMultipartRequestBody CreateAssetMultipartBody
 
+// ImportItemsMultipartRequestBody defines body for ImportItems for multipart/form-data ContentType.
+type ImportItemsMultipartRequestBody ImportItemsMultipartBody
+
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = CreateItemRequest
+
+// CreateLensJSONRequestBody defines body for CreateLens for application/json ContentType.
+type CreateLensJSONRequestBody = CreateLensRequest
+
+// UpdateLensJSONRequestBody defines body for UpdateLens for application/json ContentType.
+type UpdateLensJSONRequestBody = CreateLensRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -189,6 +264,9 @@ type ServerInterface interface {
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
 
+	// (POST /import)
+	ImportItems(w http.ResponseWriter, r *http.Request)
+
 	// (GET /items)
 	ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams)
 
@@ -200,6 +278,24 @@ type ServerInterface interface {
 
 	// (GET /items/{id})
 	GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /lenses)
+	ListLenses(w http.ResponseWriter, r *http.Request)
+
+	// (POST /lenses)
+	CreateLens(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /lenses/{id})
+	DeleteLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /lenses/{id})
+	GetLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (PATCH /lenses/{id})
+	UpdateLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /lenses/{id}/items)
+	GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /search)
 	SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams)
@@ -229,6 +325,11 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (POST /import)
+func (_ Unimplemented) ImportItems(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /items)
 func (_ Unimplemented) ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -246,6 +347,36 @@ func (_ Unimplemented) DeleteItem(w http.ResponseWriter, r *http.Request, id ope
 
 // (GET /items/{id})
 func (_ Unimplemented) GetItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /lenses)
+func (_ Unimplemented) ListLenses(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /lenses)
+func (_ Unimplemented) CreateLens(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /lenses/{id})
+func (_ Unimplemented) DeleteLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /lenses/{id})
+func (_ Unimplemented) GetLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /lenses/{id})
+func (_ Unimplemented) UpdateLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /lenses/{id}/items)
+func (_ Unimplemented) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -339,6 +470,26 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportItems operation middleware
+func (siw *ServerInterfaceWrapper) ImportItems(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportItems(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -454,6 +605,170 @@ func (siw *ServerInterfaceWrapper) GetItem(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLenses operation middleware
+func (siw *ServerInterfaceWrapper) ListLenses(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLenses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateLens operation middleware
+func (siw *ServerInterfaceWrapper) CreateLens(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateLens(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteLens operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLens(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteLens(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLens operation middleware
+func (siw *ServerInterfaceWrapper) GetLens(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLens(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateLens operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLens(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateLens(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLensItems operation middleware
+func (siw *ServerInterfaceWrapper) GetLensItems(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLensItems(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -638,6 +953,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/import", wrapper.ImportItems)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items", wrapper.ListItems)
 	})
 	r.Group(func(r chi.Router) {
@@ -648,6 +966,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items/{id}", wrapper.GetItem)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/lenses", wrapper.ListLenses)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/lenses", wrapper.CreateLens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/lenses/{id}", wrapper.DeleteLens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/lenses/{id}", wrapper.GetLens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/lenses/{id}", wrapper.UpdateLens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/lenses/{id}/items", wrapper.GetLensItems)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/search", wrapper.SearchItems)
