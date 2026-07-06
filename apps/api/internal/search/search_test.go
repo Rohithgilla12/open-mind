@@ -5,8 +5,10 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 
@@ -231,6 +233,84 @@ func TestRunFiltersByType(t *testing.T) {
 	}
 	if len(books) != 1 || books[0].Item.ID != bookID {
 		t.Fatalf("book-filtered results = %v, want [%v]", books, bookID)
+	}
+}
+
+// TestTagSearchStemsEnglishTags guards against a stemming mismatch between
+// index time and query time: search_tsv historically indexed tags as literal
+// lexemes (array_to_tsvector) while SearchFTS queries with
+// websearch_to_tsquery('english', ...), which stems. A multi-morpheme tag
+// like "favourite" stems to "favourit" on the query side but was indexed
+// literally, so it never matched. Single-morpheme tags (e.g. "mine") happened
+// to work regardless, which is why this went unnoticed. It also verifies
+// PinnedAt survives into search results, since the FTS/vector row-to-item
+// mappers historically dropped it.
+func TestTagSearchStemsEnglishTags(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	np := ai.NewNoop()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+
+	// user_tags case: a stemmable, user-supplied tag.
+	favourite, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/favourite", Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if _, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{UserID: userID, ID: favourite.ID, UserTags: []string{"favourite"}}); err != nil {
+		t.Fatalf("set user tags: %v", err)
+	}
+	if _, err := s.Queries.SetItemPinned(ctx, db.SetItemPinnedParams{UserID: userID, ID: favourite.ID, PinnedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}); err != nil {
+		t.Fatalf("set pinned: %v", err)
+	}
+
+	// tags (AI-set) case: a stemmable tag.
+	running, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/running", Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.UpdateItemEnrichment(ctx, db.UpdateItemEnrichmentParams{
+		UserID: userID, ID: running.ID, Summary: "", Tags: []string{"running"},
+	}); err != nil {
+		t.Fatalf("update enrichment: %v", err)
+	}
+
+	// Regression: a single-morpheme user tag must keep matching.
+	mine, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://example.com/mine", Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if _, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{UserID: userID, ID: mine.ID, UserTags: []string{"mine"}}); err != nil {
+		t.Fatalf("set user tags: %v", err)
+	}
+
+	favResults, err := search.Run(ctx, s, np, userID, "favourite", "", nil, 10)
+	if err != nil {
+		t.Fatalf("search favourite: %v", err)
+	}
+	if len(favResults) != 1 || favResults[0].Item.ID != favourite.ID {
+		t.Fatalf("search(favourite) = %v, want [%v]", favResults, favourite.ID)
+	}
+	if !favResults[0].Item.PinnedAt.Valid {
+		t.Errorf("search result PinnedAt = %v, want a valid pinned timestamp", favResults[0].Item.PinnedAt)
+	}
+
+	runResults, err := search.Run(ctx, s, np, userID, "running", "", nil, 10)
+	if err != nil {
+		t.Fatalf("search running: %v", err)
+	}
+	if len(runResults) != 1 || runResults[0].Item.ID != running.ID {
+		t.Fatalf("search(running) = %v, want [%v]", runResults, running.ID)
+	}
+
+	mineResults, err := search.Run(ctx, s, np, userID, "mine", "", nil, 10)
+	if err != nil {
+		t.Fatalf("search mine: %v", err)
+	}
+	if len(mineResults) != 1 || mineResults[0].Item.ID != mine.ID {
+		t.Fatalf("search(mine) = %v, want [%v]", mineResults, mine.ID)
 	}
 }
 

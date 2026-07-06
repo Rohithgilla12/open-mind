@@ -13,19 +13,38 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { saveItem } from "@/lib/api";
+import { listItems, saveItem } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
 const URL_RE = /^https?:\/\//i;
+const CLOCK_SKEW_MS = 30 * 1000;
 
 type Status =
   | { kind: "idle" }
   | { kind: "saving" }
-  | { kind: "saved" }
+  | { kind: "saved"; recovered?: boolean }
   | { kind: "rejected" }
   | { kind: "unreachable" }
+  | { kind: "unreachable-note" }
   | { kind: "error" };
+
+// After a status-0 (network error/timeout) response, the POST may have
+// actually landed. For URL saves we can check: list the newest items and look
+// for this exact URL created since THIS attempt started. Anchoring to the
+// attempt's start (not a rolling window) matters: the same URL saved
+// deliberately twice in a row must not have its second, timed-out save
+// "recovered" by finding the first copy. The skew buffer absorbs client/server
+// clock drift.
+async function wasRecentlySaved(url: string, attemptStartedAt: number): Promise<boolean> {
+  const res = await listItems(10);
+  if (!res.ok) return false;
+  return res.items.some((item) => {
+    if (item.url !== url || !item.createdAt) return false;
+    const created = Date.parse(item.createdAt);
+    return !Number.isNaN(created) && created >= attemptStartedAt - CLOCK_SKEW_MS;
+  });
+}
 
 export default function CaptureScreen() {
   const { configured, loading } = useSettingsContext();
@@ -53,13 +72,20 @@ export default function CaptureScreen() {
   async function onSave() {
     const value = text.trim();
     if (!value) return;
+    const url = URL_RE.test(value);
     setStatus({ kind: "saving" });
-    const res = await saveItem(URL_RE.test(value) ? { url: value } : { note: value });
+    const attemptStartedAt = Date.now();
+    const res = await saveItem(url ? { url: value } : { note: value });
     if (res.ok) {
       setText("");
       setStatus({ kind: "saved" });
     } else if (res.status === 0) {
-      setStatus({ kind: "unreachable" });
+      if (url && (await wasRecentlySaved(value, attemptStartedAt))) {
+        setText("");
+        setStatus({ kind: "saved", recovered: true });
+        return;
+      }
+      setStatus({ kind: url ? "unreachable" : "unreachable-note" });
     } else if (res.status === 401) {
       setStatus({ kind: "rejected" });
     } else {
@@ -140,7 +166,7 @@ function StatusMessage({ status }: { status: Status }) {
         <View style={styles.savedRow}>
           <Ionicons name="checkmark-circle" size={16} color={colors.cobalt} />
           <Text style={[styles.status, { color: colors.cobalt }]}>
-            Saved — it'll appear in your Library.
+            {status.recovered ? "Saved — connection was slow." : "Saved — it'll appear in your Library."}
           </Text>
         </View>
       );
@@ -150,6 +176,12 @@ function StatusMessage({ status }: { status: Status }) {
       return (
         <Text style={[styles.status, { color: colors.danger }]}>
           Instance unreachable — check your connection.
+        </Text>
+      );
+    case "unreachable-note":
+      return (
+        <Text style={[styles.status, { color: colors.danger }]}>
+          Connection problem — the note may or may not have saved. Check your Library before retrying.
         </Text>
       );
     case "error":
