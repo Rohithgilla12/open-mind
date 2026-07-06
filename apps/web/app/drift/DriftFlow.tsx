@@ -134,7 +134,7 @@ export function DriftFlow({ items, total }: { items: Item[]; total: number }) {
                   fontFamily: font.mono,
                   fontSize: 11,
                   letterSpacing: ".04em",
-                  color: color.gold,
+                  color: color.danger,
                   margin: 0,
                 }}
               >
@@ -313,10 +313,10 @@ function DriftCard({ item }: { item: Item }) {
         </div>
         <p
           style={{
-            fontFamily: font.quote,
-            fontStyle: "italic",
-            fontSize: 13,
-            color: LIGHT_FAINT,
+            fontFamily: font.mono,
+            fontSize: 10.5,
+            letterSpacing: ".05em",
+            color: LIGHT_MUTED,
             margin: "12px 0 0",
           }}
         >
