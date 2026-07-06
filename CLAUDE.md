@@ -60,7 +60,7 @@ Task definitions live in `Taskfile.yml` at the root. Use `deps:` for parallelism
 
 ## Go conventions
 
-- Standard library first; justify every new dependency. Current approved core: chi (router), River (jobs), sqlc + pgx, oapi-codegen.
+- Standard library first; justify every new dependency. Current approved core: chi (router), River (jobs), sqlc + pgx, oapi-codegen, modelcontextprotocol/go-sdk (MCP server).
 - Errors: wrap with `fmt.Errorf("doing x: %w", err)`; typed sentinel errors in `internal/` packages where callers branch on them.
 - All queries through sqlc in `internal/store` — no inline SQL in handlers or jobs.
 - Every store method takes `ctx` and is scoped by `user_id`. A query without a `user_id` predicate is a bug unless explicitly justified (migrations, admin).
