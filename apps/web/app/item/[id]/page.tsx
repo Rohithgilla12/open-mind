@@ -9,6 +9,7 @@ import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards"
 import { derivedPalette } from "../../../lib/palette";
 import type { ItemDetail } from "../../../lib/types";
 import { DeleteButton } from "./DeleteButton";
+import { TagEditor } from "./TagEditor";
 
 const { color, font } = tokens;
 
@@ -213,6 +214,8 @@ function Rail({ item }: { item: ItemDetail }) {
           </div>
         </>
       ) : null}
+      {divider}
+      <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
       {divider}
       <p
         className="meta"
