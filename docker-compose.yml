@@ -33,6 +33,12 @@ services:
       OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
       ASSETS_DIR: ${ASSETS_DIR:-/data/assets}
       ASSETS_MAX_BYTES: ${ASSETS_MAX_BYTES:-10485760}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      KINDLE_EMAIL: ${KINDLE_EMAIL:-}
     volumes:
       - assetsdata:/data/assets
     ports:

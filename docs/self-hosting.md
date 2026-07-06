@@ -241,3 +241,32 @@ API=https://openmind.example.com OPENMIND_TOKEN=your-token apps/api/scripts/mcp-
 ```
 
 > This is the Milestone 0 quickstart. Expanded operational docs (backups, upgrades, reverse proxy, auth) land in Milestone 1.
+
+## Send to Kindle
+
+Any item, or a Lens's current matches as a digest, can be e-mailed to your Kindle as an EPUB: `POST /items/{id}/kindle` (proxied at `/api/items/{id}/kindle`) or `POST /lenses/{id}/kindle` (proxied at `/api/lenses/{id}/kindle`). Both are queued asynchronously — the request returns `202 {"queued":true}` immediately, and delivery happens in the background via a River job. A Lens digest is capped at the 25 most recent matching items with a body, one EPUB chapter per item.
+
+The feature is off until you configure outbound SMTP:
+
+| Variable | Required | Description |
+|---|---|---|
+| `SMTP_HOST` | yes | SMTP server hostname. |
+| `SMTP_PORT` | no (default `587`) | SMTP server port. |
+| `SMTP_FROM` | yes | Sender address — must be approved in your Amazon account (see below). |
+| `SMTP_USERNAME` | no | SMTP auth username, if your server requires it. |
+| `SMTP_PASSWORD` | no | SMTP auth password, if your server requires it. Never commit this to source control or an `.env` checked into git. |
+| `KINDLE_EMAIL` | yes | Your `@kindle.com` delivery address. |
+
+Send-to-Kindle is enabled only when `SMTP_HOST`, `SMTP_FROM`, and `KINDLE_EMAIL` are all set. Without them, both endpoints return `409` with a message naming the missing variables; `docker-compose.yml` passes all six through from the host environment (empty by default). Restart the `api` service after changing them.
+
+### Amazon setup
+
+1. Sign in at [amazon.com](https://www.amazon.com) → **Accounts & Lists** → **Content & Devices** → **Preferences** tab → **Personal Document Settings**.
+2. Under **Approved Personal Document E-mail List**, add the address you set as `SMTP_FROM` — Amazon only accepts documents from senders you've explicitly approved.
+3. Under **Send-to-Kindle E-mail Settings**, find the `@kindle.com` address for the device or app you want delivery to, and use it as `KINDLE_EMAIL`.
+
+### Caveats
+
+- Delivery is fire-and-forget from the API's perspective: a `202` means the job was queued, not that Amazon accepted the e-mail. Check your Kindle library (or the `api` service logs) if a send doesn't arrive.
+- A transient SMTP failure is retried by River (up to 5 attempts) rather than dropped. Because retries resend the same EPUB, a retried job can occasionally deliver a duplicate — rare (only on error) and harmless.
+- Kindle delivery uses one shared `KINDLE_EMAIL` for the whole instance; per-user Kindle addresses are planned once auth ships (see `TODO.md`).

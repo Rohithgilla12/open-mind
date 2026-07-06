@@ -4,6 +4,7 @@ import { tokens } from "@openmind/ui";
 import { Shell } from "../../../components/Shell";
 import { Grid } from "../../../components/Grid";
 import { DeleteLensButton } from "../../../components/DeleteLensButton";
+import { KindleButton } from "../../../components/KindleButton";
 import { getLens, getLensItems } from "../../../lib/lenses";
 import { lensDot, lensSummary } from "../../../lib/lens-format";
 
@@ -71,6 +72,7 @@ export default async function LensPage({ params }: { params: Promise<{ id: strin
           >
             duplicate
           </Link>
+          <KindleButton target="lens" id={id} />
           <DeleteLensButton id={id} name={lens.name} />
         </div>
       </div>
