@@ -1,25 +1,59 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
 import { browser } from "wxt/browser";
 import { tokens } from "@openmind/ui";
 import { getSettings } from "../../lib/storage";
-import { saveItem } from "../../lib/save";
+import { patchUserTags, recentItems, saveItem } from "../../lib/save";
+import type { Item } from "../../lib/save";
 
-type SaveState = "idle" | "saving" | "saved" | "error" | "needs-settings";
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 interface ActiveTab {
   title: string;
   url: string;
 }
 
+/** Best-effort hostname for display; falls back to the raw string. */
+function host(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 export function Popup() {
+  const [ready, setReady] = useState(false);
+  const [configured, setConfigured] = useState(false);
+  const [instanceUrl, setInstanceUrl] = useState("");
   const [tab, setTab] = useState<ActiveTab | null>(null);
-  const [hasToken, setHasToken] = useState<boolean>(true);
+
   const [state, setState] = useState<SaveState>("idle");
-  const [errorText, setErrorText] = useState<string>("");
+  const [errorText, setErrorText] = useState("");
+  const [savedItem, setSavedItem] = useState<Item | null>(null);
+
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [tagError, setTagError] = useState("");
+
+  const [recent, setRecent] = useState<Item[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
+      const settings = await getSettings();
+      const ok =
+        settings.token.trim().length > 0 &&
+        settings.instanceUrl.trim().length > 0;
+      setConfigured(ok);
+      setInstanceUrl(settings.instanceUrl.replace(/\/+$/, ""));
+      setReady(true);
+
+      if (!ok) {
+        setRecentLoading(false);
+        return;
+      }
+
       const [active] = await browser.tabs.query({
         active: true,
         currentWindow: true,
@@ -27,8 +61,10 @@ export function Popup() {
       if (active?.url) {
         setTab({ title: active.title ?? active.url, url: active.url });
       }
-      const { token } = await getSettings();
-      setHasToken(token.trim().length > 0);
+
+      const res = await recentItems(5);
+      setRecent(res.items);
+      setRecentLoading(false);
     })();
   }, []);
 
@@ -39,11 +75,17 @@ export function Popup() {
   async function handleSave() {
     if (!tab) return;
     setState("saving");
+    setErrorText("");
     const res = await saveItem({ url: tab.url });
-    if (res.ok) {
+    if (res.ok && res.item) {
+      setSavedItem(res.item);
+      setTags(res.item.userTags ?? []);
+      setState("saved");
+    } else if (res.ok) {
       setState("saved");
     } else if (res.status === 401) {
-      setState("needs-settings");
+      setState("error");
+      setErrorText("Token rejected — open options.");
     } else if (res.status === 0) {
       setState("error");
       setErrorText("Instance unreachable.");
@@ -53,64 +95,189 @@ export function Popup() {
     }
   }
 
-  const canSave =
-    hasToken && tab !== null && state !== "saving" && state !== "saved";
+  async function applyTags(next: string[]) {
+    if (!savedItem) return;
+    const previous = tags;
+    setTags(next);
+    setTagError("");
+    const res = await patchUserTags(savedItem.id, next);
+    if (!res.ok) {
+      setTags(previous);
+      setTagError("Couldn't update tags.");
+    }
+  }
+
+  function addTag() {
+    const value = tagInput.trim();
+    if (!value || tags.includes(value)) {
+      setTagInput("");
+      return;
+    }
+    setTagInput("");
+    void applyTags([...tags, value]);
+  }
+
+  function removeTag(tag: string) {
+    void applyTags(tags.filter((t) => t !== tag));
+  }
+
+  function onTagKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTag();
+    }
+  }
+
+  function openItem(id: string) {
+    void browser.tabs.create({ url: `${instanceUrl}/item/${id}` });
+  }
+
+  if (!ready) {
+    return (
+      <div style={styles.page}>
+        <p style={styles.muted}>Loading…</p>
+      </div>
+    );
+  }
+
+  if (!configured) {
+    return (
+      <div style={styles.page}>
+        <h1 style={styles.heading}>Set up Openmind</h1>
+        <p style={styles.muted}>
+          Add your instance URL and access token to start saving.
+        </p>
+        <button type="button" style={styles.primaryButton} onClick={openSettings}>
+          Open options
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>
       <h1 style={styles.heading}>Save to Openmind</h1>
 
-      {tab ? (
-        <div style={styles.tabCard}>
-          <div style={styles.tabTitle}>{tab.title}</div>
-          <div style={styles.tabUrl}>{tab.url}</div>
+      {state === "saved" ? (
+        <div style={styles.savedCard}>
+          <div style={styles.savedLabel}>Saved</div>
+          <div style={styles.tabTitle}>
+            {savedItem?.title ?? tab?.title ?? "Untitled"}
+          </div>
+
+          {savedItem && (
+            <>
+              <div style={styles.chipRow}>
+                {tags.map((tag) => (
+                  <span key={tag} style={styles.chip}>
+                    {tag}
+                    <button
+                      type="button"
+                      style={styles.chipRemove}
+                      onClick={() => removeTag(tag)}
+                      aria-label={`Remove ${tag}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                type="text"
+                style={styles.tagInput}
+                placeholder="Add a tag…"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={onTagKeyDown}
+                onBlur={addTag}
+              />
+              {tagError && <p style={styles.error}>{tagError}</p>}
+            </>
+          )}
         </div>
       ) : (
-        <p style={styles.muted}>No active tab to save.</p>
-      )}
+        <>
+          {tab ? (
+            <div style={styles.tabCard}>
+              <div style={styles.tabTitle}>{tab.title}</div>
+              <div style={styles.tabUrl}>{tab.url}</div>
+            </div>
+          ) : (
+            <p style={styles.muted}>No active tab to save.</p>
+          )}
 
-      {!hasToken || state === "needs-settings" ? (
-        <>
-          <p style={styles.error}>
-            {state === "needs-settings"
-              ? "Token invalid or missing."
-              : "No token configured yet."}
-          </p>
-          <button
-            type="button"
-            style={styles.primaryButton}
-            onClick={openSettings}
-          >
-            Open settings
-          </button>
-        </>
-      ) : (
-        <>
           <button
             type="button"
             style={{
               ...styles.primaryButton,
-              ...(canSave ? {} : styles.disabledButton),
+              ...(tab && state !== "saving" ? {} : styles.disabledButton),
             }}
             onClick={handleSave}
-            disabled={!canSave}
+            disabled={!tab || state === "saving"}
           >
-            {state === "saving"
-              ? "Saving…"
-              : state === "saved"
-                ? "Saved ✓"
-                : "Save page"}
+            {state === "saving" ? "Saving…" : "Save page"}
           </button>
-          {state === "error" && <p style={styles.error}>{errorText}</p>}
+          {state === "error" && (
+            <p style={styles.error}>
+              {errorText}
+              {errorText.includes("options") && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    style={styles.linkButton}
+                    onClick={openSettings}
+                  >
+                    Open options
+                  </button>
+                </>
+              )}
+            </p>
+          )}
         </>
       )}
+
+      <div style={styles.section}>
+        <div style={styles.sectionTitle}>Recently saved</div>
+        {recentLoading ? (
+          <p style={styles.muted}>Loading…</p>
+        ) : recent.length === 0 ? (
+          <p style={styles.muted}>Nothing saved yet</p>
+        ) : (
+          <ul style={styles.list}>
+            {recent.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  style={styles.rowButton}
+                  onClick={() => openItem(item.id)}
+                >
+                  <span style={styles.rowTitle}>
+                    {item.title || host(item.url)}
+                  </span>
+                  <span
+                    style={{
+                      ...styles.rowCaption,
+                      ...(item.status === "pending"
+                        ? styles.rowCaptionPending
+                        : {}),
+                    }}
+                  >
+                    {item.status === "pending" ? "enriching…" : host(item.url)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
   page: {
-    width: 320,
+    width: 360,
     boxSizing: "border-box",
     margin: 0,
     padding: 16,
@@ -130,6 +297,21 @@ const styles: Record<string, CSSProperties> = {
     padding: 12,
     marginBottom: 12,
   },
+  savedCard: {
+    background: tokens.color.surface,
+    border: `1px solid ${tokens.color.line}`,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  savedLabel: {
+    fontFamily: tokens.font.mono,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    color: tokens.color.cobalt,
+    marginBottom: 6,
+  },
   tabTitle: {
     fontSize: 13,
     fontWeight: 500,
@@ -141,14 +323,52 @@ const styles: Record<string, CSSProperties> = {
   tabUrl: {
     fontFamily: tokens.font.mono,
     fontSize: 11,
-    opacity: 0.6,
+    color: tokens.color.inkFaint,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  chipRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    margin: "8px 0",
+  },
+  chip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12,
+    fontWeight: 500,
+    padding: "3px 8px",
+    borderRadius: 999,
+    background: "rgba(27,63,209,.10)",
+    color: tokens.color.cobalt,
+  },
+  chipRemove: {
+    border: "none",
+    background: "none",
+    padding: 0,
+    margin: 0,
+    lineHeight: 1,
+    fontSize: 14,
+    cursor: "pointer",
+    color: tokens.color.cobalt,
+  },
+  tagInput: {
+    width: "100%",
+    boxSizing: "border-box",
+    fontFamily: tokens.font.sans,
+    fontSize: 13,
+    padding: "6px 8px",
+    border: `1px solid ${tokens.color.line}`,
+    borderRadius: 6,
+    background: tokens.color.paper,
+    color: tokens.color.ink,
+  },
   muted: {
     fontSize: 13,
-    opacity: 0.7,
+    color: tokens.color.inkMuted,
     margin: "0 0 12px",
   },
   primaryButton: {
@@ -167,11 +387,71 @@ const styles: Record<string, CSSProperties> = {
     opacity: 0.5,
     cursor: "default",
   },
+  linkButton: {
+    border: "none",
+    background: "none",
+    padding: 0,
+    fontSize: 13,
+    fontWeight: 500,
+    color: tokens.color.cobalt,
+    cursor: "pointer",
+    textDecoration: "underline",
+  },
   error: {
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: 10,
+    marginBottom: 0,
     fontSize: 13,
     fontWeight: 500,
     color: tokens.color.danger,
+  },
+  section: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTop: `1px solid ${tokens.color.line}`,
+  },
+  sectionTitle: {
+    fontFamily: tokens.font.mono,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    color: tokens.color.inkMuted,
+    marginBottom: 8,
+  },
+  list: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  },
+  rowButton: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
+    width: "100%",
+    textAlign: "left",
+    border: "none",
+    background: "none",
+    padding: "6px 4px",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  rowTitle: {
+    fontSize: 13,
+    color: tokens.color.ink,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
+  },
+  rowCaption: {
+    fontFamily: tokens.font.mono,
+    fontSize: 11,
+    color: tokens.color.inkFaint,
+  },
+  rowCaptionPending: {
+    color: tokens.color.cobalt,
   },
 };
