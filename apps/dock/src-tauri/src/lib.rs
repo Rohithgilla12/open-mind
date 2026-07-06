@@ -68,9 +68,9 @@ fn quick_save(app: &AppHandle) {
             }
         };
 
-        let tab = match grab::grab_frontmost_tab() {
-            Ok(t) => t,
-            Err(e) => {
+        let tab = match tauri::async_runtime::spawn_blocking(grab::grab_frontmost_tab).await {
+            Ok(Ok(t)) => t,
+            Ok(Err(e)) => {
                 let msg = match e.as_str() {
                     "automation-denied" => {
                         "Allow automation for your browser in System Settings → Privacy"
@@ -81,6 +81,10 @@ fn quick_save(app: &AppHandle) {
                     _ => "Couldn't read the front tab",
                 };
                 notify(&app, msg);
+                return;
+            }
+            Err(_) => {
+                notify(&app, "Couldn't read the front tab");
                 return;
             }
         };
@@ -113,6 +117,20 @@ fn quick_save(app: &AppHandle) {
             }
         }
     });
+}
+
+/// Registers a global shortcut without letting a conflict (another app
+/// already owns the combo) take the whole app down. This is a tray-only
+/// Accessory app — an unregistered shortcut should degrade to "use the tray
+/// menu instead", not kill the process.
+fn register_shortcut_or_warn(app: &AppHandle, shortcut: Shortcut, label: &str) {
+    if let Err(e) = app.global_shortcut().register(shortcut) {
+        log::debug!("failed to register shortcut {label}: {e}");
+        notify(
+            app,
+            &format!("Couldn't register {label} — another app may be using it. The tray menu still works."),
+        );
+    }
 }
 
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -185,8 +203,8 @@ pub fn run() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
-            app.global_shortcut().register(quick_save_shortcut())?;
-            app.global_shortcut().register(toggle_panel_shortcut())?;
+            register_shortcut_or_warn(app.handle(), quick_save_shortcut(), "⌘⇧S");
+            register_shortcut_or_warn(app.handle(), toggle_panel_shortcut(), "⌘⇧O");
 
             build_tray(app)?;
 
