@@ -39,7 +39,7 @@ func (s *Server) ImportItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing multipart file field")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
