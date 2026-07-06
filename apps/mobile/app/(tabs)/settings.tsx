@@ -21,6 +21,7 @@ type Status =
   | { kind: "valid" }
   | { kind: "invalid" }
   | { kind: "unreachable" }
+  | { kind: "server_error"; code: number }
   | { kind: "incomplete" };
 
 export default function SettingsScreen() {
@@ -50,8 +51,12 @@ export default function SettingsScreen() {
       setStatus({ kind: "valid" });
     } else if (code === 0) {
       setStatus({ kind: "unreachable" });
-    } else {
+    } else if (code === 401) {
       setStatus({ kind: "invalid" });
+    } else {
+      // 429 (rate limited), 502 (backend down), or any other non-200 — the
+      // token may well be fine, so don't claim it's invalid.
+      setStatus({ kind: "server_error", code });
     }
   }
 
@@ -140,6 +145,14 @@ function StatusMessage({ status }: { status: Status }) {
       return <Text style={[styles.status, { color: colors.cobalt }]}>Token valid — saved.</Text>;
     case "invalid":
       return <Text style={[styles.status, { color: colors.danger }]}>Invalid token (401).</Text>;
+    case "server_error":
+      return (
+        <Text style={[styles.status, { color: colors.danger }]}>
+          {status.code === 429
+            ? "Rate limited — try again shortly."
+            : `Instance error (${status.code}) — try again shortly.`}
+        </Text>
+      );
     case "unreachable":
       return (
         <Text style={[styles.status, { color: colors.danger }]}>
