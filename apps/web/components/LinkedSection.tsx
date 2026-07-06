@@ -37,14 +37,6 @@ const rowTitle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const rowCaption: CSSProperties = {
-  fontFamily: font.mono,
-  fontSize: "0.65rem",
-  letterSpacing: ".05em",
-  textTransform: "uppercase",
-  color: color.inkFaint,
-};
-
 const removeBtn: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -182,7 +174,7 @@ export function LinkedSection({ itemId }: { itemId: string }) {
             <div key={item.id} style={rowStyle}>
               <button type="button" style={rowTextBtn} onClick={() => router.push(`/item/${item.id}`)}>
                 <span style={rowTitle}>{labelFor(item)}</span>
-                <span style={rowCaption}>{typeLabel[cardKind(item.cardType)]}</span>
+                <span className="meta">{typeLabel[cardKind(item.cardType)]}</span>
               </button>
               <button
                 type="button"
@@ -239,7 +231,7 @@ export function LinkedSection({ itemId }: { itemId: string }) {
                   style={{ ...rowTextBtn, width: "100%", padding: "6px 0" }}
                 >
                   <span style={rowTitle}>{labelFor(item)}</span>
-                  <span style={rowCaption}>{typeLabel[cardKind(item.cardType)]}</span>
+                  <span className="meta">{typeLabel[cardKind(item.cardType)]}</span>
                 </button>
               ))
             )}
