@@ -89,12 +89,14 @@ function MutedNav({
 export async function Shell({
   children,
   activeLensId,
+  activeDesk,
 }: {
   children: ReactNode;
   activeLensId?: string;
+  activeDesk?: boolean;
 }) {
   const lenses = await getLenses();
-  const mindActive = !activeLensId;
+  const mindActive = !activeLensId && !activeDesk;
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <aside
@@ -160,9 +162,20 @@ export async function Shell({
           </span>
         </div>
 
-        <MutedNav glyph="◵" label="Desk" />
+        {/* Desk — the pinboard of what you're working with. */}
+        <Link
+          href="/desk"
+          style={{
+            ...navBase,
+            textDecoration: "none",
+            background: activeDesk ? "rgba(27,63,209,.1)" : "transparent",
+            color: activeDesk ? tokens.color.cobalt : tokens.color.ink,
+          }}
+        >
+          <span style={{ fontSize: 15, width: 16 }}>◵</span> Desk
+        </Link>
 
-        {/* The Mind — the home library. Active unless viewing a lens. */}
+        {/* The Mind — the home library. Active unless viewing a lens or the desk. */}
         <Link
           href="/"
           style={{

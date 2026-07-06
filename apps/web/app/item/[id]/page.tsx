@@ -8,6 +8,7 @@ import { assetSrc } from "../../../lib/assets";
 import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
 import type { ItemDetail } from "../../../lib/types";
+import { PinButton } from "../../../components/PinButton";
 import { DeleteButton } from "./DeleteButton";
 import { TagEditor } from "./TagEditor";
 
@@ -359,6 +360,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
                   Read ↗
                 </Link>
               ) : null}
+              <PinButton itemId={item.id} pinned={!!item.pinnedAt} />
               <DeleteButton id={item.id} />
             </div>
           </div>
