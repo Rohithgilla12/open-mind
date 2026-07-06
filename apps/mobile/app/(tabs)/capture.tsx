@@ -18,7 +18,7 @@ import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
 const URL_RE = /^https?:\/\//i;
-const RECOVERY_WINDOW_MS = 2 * 60 * 1000;
+const CLOCK_SKEW_MS = 30 * 1000;
 
 type Status =
   | { kind: "idle" }
@@ -30,17 +30,19 @@ type Status =
   | { kind: "error" };
 
 // After a status-0 (network error/timeout) response, the POST may have
-// actually landed. For URL saves we can check: list the newest items and
-// look for this exact URL created just now.
-async function wasRecentlySaved(url: string): Promise<boolean> {
+// actually landed. For URL saves we can check: list the newest items and look
+// for this exact URL created since THIS attempt started. Anchoring to the
+// attempt's start (not a rolling window) matters: the same URL saved
+// deliberately twice in a row must not have its second, timed-out save
+// "recovered" by finding the first copy. The skew buffer absorbs client/server
+// clock drift.
+async function wasRecentlySaved(url: string, attemptStartedAt: number): Promise<boolean> {
   const res = await listItems(10);
   if (!res.ok) return false;
-  const now = Date.now();
   return res.items.some((item) => {
-    if (item.url !== url) return false;
-    if (!item.createdAt) return true;
+    if (item.url !== url || !item.createdAt) return false;
     const created = Date.parse(item.createdAt);
-    return Number.isNaN(created) || now - created <= RECOVERY_WINDOW_MS;
+    return !Number.isNaN(created) && created >= attemptStartedAt - CLOCK_SKEW_MS;
   });
 }
 
@@ -72,12 +74,13 @@ export default function CaptureScreen() {
     if (!value) return;
     const url = URL_RE.test(value);
     setStatus({ kind: "saving" });
+    const attemptStartedAt = Date.now();
     const res = await saveItem(url ? { url: value } : { note: value });
     if (res.ok) {
       setText("");
       setStatus({ kind: "saved" });
     } else if (res.status === 0) {
-      if (url && (await wasRecentlySaved(value))) {
+      if (url && (await wasRecentlySaved(value, attemptStartedAt))) {
         setText("");
         setStatus({ kind: "saved", recovered: true });
         return;
