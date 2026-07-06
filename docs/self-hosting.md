@@ -170,6 +170,14 @@ Pin whatever you're actively working with to a Desk — a small board separate f
 - **View**: the `/desk` page in the web UI, also live in the sidebar nav. Backed by `GET /desk`, which returns your pinned items newest-pinned-first (never affects enrichment or search — pinning is purely organisational).
 - **Scope**: pinning is per-account like everything else; unpinning never deletes the item, it only removes it from the board.
 
+## Drift (resurfacing)
+
+A calm, once-a-day full-screen mode that resurfaces old saves one at a time so forgotten items don't just pile up.
+
+- **Candidates**: enriched, unpinned items not drifted in the last 30 days, oldest/never-revisited first, in batches of 5. Backed by `GET /drift`, which returns `{items, total}` and never mutates anything.
+- **Actions**: for each card, **Let go** (`POST /drift/{id} {"keep": false}`) just marks it drifted so it won't resurface for 30 days; **Keep on my desk** (`POST /drift/{id} {"keep": true}`) does the same and also pins it to the Desk. Both are one-way per session — a kept item drops out of Drift and shows up on `/desk`; a released item drops out of Drift without appearing anywhere else.
+- **View**: the `/drift` page in the web UI — an intentionally dark, immersive full-screen canvas (the one screen that departs from the paper/ink theme), reached from the sidebar nav. An empty batch shows a "caught up" state instead of a card.
+
 ## Browser extension
 
 The WXT + React browser extension (`apps/extension`) is a thin capture client — it saves the active tab's URL, a selection as a note, or an image, and talks to your instance over the same bearer-token auth as the web UI. Enrichment stays server-side.
