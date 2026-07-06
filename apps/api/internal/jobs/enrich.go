@@ -35,17 +35,20 @@ func (w *EnrichWorker) Work(ctx context.Context, job *river.Job[EnrichArgs]) err
 }
 
 // NewRiverClient builds a River client over the given pool. When workersOn is
-// true it registers the enrichment and feed-poll workers, a default queue, and
-// the periodic feed-poll job; otherwise it returns an insert-only client (for
-// the API process), which enqueues jobs but runs none. feedService is only used
-// when workersOn (the poll worker + periodic job); the insert-only path ignores
-// it and may be passed nil.
-func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, workersOn bool) (*river.Client[pgx.Tx], error) {
+// true it registers the enrichment, feed-poll, and send-kindle workers, a
+// default queue, and the periodic feed-poll job; otherwise it returns an
+// insert-only client (for the API process), which enqueues jobs but runs
+// none. feedService is only used when workersOn (the poll worker + periodic
+// job); the insert-only path ignores it and may be passed nil. kindleDeps is
+// likewise only exercised by the worker process; the insert-only path still
+// accepts it (unused) so callers don't need two signatures.
+func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, kindleDeps KindleDeps, workersOn bool) (*river.Client[pgx.Tx], error) {
 	cfg := &river.Config{}
 	if workersOn {
 		workers := river.NewWorkers()
 		river.AddWorker(workers, &EnrichWorker{Pipeline: p})
 		river.AddWorker(workers, &PollFeedsWorker{Service: feedService})
+		river.AddWorker(workers, &SendKindleWorker{Store: p.Store, Provider: p.AI, Deps: kindleDeps})
 		cfg.Workers = workers
 		cfg.Queues = map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 5}}
 		cfg.PeriodicJobs = []*river.PeriodicJob{

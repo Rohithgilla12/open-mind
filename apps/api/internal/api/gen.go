@@ -367,6 +367,9 @@ type ServerInterface interface {
 
 	// (PATCH /items/{id})
 	PatchItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Send this item to Kindle as an EPUB
+	// (POST /items/{id}/kindle)
+	SendItemToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Items linked to this item (both directions)
 	// (GET /items/{id}/links)
 	ListItemLinks(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -394,6 +397,9 @@ type ServerInterface interface {
 
 	// (GET /lenses/{id}/items)
 	GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Send this Lens's current matches to Kindle as a digest EPUB
+	// (POST /lenses/{id}/kindle)
+	SendLensToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /search)
 	SearchItems(w http.ResponseWriter, r *http.Request, params SearchItemsParams)
@@ -483,6 +489,12 @@ func (_ Unimplemented) PatchItem(w http.ResponseWriter, r *http.Request, id open
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Send this item to Kindle as an EPUB
+// (POST /items/{id}/kindle)
+func (_ Unimplemented) SendItemToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Items linked to this item (both directions)
 // (GET /items/{id}/links)
 func (_ Unimplemented) ListItemLinks(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
@@ -528,6 +540,12 @@ func (_ Unimplemented) UpdateLens(w http.ResponseWriter, r *http.Request, id ope
 
 // (GET /lenses/{id}/items)
 func (_ Unimplemented) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send this Lens's current matches to Kindle as a digest EPUB
+// (POST /lenses/{id}/kindle)
+func (_ Unimplemented) SendLensToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -938,6 +956,37 @@ func (siw *ServerInterfaceWrapper) PatchItem(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// SendItemToKindle operation middleware
+func (siw *ServerInterfaceWrapper) SendItemToKindle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendItemToKindle(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListItemLinks operation middleware
 func (siw *ServerInterfaceWrapper) ListItemLinks(w http.ResponseWriter, r *http.Request) {
 
@@ -1204,6 +1253,37 @@ func (siw *ServerInterfaceWrapper) GetLensItems(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// SendLensToKindle operation middleware
+func (siw *ServerInterfaceWrapper) SendLensToKindle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendLensToKindle(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SearchItems operation middleware
 func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Request) {
 
@@ -1415,6 +1495,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/items/{id}", wrapper.PatchItem)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/items/{id}/kindle", wrapper.SendItemToKindle)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items/{id}/links", wrapper.ListItemLinks)
 	})
 	r.Group(func(r chi.Router) {
@@ -1440,6 +1523,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/lenses/{id}/items", wrapper.GetLensItems)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/lenses/{id}/kindle", wrapper.SendLensToKindle)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/search", wrapper.SearchItems)
