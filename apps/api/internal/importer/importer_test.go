@@ -1,6 +1,9 @@
 package importer
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func urls(links []Link) []string {
 	out := make([]string, len(links))
@@ -13,19 +16,31 @@ func urls(links []Link) []string {
 func TestParseNetscapeHTML(t *testing.T) {
 	data := []byte(`<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <DL><p>
-  <DT><A HREF="https://example.com/a" ADD_DATE="1700000000" TAGS="go,work">First &amp; foremost</A>
-  <DT><A HREF="https://example.com/b">Second</A>
+  <DT><A HREF="https://example.com/a" ADD_DATE="1700000000" TAGS="go, rust">First &amp; foremost</A>
+  <DT><A TAGS="reading" HREF="https://example.com/b">Second</A>
+  <DT><A HREF="https://example.com/c">No tags</A>
   <DT><A HREF="">empty href skipped</A>
 </DL>`)
 	links, err := Parse("pocket_export.html", data)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if got := urls(links); len(got) != 2 || got[0] != "https://example.com/a" || got[1] != "https://example.com/b" {
+	if got := urls(links); len(got) != 3 || got[0] != "https://example.com/a" || got[1] != "https://example.com/b" || got[2] != "https://example.com/c" {
 		t.Fatalf("urls = %v", got)
 	}
 	if links[0].Title != "First & foremost" {
 		t.Errorf("title = %q, want entity-decoded", links[0].Title)
+	}
+	if got := links[0].Tags; !reflect.DeepEqual(got, []string{"go", "rust"}) {
+		t.Errorf("tags[0] = %v, want [go rust]", got)
+	}
+	// TAGS before HREF must still parse (attribute order is irrelevant).
+	if got := links[1].Tags; !reflect.DeepEqual(got, []string{"reading"}) {
+		t.Errorf("tags[1] = %v, want [reading]", got)
+	}
+	// No TAGS attribute → nil.
+	if links[2].Tags != nil {
+		t.Errorf("tags[2] = %v, want nil", links[2].Tags)
 	}
 }
 
@@ -45,6 +60,28 @@ func TestParseCSV(t *testing.T) {
 	if links[0].Title != "Hello World" {
 		t.Errorf("title = %q", links[0].Title)
 	}
+	if got := links[0].Tags; !reflect.DeepEqual(got, []string{"go", "rust"}) {
+		t.Errorf("tags[0] = %v, want [go rust]", got)
+	}
+	// Row with an empty tags cell → nil.
+	if links[1].Tags != nil {
+		t.Errorf("tags[1] = %v, want nil", links[1].Tags)
+	}
+}
+
+func TestParseCSVRaindropSpaceSeparatedTags(t *testing.T) {
+	// Raindrop separates tags with spaces (no comma in the cell).
+	data := []byte("url,title,tags\nhttps://example.com/r,Read this,go rust web\n")
+	links, err := Parse("raindrop.csv", data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("links = %d, want 1", len(links))
+	}
+	if got := links[0].Tags; !reflect.DeepEqual(got, []string{"go", "rust", "web"}) {
+		t.Errorf("tags = %v, want [go rust web]", got)
+	}
 }
 
 func TestParseCSVDetectedByContent(t *testing.T) {
@@ -56,6 +93,10 @@ func TestParseCSVDetectedByContent(t *testing.T) {
 	}
 	if got := urls(links); len(got) != 1 || got[0] != "https://example.com/z" {
 		t.Fatalf("urls = %v", got)
+	}
+	// No tags column → nil.
+	if links[0].Tags != nil {
+		t.Errorf("tags = %v, want nil", links[0].Tags)
 	}
 }
 
