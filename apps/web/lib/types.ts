@@ -23,3 +23,6 @@ export type CreateLensRequest =
 
 export type ImportResult =
   paths["/import"]["post"]["responses"]["200"]["content"]["application/json"];
+
+export type Feed =
+  paths["/feeds"]["get"]["responses"]["200"]["content"]["application/json"][number];
