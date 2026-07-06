@@ -342,7 +342,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
     padding: "3px 8px",
     borderRadius: 999,
-    background: "rgba(27,63,209,.10)",
+    background: `color-mix(in srgb, ${tokens.color.cobalt} 9%, transparent)`,
     color: tokens.color.cobalt,
   },
   chipRemove: {

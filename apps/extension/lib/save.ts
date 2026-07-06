@@ -115,8 +115,8 @@ export async function recentItems(limit: number): Promise<RecentResult> {
       return { ok: false, status: res.status, items: [] };
     }
     try {
-      const items = (await res.json()) as Item[];
-      return { ok: true, status: res.status, items: items ?? [] };
+      const parsed = (await res.json()) as unknown;
+      return { ok: true, status: res.status, items: Array.isArray(parsed) ? (parsed as Item[]) : [] };
     } catch {
       return { ok: true, status: res.status, items: [] };
     }
