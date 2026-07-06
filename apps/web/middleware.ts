@@ -4,8 +4,11 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   if (
     req.nextUrl.pathname.startsWith("/api/") ||
+    req.nextUrl.pathname.startsWith("/mcp") ||
     req.nextUrl.pathname.startsWith("/spike")
   ) {
+    // /mcp is a bearer-authed proxy to the API (no cookie session); the API
+    // enforces the token, so the cookie-gate redirect must not intercept it.
     return NextResponse.next();
   }
   const hasToken = req.cookies.has("om_token");
