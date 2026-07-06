@@ -49,7 +49,8 @@ export interface paths {
         delete: operations["deleteItem"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** @description Edit an item. Currently supports replacing the full user-tags list (userTags). Tags are canonicalised server-side (trimmed, lowercased, deduped, capped). */
+        patch: operations["patchItem"];
         trace?: never;
     };
     "/assets": {
@@ -240,6 +241,7 @@ export interface components {
             summary?: string;
             leadImageUrl?: string;
             tags?: string[];
+            userTags?: string[];
             palette?: string[];
             /** @enum {string} */
             cardType?: "article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote";
@@ -250,6 +252,11 @@ export interface components {
         };
         ItemDetail: components["schemas"]["Item"] & {
             body: string;
+        };
+        /** @description Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request. */
+        UpdateItemRequest: {
+            /** @description Full replacement user-tags list. An empty array clears all user tags. */
+            userTags?: string[];
         };
         SearchResult: {
             item: components["schemas"]["Item"];
@@ -437,6 +444,46 @@ export interface operations {
         responses: {
             /** @description deleted */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateItemRequest"];
+            };
+        };
+        responses: {
+            /** @description updated item detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemDetail"];
+                };
+            };
+            /** @description bad request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
