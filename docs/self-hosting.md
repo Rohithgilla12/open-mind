@@ -198,4 +198,46 @@ Options page: open the extension's **Settings** (Chrome: right-click the toolbar
 
 For the full manual verification checklist (popup save, context-menu save-selection/save-image, error states), see `apps/extension/README.md` — not duplicated here.
 
+## MCP server
+
+Openmind speaks the [Model Context Protocol](https://modelcontextprotocol.io) at `<instance>/mcp` over Streamable HTTP, so an AI agent (Claude Desktop, Claude Code, or any MCP client) can save into and search your library. It's served by the same API binary — no extra process — and authenticated with the **same `OPENMIND_TOKEN`** you already set, sent as a bearer header. It's covered by the same per-IP rate limit as the rest of the API.
+
+Tools exposed:
+
+- `save_item` — save a URL or a note (returns immediately; enrichment runs async)
+- `search_items` — hybrid full-text + semantic search (optional colour, natural-language parsing)
+- `list_recent` — the most recently saved items
+- `get_item` — full detail of one item, including the archived body
+- `list_lenses` — your saved Lenses (named searches)
+- `run_lens` — run a Lens and return what it currently matches
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http openmind https://openmind.example.com/mcp \
+  --header "Authorization: Bearer $OPENMIND_TOKEN"
+```
+
+**Claude Desktop** (`claude_desktop_config.json`) — via [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which forwards the auth header to a remote HTTP server:
+
+```json
+{
+  "mcpServers": {
+    "openmind": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "https://openmind.example.com/mcp",
+        "--header", "Authorization: Bearer YOUR_TOKEN"
+      ]
+    }
+  }
+}
+```
+
+To sanity-check the endpoint by hand, `apps/api/scripts/mcp-e2e.sh` drives `initialize` → `tools/list` → a few `tools/call`s over raw JSON-RPC:
+
+```bash
+API=https://openmind.example.com OPENMIND_TOKEN=your-token apps/api/scripts/mcp-e2e.sh
+```
+
 > This is the Milestone 0 quickstart. Expanded operational docs (backups, upgrades, reverse proxy, auth) land in Milestone 1.

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -10,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/riverqueue/river"
@@ -19,6 +22,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	appmcp "github.com/rohithgilla12/openmind/api/internal/mcp"
 	"github.com/rohithgilla12/openmind/api/internal/search"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
@@ -58,7 +62,47 @@ func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Pr
 	if token != "" {
 		r.Use(requireBearer(token))
 	}
+	mcpHandler := appmcp.NewHandler(mcpBackend{srv}, func(ctx context.Context) uuid.UUID { return userID(ctx) })
+	r.Handle("/mcp", mcpHandler)
+	r.Handle("/mcp/*", mcpHandler)
 	return HandlerFromMux(srv, r)
+}
+
+// capture persists a saved item (exactly one of url/note) and best-effort
+// enqueues enrichment, returning the stored row. Shared by the REST CreateItem
+// handler and the MCP save_item tool so the two save paths never diverge.
+// Capture is sacred: a failed enrichment enqueue is logged, never returned.
+func (s *Server) capture(ctx context.Context, uid uuid.UUID, url, note string) (db.Item, error) {
+	// url is intentionally left untrimmed: the original CreateItem validated and
+	// stored the raw URL, so a whitespace-padded URL fails validURL and returns
+	// 400 rather than silently succeeding. Callers that want trimming (e.g. the
+	// MCP save_item tool) trim before calling capture.
+	note = strings.TrimSpace(note)
+	if (url == "") == (note == "") {
+		return db.Item{}, fmt.Errorf("provide exactly one of url or note")
+	}
+	params := db.CreateItemParams{UserID: uid}
+	if url != "" {
+		if !validURL(url) {
+			return db.Item{}, fmt.Errorf("url must be a valid http(s) URL")
+		}
+		params.Url = url
+	} else {
+		if utf8.RuneCountInString(note) > maxNoteRunes {
+			return db.Item{}, fmt.Errorf("note too long (max %d chars)", maxNoteRunes)
+		}
+		params.Body = note
+	}
+	item, err := s.store.Queries.CreateItem(ctx, params)
+	if err != nil {
+		return db.Item{}, fmt.Errorf("creating item: %w", err)
+	}
+	// Enrichment is best-effort to enqueue: a failed insert must never fail the
+	// save (capture is sacred). River jobs can be re-queued later.
+	if _, err := s.riverClient.Insert(ctx, jobs.EnrichArgs{UserID: uid, ItemID: item.ID}, nil); err != nil {
+		slog.Error("enqueueing enrichment job", "item_id", item.ID, "err", err)
+	}
+	return item, nil
 }
 
 // CreateItem persists a saved item and queues enrichment, then returns 201.
@@ -69,45 +113,26 @@ func (s *Server) CreateItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	hasURL := req.Url != nil && *req.Url != ""
-	hasNote := req.Note != nil && strings.TrimSpace(*req.Note) != ""
-	if hasURL == hasNote { // both or neither
-		writeError(w, http.StatusBadRequest, "provide exactly one of url or note")
-		return
+	var url, note string
+	if req.Url != nil {
+		url = *req.Url
 	}
-
-	ctx := r.Context()
-	uid := userID(ctx)
-
-	params := db.CreateItemParams{UserID: uid}
-	if hasURL {
-		if !validURL(*req.Url) {
-			writeError(w, http.StatusBadRequest, "url must be a valid http(s) URL")
-			return
-		}
-		params.Url = *req.Url
-	} else {
-		note := strings.TrimSpace(*req.Note)
-		if utf8.RuneCountInString(note) > maxNoteRunes {
-			writeError(w, http.StatusBadRequest, "note too long (max 10000 chars)")
-			return
-		}
-		params.Body = note
+	if req.Note != nil {
+		note = *req.Note
 	}
-
-	item, err := s.store.Queries.CreateItem(ctx, params)
+	item, err := s.capture(r.Context(), userID(r.Context()), url, note)
 	if err != nil {
-		slog.Error("creating item", "err", err)
-		writeError(w, http.StatusInternalServerError, "could not save item")
+		// capture wraps DB insert failures with a "creating item:" prefix; every
+		// other error is a client input problem. Preserve the original REST
+		// status codes: 500 for infra failures, 400 for bad input.
+		if strings.HasPrefix(err.Error(), "creating item") {
+			slog.Error("creating item", "err", err)
+			writeError(w, http.StatusInternalServerError, "could not save item")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	// Enrichment is best-effort to enqueue: a failed insert must never fail the
-	// save (capture is sacred). River jobs can be re-queued later.
-	if _, err := s.riverClient.Insert(ctx, jobs.EnrichArgs{UserID: uid, ItemID: item.ID}, nil); err != nil {
-		slog.Error("enqueueing enrichment job", "item_id", item.ID, "err", err)
-	}
-
 	writeJSON(w, http.StatusCreated, toAPIItem(item))
 }
 

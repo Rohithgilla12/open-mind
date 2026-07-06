@@ -76,7 +76,11 @@ func guarded(method, path string) bool {
 		(method == http.MethodPost && strings.HasPrefix(path, "/drift/")) ||
 		(method == http.MethodGet && path == "/export") ||
 		(method == http.MethodPost && path == "/assets") ||
-		(method == http.MethodPost && path == "/feeds")
+		(method == http.MethodPost && path == "/feeds") ||
+		// The MCP endpoint (any method: POST for JSON-RPC, GET for the SSE
+		// stream) is guarded so that, like the REST API, failed token guesses
+		// are throttled before bearer auth and authed tool calls have a ceiling.
+		strings.HasPrefix(path, "/mcp")
 }
 
 type ipLimiter struct {
