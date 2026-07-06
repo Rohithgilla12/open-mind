@@ -67,6 +67,13 @@ type Lense struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type Link struct {
+	UserID    uuid.UUID
+	AItem     uuid.UUID
+	BItem     uuid.UUID
+	CreatedAt pgtype.Timestamptz
+}
+
 type User struct {
 	ID        uuid.UUID
 	CreatedAt pgtype.Timestamptz
