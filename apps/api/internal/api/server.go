@@ -73,7 +73,10 @@ func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Pr
 // handler and the MCP save_item tool so the two save paths never diverge.
 // Capture is sacred: a failed enrichment enqueue is logged, never returned.
 func (s *Server) capture(ctx context.Context, uid uuid.UUID, url, note string) (db.Item, error) {
-	url = strings.TrimSpace(url)
+	// url is intentionally left untrimmed: the original CreateItem validated and
+	// stored the raw URL, so a whitespace-padded URL fails validURL and returns
+	// 400 rather than silently succeeding. Callers that want trimming (e.g. the
+	// MCP save_item tool) trim before calling capture.
 	note = strings.TrimSpace(note)
 	if (url == "") == (note == "") {
 		return db.Item{}, fmt.Errorf("provide exactly one of url or note")

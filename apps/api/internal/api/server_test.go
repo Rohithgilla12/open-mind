@@ -145,6 +145,23 @@ func TestCreateItemRejectsBadURL(t *testing.T) {
 	}
 }
 
+// TestCreateItemRejectsWhitespacePaddedURL guards against a regression where
+// the capture helper trimmed the URL before validating/storing it: a
+// whitespace-padded URL must still fail validURL and return 400, exactly as
+// the pre-refactor CreateItem did (only the note is trimmed). This never
+// reaches the store, so — like TestMCPMountedAndGuarded — a Server built with
+// a nil store/river/provider/assets is safe here; no Postgres required.
+func TestCreateItemRejectsWhitespacePaddedURL(t *testing.T) {
+	srv := httptest.NewServer(api.NewServer(nil, nil, nil, "", nil, 0, nil))
+	t.Cleanup(srv.Close)
+
+	resp := postJSON(t, srv.URL+"/items", `{"url":"http://x.com "}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
 func TestCreateItemFromNote(t *testing.T) {
 	s, rc, pool := testDeps(t)
 	srv := httptest.NewServer(newSrv(t, s, rc, ""))
