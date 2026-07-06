@@ -1,36 +1,141 @@
-import { Redirect } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Redirect, useFocusEffect } from "expo-router";
+import { openBrowserAsync } from "expo-web-browser";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ItemRow } from "@/components/ItemRow";
+import { listItems, type Item } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
-import { colors, fonts, radius, spacing } from "@/lib/theme";
+import { colors, fonts, spacing } from "@/lib/theme";
+
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "ready"; items: Item[] }
+  | { kind: "unreachable" }
+  | { kind: "rejected" }
+  | { kind: "error" };
 
 export default function LibraryScreen() {
-  const { configured, loading } = useSettingsContext();
+  const { settings, configured, loading } = useSettingsContext();
+  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (isRefresh: boolean) => {
+      if (!settings) return;
+      if (isRefresh) setRefreshing(true);
+      else setState({ kind: "loading" });
+      const res = await listItems(50);
+      if (res.ok) {
+        setState({ kind: "ready", items: res.items });
+      } else if (res.status === 0) {
+        setState({ kind: "unreachable" });
+      } else if (res.status === 401) {
+        setState({ kind: "rejected" });
+      } else {
+        setState({ kind: "error" });
+      }
+      if (isRefresh) setRefreshing(false);
+    },
+    [settings],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (settings) void load(false);
+    }, [settings, load]),
+  );
+
+  const onOpen = useCallback(
+    (item: Item) => {
+      if (!settings) return;
+      void openBrowserAsync(`${settings.instanceUrl}/item/${item.id}`);
+    },
+    [settings],
+  );
 
   // Unconfigured guard: with no token stored, land on Settings.
   if (!loading && !configured) return <Redirect href="/settings" />;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={styles.container}>
+      <View style={styles.header}>
         <Text style={styles.title}>Library</Text>
         <Text style={styles.subtitle}>Your gatherings, organised by the machine</Text>
-
-        {loading ? null : (
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>
-              Your saved items will appear here. (Coming in Task 2.)
-            </Text>
-          </View>
-        )}
       </View>
+      <Body
+        state={state}
+        refreshing={refreshing}
+        onRefresh={() => void load(true)}
+        onOpen={onOpen}
+      />
     </SafeAreaView>
+  );
+}
+
+type BodyProps = {
+  state: LoadState;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onOpen: (item: Item) => void;
+};
+
+function Body({ state, refreshing, onRefresh, onOpen }: BodyProps) {
+  if (state.kind === "loading") {
+    return (
+      <View style={styles.centre}>
+        <ActivityIndicator color={colors.cobalt} />
+      </View>
+    );
+  }
+
+  if (state.kind === "unreachable") {
+    return <Message text="Instance unreachable — check your connection or the URL in Settings." />;
+  }
+  if (state.kind === "rejected") {
+    return <Message text="Token rejected — check Settings." />;
+  }
+  if (state.kind === "error") {
+    return <Message text="Couldn't load your library. Pull to try again." />;
+  }
+
+  return (
+    <FlatList
+      data={state.items}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => <ItemRow item={item} onPress={onOpen} />}
+      contentContainerStyle={styles.list}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.cobalt}
+        />
+      }
+      ListEmptyComponent={<Message text="Nothing saved yet — capture something." />}
+    />
+  );
+}
+
+function Message({ text }: { text: string }) {
+  return (
+    <View style={styles.centre}>
+      <Text style={styles.messageText}>{text}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  container: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+  header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.md },
   title: { fontFamily: fonts.serif, fontSize: 27, fontWeight: "600", color: colors.ink },
   subtitle: {
     fontFamily: fonts.mono,
@@ -38,14 +143,13 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     marginTop: spacing.xs,
   },
-  placeholder: {
-    marginTop: spacing.xl,
-    padding: spacing.lg,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    backgroundColor: colors.cardSurface,
-    gap: spacing.md,
+  list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, flexGrow: 1 },
+  separator: { height: spacing.md },
+  centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  messageText: {
+    fontSize: 14,
+    color: colors.inkMuted,
+    lineHeight: 20,
+    textAlign: "center",
   },
-  placeholderText: { fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
 });
