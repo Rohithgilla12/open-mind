@@ -185,15 +185,22 @@ func buildMessage(cfg SMTPConfig, msg Message) ([]byte, error) {
 	}
 
 	var out bytes.Buffer
-	fmt.Fprintf(&out, "From: %s\r\n", cfg.From)
-	fmt.Fprintf(&out, "To: %s\r\n", msg.To)
-	fmt.Fprintf(&out, "Subject: %s\r\n", msg.Subject)
+	fmt.Fprintf(&out, "From: %s\r\n", headerValue(cfg.From))
+	fmt.Fprintf(&out, "To: %s\r\n", headerValue(msg.To))
+	fmt.Fprintf(&out, "Subject: %s\r\n", headerValue(msg.Subject))
 	fmt.Fprintf(&out, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&out, "Content-Type: multipart/mixed; boundary=%q\r\n", mpw.Boundary())
 	out.WriteString("\r\n")
 	out.Write(bodyBuf.Bytes())
 
 	return out.Bytes(), nil
+}
+
+// headerValue strips CR/LF so caller-supplied text (e.g. a Subject derived
+// from a user-titled item or lens) cannot inject additional MIME headers.
+func headerValue(s string) string {
+	s = strings.ReplaceAll(s, "\r", " ")
+	return strings.ReplaceAll(s, "\n", " ")
 }
 
 func writeAttachmentPart(mpw *multipart.Writer, att *Attachment) error {

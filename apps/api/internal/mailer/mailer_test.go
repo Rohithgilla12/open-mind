@@ -294,3 +294,33 @@ func TestSend_MissingHostReturnsError(t *testing.T) {
 		t.Fatal("expected error dialing unreachable host, got nil")
 	}
 }
+
+func TestSend_SubjectHeaderInjectionIsNeutralised(t *testing.T) {
+	addr, data := fakeSMTP(t)
+	host, port := splitHostPort(t, addr)
+
+	m := New(SMTPConfig{Host: host, Port: port, From: "sender@example.com"})
+
+	msg := Message{
+		To:       "reader@example.com",
+		Subject:  "innocent title\r\nBcc: attacker@example.com",
+		BodyText: "body",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := m.Send(ctx, msg); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	payload := data.String()
+	for _, line := range strings.Split(payload, "\r\n") {
+		if strings.HasPrefix(line, "Bcc:") {
+			t.Fatalf("CRLF in Subject injected a Bcc header line: %s", payload)
+		}
+	}
+	if !strings.Contains(payload, "Subject: innocent title  Bcc: attacker@example.com") {
+		t.Fatalf("Subject was not flattened onto one line: %s", payload)
+	}
+}

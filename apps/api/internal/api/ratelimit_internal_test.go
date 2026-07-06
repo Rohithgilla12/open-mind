@@ -27,6 +27,8 @@ func TestGuardedPredicate(t *testing.T) {
 		{http.MethodPost, "/mcp", true},
 		{http.MethodGet, "/mcp", true},
 		{http.MethodPost, "/mcp/", true},
+		{http.MethodPost, "/items/3f1a2b4c-0000-0000-0000-000000000000/kindle", true},
+		{http.MethodPost, "/lenses/3f1a2b4c-0000-0000-0000-000000000000/kindle", true},
 	}
 	for _, c := range cases {
 		if got := guarded(c.method, c.path); got != c.want {
