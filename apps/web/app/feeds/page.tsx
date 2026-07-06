@@ -45,8 +45,10 @@ function relativeTime(iso?: string): string {
 
 function StatusPill({ status }: { status: string }) {
   const isError = status.startsWith("error");
+  const isPending = !isError && status.trim() === "";
   const label = isError ? status.replace(/^error:?\s*/, "").trim() || "error" : "ok";
-  const tone = isError ? color.danger : color.green;
+  const tone = isError ? color.danger : isPending ? color.inkFaint : color.green;
+  const text = isError ? `error — ${label}` : isPending ? "pending" : "ok";
   return (
     <span
       className="meta"
@@ -64,7 +66,7 @@ function StatusPill({ status }: { status: string }) {
         padding: "3px 9px",
       }}
     >
-      {isError ? `error — ${label}` : "ok"}
+      {text}
     </span>
   );
 }
