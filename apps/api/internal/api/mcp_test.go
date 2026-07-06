@@ -12,7 +12,7 @@ import (
 // initialize is a POST of JSON-RPC and doesn't touch the Backend, so a
 // Server with nil store/river is safe to build here.
 func TestMCPMountedAndGuarded(t *testing.T) {
-	h := NewServer(nil, nil, nil, "secret", nil, 0, nil)
+	h := NewServer(nil, nil, nil, "secret", nil, 0, nil, false)
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))

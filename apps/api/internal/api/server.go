@@ -39,20 +39,23 @@ const (
 // insert-only River client. Capture is sacred: CreateItem returns as soon as
 // the row is persisted; enrichment is queued and runs asynchronously.
 type Server struct {
-	store        *store.Store
-	riverClient  *river.Client[pgx.Tx]
-	provider     ai.Provider
-	assetStore   *assets.FSStore
-	assetMaxByte int64
-	feeds        *feeds.Service
+	store            *store.Store
+	riverClient      *river.Client[pgx.Tx]
+	provider         ai.Provider
+	assetStore       *assets.FSStore
+	assetMaxByte     int64
+	feeds            *feeds.Service
+	kindleConfigured bool
 }
 
 // NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
 // per-IP rate limiting, and generated routing. When token is empty, auth is
 // disabled (single-user self-host) — the caller is warned at startup.
 // assetStore backs the image upload/serve endpoints and maxBytes caps upload size.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service) http.Handler {
-	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc}
+// kindleConfigured mirrors whether Send-to-Kindle's SMTP + destination env
+// vars were set at startup; the kindle handlers 409 when it is false.
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) http.Handler {
+	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc, kindleConfigured: kindleConfigured}
 	r := chi.NewRouter()
 	r.Use(devUser)
 	// Rate limiting runs before bearer auth so failed token guesses consume

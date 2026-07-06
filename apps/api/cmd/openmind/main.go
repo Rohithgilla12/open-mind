@@ -22,12 +22,14 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	"github.com/rohithgilla12/openmind/api/internal/mailer"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 )
 
 const (
 	defaultAssetsDir      = "/data/assets"
 	defaultAssetsMaxBytes = 10 << 20 // 10 MiB
+	defaultSMTPPort       = 587
 )
 
 // riverClient is the concrete River client type used across this process.
@@ -98,31 +100,68 @@ func run(ctx context.Context, args []string) error {
 	// back on the service (River is a settable field) so enqueue works.
 	feedSvc := feeds.NewService(s)
 
+	kindleDeps := kindleDepsFromEnv()
+	if kindleDeps.Configured {
+		slog.Info("send-to-kindle configured", "to", kindleDeps.To)
+	} else {
+		slog.Info("send-to-kindle not configured — set SMTP_HOST, SMTP_FROM and KINDLE_EMAIL to enable")
+	}
+
 	switch cmd {
 	case "serve":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, false)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, false)
 		if err != nil {
 			return err
 		}
 		feedSvc.River = client
-		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc)
+		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
 	case "work":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, true)
 		if err != nil {
 			return err
 		}
 		feedSvc.River = client
 		return work(ctx, client)
 	case "all":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, true)
 		if err != nil {
 			return err
 		}
 		feedSvc.River = client
-		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc)
+		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
+}
+
+// kindleDepsFromEnv reads the Send-to-Kindle SMTP configuration from the
+// environment. Configured is true only when SMTP_HOST, SMTP_FROM, and
+// KINDLE_EMAIL are all set — without all three there's nowhere to send from
+// or to, so the feature stays off. SMTP_PASSWORD is intentionally never
+// logged.
+func kindleDepsFromEnv() jobs.KindleDeps {
+	host := os.Getenv("SMTP_HOST")
+	from := os.Getenv("SMTP_FROM")
+	to := os.Getenv("KINDLE_EMAIL")
+	if host == "" || from == "" || to == "" {
+		return jobs.KindleDeps{}
+	}
+	port := defaultSMTPPort
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			port = n
+		} else {
+			slog.Warn("invalid SMTP_PORT; using default", "value", v)
+		}
+	}
+	cfg := mailer.SMTPConfig{
+		Host:     host,
+		Port:     port,
+		Username: os.Getenv("SMTP_USERNAME"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     from,
+	}
+	return jobs.KindleDeps{Mailer: mailer.New(cfg), To: to, Configured: true}
 }
 
 func port() string {
@@ -146,11 +185,11 @@ func assetMaxBytesFromEnv() int64 {
 
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -187,7 +226,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -196,7 +235,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

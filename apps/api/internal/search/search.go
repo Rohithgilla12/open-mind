@@ -30,6 +30,14 @@ type Result struct {
 // ranks still nudge the total.
 const rrfK = 60
 
+// ruleResultLimit and ruleListCap mirror the API package's defaultListLimit
+// and maxListLimit: the number of ranked results a Lens rule returns and the
+// number of recent items scanned for a types-only rule.
+const (
+	ruleResultLimit = 50
+	ruleListCap     = 200
+)
+
 // Hybrid runs FTS and (when available) vector search for the user's query,
 // fuses the two rankings with RRF (k=60), and returns up to limit results
 // ordered by descending fused score. Every query is scoped to userID.
@@ -146,6 +154,37 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 	results := make([]Result, 0, len(ids))
 	for _, id := range ids {
 		results = append(results, Result{Item: items[id], Score: scores[id]})
+	}
+	return results, nil
+}
+
+// RunLensRule executes a canonical Lens rule (q, colour, and/or card types)
+// and returns up to ruleResultLimit matches. With a text or colour signal it
+// delegates to Run, the same hybrid engine backing /search. A types-only rule
+// has no ranking signal, so it falls back to the caller's most recent items,
+// filtered to the allowed types. Shared by GetLensItems and the
+// send-to-Kindle Lens digest job so both see identical matches.
+func RunLensRule(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, types []string) ([]Result, error) {
+	if q != "" || color != "" {
+		return Run(ctx, s, p, userID, q, color, types, ruleResultLimit)
+	}
+	items, err := s.Queries.ListItems(ctx, db.ListItemsParams{UserID: userID, Limit: ruleListCap})
+	if err != nil {
+		return nil, err
+	}
+	allowed := map[string]bool{}
+	for _, t := range types {
+		allowed[t] = true
+	}
+	results := make([]Result, 0, ruleResultLimit)
+	for _, it := range items {
+		if !allowed[it.CardType] {
+			continue
+		}
+		results = append(results, Result{Item: it})
+		if len(results) >= ruleResultLimit {
+			break
+		}
 	}
 	return results, nil
 }

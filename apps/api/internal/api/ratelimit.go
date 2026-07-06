@@ -77,6 +77,10 @@ func guarded(method, path string) bool {
 		(method == http.MethodGet && path == "/export") ||
 		(method == http.MethodPost && path == "/assets") ||
 		(method == http.MethodPost && path == "/feeds") ||
+		// Kindle sends enqueue an SMTP delivery per call — unthrottled they'd be
+		// an email-amplification vector, so both are guarded like other writes.
+		(method == http.MethodPost && strings.HasPrefix(path, "/items/") && strings.HasSuffix(path, "/kindle")) ||
+		(method == http.MethodPost && strings.HasPrefix(path, "/lenses/") && strings.HasSuffix(path, "/kindle")) ||
 		// The MCP endpoint (any method: POST for JSON-RPC, GET for the SSE
 		// stream) is guarded so that, like the REST API, failed token guesses
 		// are throttled before bearer auth and authed tool calls have a ceiling.

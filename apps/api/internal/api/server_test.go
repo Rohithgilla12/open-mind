@@ -48,7 +48,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 		t.Fatalf("ensure user: %v", err)
 	}
 	p := &enrich.Pipeline{Store: s, AI: ai.NewNoop(), Extractor: enrich.NewTrafilatura(nil)}
-	rc, err := jobs.NewRiverClient(pool, p, nil, false)
+	rc, err := jobs.NewRiverClient(pool, p, nil, jobs.KindleDeps{}, false)
 	if err != nil {
 		t.Fatalf("river client: %v", err)
 	}
@@ -56,8 +56,9 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 }
 
 // newSrv builds a Server handler backed by a throwaway on-disk asset store and
-// the standard 10 MiB upload cap. Tests that need to inspect the asset dir use
-// newSrvWithAssets instead.
+// the standard 10 MiB upload cap, with Send-to-Kindle unconfigured. Tests that
+// need to inspect the asset dir use newSrvWithAssets instead; kindle tests use
+// newSrvWithKindle.
 func newSrv(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string) http.Handler {
 	t.Helper()
 	return newSrvWithProvider(t, s, rc, token, ai.NewNoop())
@@ -67,13 +68,21 @@ func newSrv(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string
 // can exercise natural-language query parsing with a scripted interpretation.
 func newSrvWithProvider(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string, p ai.Provider) http.Handler {
 	t.Helper()
+	return newSrvWithKindle(t, s, rc, token, p, false)
+}
+
+// newSrvWithKindle builds a Server with Send-to-Kindle's configured flag set
+// explicitly, so kindle handler tests can exercise both the 409-unconfigured
+// and happy paths without touching real SMTP.
+func newSrvWithKindle(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], token string, p ai.Provider, kindleConfigured bool) http.Handler {
+	t.Helper()
 	as, err := assets.NewFSStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("asset store: %v", err)
 	}
 	feedSvc := feeds.NewService(s)
 	feedSvc.River = rc
-	return api.NewServer(s, rc, p, token, as, 10<<20, feedSvc)
+	return api.NewServer(s, rc, p, token, as, 10<<20, feedSvc, kindleConfigured)
 }
 
 // parseProvider is a noop provider whose ParseQuery returns a scripted result,
@@ -152,7 +161,7 @@ func TestCreateItemRejectsBadURL(t *testing.T) {
 // reaches the store, so — like TestMCPMountedAndGuarded — a Server built with
 // a nil store/river/provider/assets is safe here; no Postgres required.
 func TestCreateItemRejectsWhitespacePaddedURL(t *testing.T) {
-	srv := httptest.NewServer(api.NewServer(nil, nil, nil, "", nil, 0, nil))
+	srv := httptest.NewServer(api.NewServer(nil, nil, nil, "", nil, 0, nil, false))
 	t.Cleanup(srv.Close)
 
 	resp := postJSON(t, srv.URL+"/items", `{"url":"http://x.com "}`)

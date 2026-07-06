@@ -88,6 +88,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/items/{id}/kindle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send this item to Kindle as an EPUB
+         * @description Builds an EPUB from the item's body and e-mails it to the configured KINDLE_EMAIL address. Queued asynchronously; 409 when Send-to-Kindle is not configured, 422 when the item has no body to send.
+         */
+        post: operations["sendItemToKindle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assets": {
         parameters: {
             query?: never;
@@ -200,6 +220,26 @@ export interface paths {
         get: operations["getLensItems"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lenses/{id}/kindle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send this Lens's current matches to Kindle as a digest EPUB
+         * @description Runs the Lens's saved rule, builds a multi-chapter EPUB digest (one chapter per matching item with a body, capped at 25), and e-mails it to the configured KINDLE_EMAIL address. Queued asynchronously; 409 when Send-to-Kindle is not configured, 422 when no matching items have a body to send.
+         */
+        post: operations["sendLensToKindle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -700,6 +740,51 @@ export interface operations {
             };
         };
     };
+    sendItemToKindle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        queued: boolean;
+                    };
+                };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kindle is not configured */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description item has no body to send */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     createAsset: {
         parameters: {
             query?: never;
@@ -1011,6 +1096,51 @@ export interface operations {
             };
             /** @description not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sendLensToKindle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        queued: boolean;
+                    };
+                };
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kindle is not configured */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no matching items with a body to send */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -128,6 +128,26 @@ paths:
       responses:
         "204": { description: Removed }
         "404": { description: not found }
+  /items/{id}/kindle:
+    post:
+      operationId: sendItemToKindle
+      summary: Send this item to Kindle as an EPUB
+      description: "Builds an EPUB from the item's body and e-mails it to the configured KINDLE_EMAIL address. Queued asynchronously; 409 when Send-to-Kindle is not configured, 422 when the item has no body to send."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued]
+                properties:
+                  queued: { type: boolean }
+        "404": { description: not found }
+        "409": { description: kindle is not configured }
+        "422": { description: item has no body to send }
   /assets:
     post:
       operationId: createAsset
@@ -274,6 +294,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SearchResponse" }
         "404": { description: not found }
+  /lenses/{id}/kindle:
+    post:
+      operationId: sendLensToKindle
+      summary: Send this Lens's current matches to Kindle as a digest EPUB
+      description: "Runs the Lens's saved rule, builds a multi-chapter EPUB digest (one chapter per matching item with a body, capped at 25), and e-mails it to the configured KINDLE_EMAIL address. Queued asynchronously; 409 when Send-to-Kindle is not configured, 422 when no matching items have a body to send."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued]
+                properties:
+                  queued: { type: boolean }
+        "404": { description: not found }
+        "409": { description: kindle is not configured }
+        "422": { description: no matching items with a body to send }
   /feeds:
     get:
       operationId: listFeeds

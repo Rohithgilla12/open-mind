@@ -249,33 +249,11 @@ func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi
 	writeJSON(w, http.StatusOK, out)
 }
 
-// runLensRule executes a canonical rule. With a text or colour signal it uses
-// the hybrid search engine (same as /search). A types-only rule has no query to
-// rank, so it lists recent items filtered to those types.
+// runLensRule executes a canonical rule via the shared search.RunLensRule
+// seam (also used by the send-to-Kindle Lens digest job), so both paths see
+// identical matches.
 func (s *Server) runLensRule(ctx context.Context, uid uuid.UUID, rule normalisedRule) ([]search.Result, error) {
-	if rule.q != "" || rule.color != "" {
-		return search.Run(ctx, s.store, s.provider, uid, rule.q, rule.color, rule.types, defaultListLimit)
-	}
-	// Types-only: no ranking signal, so fall back to recent items of those types.
-	items, err := s.store.Queries.ListItems(ctx, db.ListItemsParams{UserID: uid, Limit: maxListLimit})
-	if err != nil {
-		return nil, err
-	}
-	allowed := map[string]bool{}
-	for _, t := range rule.types {
-		allowed[t] = true
-	}
-	results := make([]search.Result, 0, defaultListLimit)
-	for _, it := range items {
-		if !allowed[it.CardType] {
-			continue
-		}
-		results = append(results, search.Result{Item: it})
-		if len(results) >= defaultListLimit {
-			break
-		}
-	}
-	return results, nil
+	return search.RunLensRule(ctx, s.store, s.provider, uid, rule.q, rule.color, rule.types)
 }
 
 // decodeStoredRule reads a persisted jsonb rule into its canonical form. Stored
