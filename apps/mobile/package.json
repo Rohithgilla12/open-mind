@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "@types/react": "~19.2.4",
     "expo": "^57.0.2",
     "expo-constants": "~57.0.3",
     "expo-linking": "~57.0.1",
@@ -25,8 +24,7 @@
     "react-native": "0.86.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
-    "react-native-web": "^0.21.2",
-    "typescript": "~6.0.3"
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "typescript": "~5.9.2",
