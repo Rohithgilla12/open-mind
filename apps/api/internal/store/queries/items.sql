@@ -27,6 +27,9 @@ WHERE user_id = $1 AND id = $2;
 UPDATE items SET summary = $3, tags = $4, updated_at = now()
 WHERE user_id = $1 AND id = $2;
 
+-- name: SetUserTags :execrows
+UPDATE items SET user_tags = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
+
 -- name: SetItemStatus :exec
 UPDATE items SET status = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 

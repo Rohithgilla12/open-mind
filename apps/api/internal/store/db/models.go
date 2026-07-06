@@ -42,10 +42,11 @@ type Item struct {
 	Tags         []string
 	CardType     string
 	Status       string
-	SearchTsv    interface{}
 	CreatedAt    pgtype.Timestamptz
 	UpdatedAt    pgtype.Timestamptz
 	Palette      []string
+	UserTags     []string
+	SearchTsv    interface{}
 }
 
 type ItemEmbedding struct {
