@@ -157,6 +157,7 @@ func ftsRowToItem(r db.SearchFTSRow) db.Item {
 		UserTags: r.UserTags, Palette: r.Palette,
 		CardType: r.CardType, Status: r.Status, SearchTsv: r.SearchTsv,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		PinnedAt: r.PinnedAt, LastDriftedAt: r.LastDriftedAt,
 	}
 }
 
@@ -167,5 +168,6 @@ func vecRowToItem(r db.SearchVectorRow) db.Item {
 		UserTags: r.UserTags, Palette: r.Palette,
 		CardType: r.CardType, Status: r.Status, SearchTsv: r.SearchTsv,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		PinnedAt: r.PinnedAt, LastDriftedAt: r.LastDriftedAt,
 	}
 }
