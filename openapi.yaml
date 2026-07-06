@@ -79,6 +79,55 @@ paths:
       responses:
         "204": { description: deleted }
         "404": { description: not found }
+  /items/{id}/links:
+    get:
+      operationId: listItemLinks
+      summary: Items linked to this item (both directions)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Linked items, newest link first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Item" }
+        "404": { description: not found }
+    post:
+      operationId: createItemLink
+      summary: Link this item to another (undirected, idempotent)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toId]
+              properties:
+                toId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Updated linked list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Item" }
+        "400": { description: bad request }
+        "404": { description: not found }
+  /items/{id}/links/{toId}:
+    delete:
+      operationId: deleteItemLink
+      summary: Remove a link
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: toId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Removed }
+        "404": { description: not found }
   /assets:
     post:
       operationId: createAsset

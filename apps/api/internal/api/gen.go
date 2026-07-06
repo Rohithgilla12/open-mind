@@ -274,6 +274,11 @@ type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// CreateItemLinkJSONBody defines parameters for CreateItemLink.
+type CreateItemLinkJSONBody struct {
+	ToId openapi_types.UUID `json:"toId"`
+}
+
 // SearchItemsParams defines parameters for SearchItems.
 type SearchItemsParams struct {
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
@@ -302,6 +307,9 @@ type CreateItemJSONRequestBody = CreateItemRequest
 
 // PatchItemJSONRequestBody defines body for PatchItem for application/json ContentType.
 type PatchItemJSONRequestBody = UpdateItemRequest
+
+// CreateItemLinkJSONRequestBody defines body for CreateItemLink for application/json ContentType.
+type CreateItemLinkJSONRequestBody CreateItemLinkJSONBody
 
 // CreateLensJSONRequestBody defines body for CreateLens for application/json ContentType.
 type CreateLensJSONRequestBody = CreateLensRequest
@@ -359,6 +367,15 @@ type ServerInterface interface {
 
 	// (PATCH /items/{id})
 	PatchItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Items linked to this item (both directions)
+	// (GET /items/{id}/links)
+	ListItemLinks(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Link this item to another (undirected, idempotent)
+	// (POST /items/{id}/links)
+	CreateItemLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Remove a link
+	// (DELETE /items/{id}/links/{toId})
+	DeleteItemLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, toId openapi_types.UUID)
 
 	// (GET /lenses)
 	ListLenses(w http.ResponseWriter, r *http.Request)
@@ -463,6 +480,24 @@ func (_ Unimplemented) GetItem(w http.ResponseWriter, r *http.Request, id openap
 
 // (PATCH /items/{id})
 func (_ Unimplemented) PatchItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Items linked to this item (both directions)
+// (GET /items/{id}/links)
+func (_ Unimplemented) ListItemLinks(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Link this item to another (undirected, idempotent)
+// (POST /items/{id}/links)
+func (_ Unimplemented) CreateItemLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove a link
+// (DELETE /items/{id}/links/{toId})
+func (_ Unimplemented) DeleteItemLink(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, toId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -903,6 +938,108 @@ func (siw *ServerInterfaceWrapper) PatchItem(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListItemLinks operation middleware
+func (siw *ServerInterfaceWrapper) ListItemLinks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListItemLinks(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateItemLink operation middleware
+func (siw *ServerInterfaceWrapper) CreateItemLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateItemLink(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteItemLink operation middleware
+func (siw *ServerInterfaceWrapper) DeleteItemLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "toId" -------------
+	var toId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "toId", chi.URLParam(r, "toId"), &toId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "toId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteItemLink(w, r, id, toId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListLenses operation middleware
 func (siw *ServerInterfaceWrapper) ListLenses(w http.ResponseWriter, r *http.Request) {
 
@@ -1276,6 +1413,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/items/{id}", wrapper.PatchItem)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/items/{id}/links", wrapper.ListItemLinks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/items/{id}/links", wrapper.CreateItemLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/items/{id}/links/{toId}", wrapper.DeleteItemLink)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/lenses", wrapper.ListLenses)
