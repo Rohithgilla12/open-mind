@@ -9,11 +9,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at
 `
 
 type CreateItemParams struct {
@@ -41,6 +42,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.Palette,
 		&i.UserTags,
 		&i.SearchTsv,
+		&i.PinnedAt,
 	)
 	return i, err
 }
@@ -72,7 +74,7 @@ func (q *Queries) EnsureUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv FROM items WHERE user_id = $1 AND id = $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 AND id = $2
 `
 
 type GetItemParams struct {
@@ -99,6 +101,7 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 		&i.Palette,
 		&i.UserTags,
 		&i.SearchTsv,
+		&i.PinnedAt,
 	)
 	return i, err
 }
@@ -128,7 +131,7 @@ func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string,
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
 `
 
 type ListItemsParams struct {
@@ -161,6 +164,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 			&i.Palette,
 			&i.UserTags,
 			&i.SearchTsv,
+			&i.PinnedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -173,7 +177,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 }
 
 const listItemsForExport = `-- name: ListItemsForExport :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv FROM items WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -201,6 +205,48 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 			&i.Palette,
 			&i.UserTags,
 			&i.SearchTsv,
+			&i.PinnedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPinned = `-- name: ListPinned :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, search_tsv, pinned_at FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
+`
+
+func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listPinned, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Title,
+			&i.Body,
+			&i.LeadImageUrl,
+			&i.Summary,
+			&i.Tags,
+			&i.CardType,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Palette,
+			&i.UserTags,
+			&i.SearchTsv,
+			&i.PinnedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -225,6 +271,24 @@ type SetItemPaletteParams struct {
 func (q *Queries) SetItemPalette(ctx context.Context, arg SetItemPaletteParams) error {
 	_, err := q.db.Exec(ctx, setItemPalette, arg.UserID, arg.ID, arg.Palette)
 	return err
+}
+
+const setItemPinned = `-- name: SetItemPinned :execrows
+UPDATE items SET pinned_at = $3, updated_at = now() WHERE user_id = $1 AND id = $2
+`
+
+type SetItemPinnedParams struct {
+	UserID   uuid.UUID
+	ID       uuid.UUID
+	PinnedAt pgtype.Timestamptz
+}
+
+func (q *Queries) SetItemPinned(ctx context.Context, arg SetItemPinnedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setItemPinned, arg.UserID, arg.ID, arg.PinnedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setItemStatus = `-- name: SetItemStatus :exec

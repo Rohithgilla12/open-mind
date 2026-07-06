@@ -30,6 +30,12 @@ WHERE user_id = $1 AND id = $2;
 -- name: SetUserTags :execrows
 UPDATE items SET user_tags = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 
+-- name: SetItemPinned :execrows
+UPDATE items SET pinned_at = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
+
+-- name: ListPinned :many
+SELECT * FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC;
+
 -- name: SetItemStatus :exec
 UPDATE items SET status = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 

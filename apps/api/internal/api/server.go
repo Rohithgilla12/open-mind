@@ -323,6 +323,11 @@ func toAPIItem(it db.Item) Item {
 		palette := it.Palette
 		out.Palette = &palette
 	}
+	// pinnedAt is null unless the item is on the Desk.
+	if it.PinnedAt.Valid {
+		pinnedAt := it.PinnedAt.Time
+		out.PinnedAt = &pinnedAt
+	}
 	return out
 }
 
@@ -342,6 +347,7 @@ func toAPIItemDetail(it db.Item) ItemDetail {
 		Tags:         base.Tags,
 		UserTags:     base.UserTags,
 		Palette:      base.Palette,
+		PinnedAt:     base.PinnedAt,
 		Body:         it.Body,
 	}
 	if base.CardType != nil {

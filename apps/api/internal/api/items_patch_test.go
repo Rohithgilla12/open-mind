@@ -100,6 +100,87 @@ func TestPatchItemEmptyArrayClearsTags(t *testing.T) {
 	}
 }
 
+func TestPatchItemPinSetsPinnedAt(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := newHTTPTest(t, s, rc)
+	id := createNoteItem(t, srv.URL, "pin me")
+
+	resp := patchJSON(t, srv.URL+"/items/"+id, `{"pinned":true}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var detail struct {
+		PinnedAt *string `json:"pinnedAt"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.PinnedAt == nil {
+		t.Fatal("pinnedAt = null, want a timestamp")
+	}
+}
+
+func TestPatchItemUnpinClearsPinnedAt(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := newHTTPTest(t, s, rc)
+	id := createNoteItem(t, srv.URL, "unpin me")
+
+	patchJSON(t, srv.URL+"/items/"+id, `{"pinned":true}`).Body.Close()
+
+	resp := patchJSON(t, srv.URL+"/items/"+id, `{"pinned":false}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var detail struct {
+		PinnedAt *string `json:"pinnedAt"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.PinnedAt != nil {
+		t.Errorf("pinnedAt = %v, want null", *detail.PinnedAt)
+	}
+}
+
+func TestPatchItemPinAndUserTagsTogether(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := newHTTPTest(t, s, rc)
+	id := createNoteItem(t, srv.URL, "both")
+
+	resp := patchJSON(t, srv.URL+"/items/"+id, `{"userTags":["keep"],"pinned":true}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var detail struct {
+		UserTags []string `json:"userTags"`
+		PinnedAt *string  `json:"pinnedAt"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.PinnedAt == nil {
+		t.Error("pinnedAt = null, want a timestamp")
+	}
+	if len(detail.UserTags) != 1 || detail.UserTags[0] != "keep" {
+		t.Errorf("userTags = %v, want [keep]", detail.UserTags)
+	}
+}
+
+func TestPatchItemPinCrossTenant(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := newHTTPTest(t, s, rc)
+	otherID := seedOtherUserItem(t, s, "not yours")
+
+	resp := patchJSON(t, srv.URL+"/items/"+otherID, `{"pinned":true}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("cross-tenant status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestPatchItemNotFound(t *testing.T) {
 	s, rc, _ := testDeps(t)
 	srv := newHTTPTest(t, s, rc)

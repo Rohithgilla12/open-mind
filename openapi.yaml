@@ -263,6 +263,18 @@ paths:
       responses:
         "204": { description: deleted }
         "404": { description: not found }
+  /desk:
+    get:
+      operationId: getDesk
+      description: "The caller's Desk: pinned items ordered newest-pinned first."
+      responses:
+        "200":
+          description: pinned items
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Item" }
   /search:
     get:
       operationId: searchItems
@@ -301,6 +313,7 @@ components:
         cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
         status: { type: string, enum: [pending, enriched, failed] }
         createdAt: { type: string, format: date-time }
+        pinnedAt: { type: string, format: date-time, nullable: true, description: "When the item was pinned to the Desk; null if not pinned." }
     ItemDetail:
       allOf:
         - $ref: "#/components/schemas/Item"
@@ -310,9 +323,10 @@ components:
             body: { type: string }
     UpdateItemRequest:
       type: object
-      description: "Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request."
+      description: "Fields to update on an item. Both userTags and pinned are optional; omit both for a no-op edit that is rejected as a bad request."
       properties:
         userTags: { type: array, items: { type: string }, description: "Full replacement user-tags list. An empty array clears all user tags." }
+        pinned: { type: boolean, description: "Pin (true) or unpin (false) the item on the Desk. Pinning sets pinnedAt to now; unpinning clears it." }
     SearchResult:
       type: object
       required: [item, score]

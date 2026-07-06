@@ -26,8 +26,25 @@ export function Grid({ items }: { items: Item[] }) {
         <Link
           key={item.id}
           href={`/item/${item.id}`}
-          style={{ display: "block", color: "inherit", textDecoration: "none" }}
+          style={{ display: "block", position: "relative", color: "inherit", textDecoration: "none" }}
         >
+          {item.pinnedAt ? (
+            <span
+              aria-label="On desk"
+              title="On desk"
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                zIndex: 1,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: tokens.color.gold,
+                boxShadow: `0 0 0 2px ${tokens.color.cardSurface}`,
+              }}
+            />
+          ) : null}
           <ItemCard item={item} />
         </Link>
       ))}

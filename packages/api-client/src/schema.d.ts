@@ -206,6 +206,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/desk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller's Desk: pinned items ordered newest-pinned first. */
+        get: operations["getDesk"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search": {
         parameters: {
             query?: never;
@@ -249,14 +266,21 @@ export interface components {
             status: "pending" | "enriched" | "failed";
             /** Format: date-time */
             createdAt: string;
+            /**
+             * Format: date-time
+             * @description When the item was pinned to the Desk; null if not pinned.
+             */
+            pinnedAt?: string | null;
         };
         ItemDetail: components["schemas"]["Item"] & {
             body: string;
         };
-        /** @description Fields to update on an item. Only userTags is supported for now; omit it for a no-op edit that is rejected as a bad request. */
+        /** @description Fields to update on an item. Both userTags and pinned are optional; omit both for a no-op edit that is rejected as a bad request. */
         UpdateItemRequest: {
             /** @description Full replacement user-tags list. An empty array clears all user tags. */
             userTags?: string[];
+            /** @description Pin (true) or unpin (false) the item on the Desk. Pinning sets pinnedAt to now; unpinning clears it. */
+            pinned?: boolean;
         };
         SearchResult: {
             item: components["schemas"]["Item"];
@@ -905,6 +929,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getDesk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description pinned items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Item"][];
+                };
             };
         };
     };
