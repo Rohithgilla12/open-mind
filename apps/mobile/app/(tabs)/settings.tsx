@@ -20,8 +20,8 @@ type Status =
   | { kind: "checking" }
   | { kind: "valid" }
   | { kind: "invalid" }
-  | { kind: "unreachable" }
-  | { kind: "server_error"; code: number }
+  | { kind: "saved_unconfirmed"; reason: "unreachable" | "server"; code?: number }
+  | { kind: "save_failed" }
   | { kind: "incomplete" };
 
 export default function SettingsScreen() {
@@ -46,17 +46,28 @@ export default function SettingsScreen() {
     }
     setStatus({ kind: "checking" });
     const code = await checkToken({ instanceUrl: url, token: tok });
-    if (code === 200) {
+    // 401 is the only definitive "wrong token" — never persist it.
+    if (code === 401) {
+      setStatus({ kind: "invalid" });
+      return;
+    }
+    // Every other result (200 confirmed; 0 unreachable; 429/5xx busy) still
+    // persists the settings. An indeterminate result means the instance is
+    // momentarily down or rate-limited, not that the token is bad — so we save
+    // it anyway so it survives a relaunch and the user never has to re-enter it
+    // once the instance recovers.
+    try {
       await save({ instanceUrl: url, token: tok });
+    } catch {
+      setStatus({ kind: "save_failed" });
+      return;
+    }
+    if (code === 200) {
       setStatus({ kind: "valid" });
     } else if (code === 0) {
-      setStatus({ kind: "unreachable" });
-    } else if (code === 401) {
-      setStatus({ kind: "invalid" });
+      setStatus({ kind: "saved_unconfirmed", reason: "unreachable" });
     } else {
-      // 429 (rate limited), 502 (backend down), or any other non-200 — the
-      // token may well be fine, so don't claim it's invalid.
-      setStatus({ kind: "server_error", code });
+      setStatus({ kind: "saved_unconfirmed", reason: "server", code });
     }
   }
 
@@ -145,18 +156,18 @@ function StatusMessage({ status }: { status: Status }) {
       return <Text style={[styles.status, { color: colors.cobalt }]}>Token valid — saved.</Text>;
     case "invalid":
       return <Text style={[styles.status, { color: colors.danger }]}>Invalid token (401).</Text>;
-    case "server_error":
+    case "saved_unconfirmed":
       return (
-        <Text style={[styles.status, { color: colors.danger }]}>
-          {status.code === 429
-            ? "Rate limited — try again shortly."
-            : `Instance error (${status.code}) — try again shortly.`}
+        <Text style={[styles.status, { color: colors.gold }]}>
+          {status.reason === "unreachable"
+            ? "Saved — but couldn't reach the instance to confirm. Check the URL; your library will load once it's reachable."
+            : `Saved — but the instance was busy${status.code ? ` (${status.code})` : ""}, so the token isn't confirmed yet. It'll work once the instance recovers.`}
         </Text>
       );
-    case "unreachable":
+    case "save_failed":
       return (
         <Text style={[styles.status, { color: colors.danger }]}>
-          Instance unreachable — check the URL.
+          Couldn't save to secure storage — try again.
         </Text>
       );
     case "incomplete":

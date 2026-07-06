@@ -25,7 +25,13 @@ async function getItem(key: string): Promise<string | null> {
       return null;
     }
   }
-  return SecureStore.getItemAsync(key);
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    // A keychain read failure is treated as "not stored" so callers degrade to
+    // the setup flow rather than wedging on an unresolved read.
+    return null;
+  }
 }
 
 async function setItem(key: string, value: string): Promise<void> {

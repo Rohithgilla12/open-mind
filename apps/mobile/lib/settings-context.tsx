@@ -25,9 +25,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const next = await getSettings();
-    setSettings(next);
-    setLoading(false);
+    try {
+      const next = await getSettings();
+      setSettings(next);
+    } finally {
+      // Always resolve loading so the routing guard can act — otherwise a read
+      // failure would leave the app stuck on the loading state indefinitely.
+      setLoading(false);
+    }
   }, []);
 
   const save = useCallback(async (next: Settings) => {
