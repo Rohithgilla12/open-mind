@@ -76,6 +76,55 @@ export async function saveItem(
 }
 
 /**
+ * Normalise a device-connect code for submission: trim, uppercase, and
+ * reinsert the dash if the user typed it without one (e.g. "abcdefgh" ->
+ * "ABCD-EFGH"). Anything else is passed through unchanged so the server can
+ * reject malformed input itself.
+ */
+export function normalizeDeviceCode(input: string): string {
+  const upper = input.trim().toUpperCase();
+  if (!upper.includes("-") && upper.length === 8) {
+    return `${upper.slice(0, 4)}-${upper.slice(4)}`;
+  }
+  return upper;
+}
+
+/**
+ * Claim a device-connect code via POST {instanceUrl}/api/device-links/claim.
+ * Unauthenticated — the code itself is the credential. On success (201) the
+ * response carries a freshly minted API key, which is a secret and is never
+ * logged. A wrong/expired/used code and a rate limit both come back as plain
+ * HTTP statuses (404 / 429) for the caller to interpret.
+ */
+export async function claimDeviceCode(
+  instanceUrl: string,
+  code: string,
+  deviceName: string,
+): Promise<{ ok: boolean; status: number; key?: string }> {
+  const url = instanceUrl.trim().replace(/\/+$/, "");
+  if (!url) return { ok: false, status: 0 };
+  try {
+    const res = await fetch(`${url}/api/device-links/claim`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: normalizeDeviceCode(code), deviceName }),
+    });
+    let key: string | undefined;
+    if (res.status === 201) {
+      try {
+        const data = (await res.json()) as { key?: string };
+        key = data.key;
+      } catch {
+        key = undefined;
+      }
+    }
+    return { ok: res.status === 201 && !!key, status: res.status, key };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
+/**
  * List items via GET {instanceUrl}/api/items?limit=. Returns an array of items
  * (empty on error).
  */
