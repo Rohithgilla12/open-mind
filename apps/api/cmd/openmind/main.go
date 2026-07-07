@@ -19,6 +19,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/api"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
+	"github.com/rohithgilla12/openmind/api/internal/auth"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
@@ -74,9 +75,9 @@ func run(ctx context.Context, args []string) error {
 	slog.Info("ai provider ready", "provider", provider.Name())
 	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil)}
 
-	token := os.Getenv("OPENMIND_TOKEN")
-	if token == "" {
-		slog.Warn("API is unauthenticated — set OPENMIND_TOKEN before exposing it")
+	authCfg, err := authConfigFromEnv()
+	if err != nil {
+		return err
 	}
 
 	assetsDir := os.Getenv("ASSETS_DIR")
@@ -114,7 +115,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		feedSvc.River = client
-		return serveHTTP(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
+		return serveHTTP(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
 	case "work":
 		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, true)
 		if err != nil {
@@ -128,7 +129,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		feedSvc.River = client
-		return all(ctx, s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
+		return all(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleDeps.Configured)
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -164,6 +165,36 @@ func kindleDepsFromEnv() jobs.KindleDeps {
 	return jobs.KindleDeps{Mailer: mailer.New(cfg), To: to, Configured: true}
 }
 
+// authConfigFromEnv builds the API's AuthConfig from AUTH_MODE, OPENMIND_TOKEN,
+// and CLERK_ISSUER. AUTH_MODE defaults to "token". In clerk mode, CLERK_ISSUER
+// is required — its absence is a startup error rather than a silent
+// fallback, since starting an unauthenticated exchange server by accident
+// would be worse than failing fast. In token mode with no OPENMIND_TOKEN set,
+// the API stays unauthenticated (single-user self-host), with a warning.
+func authConfigFromEnv() (api.AuthConfig, error) {
+	mode := os.Getenv("AUTH_MODE")
+	if mode == "" {
+		mode = api.AuthModeToken
+	}
+
+	switch mode {
+	case api.AuthModeClerk:
+		issuer := os.Getenv("CLERK_ISSUER")
+		if issuer == "" {
+			return api.AuthConfig{}, fmt.Errorf("AUTH_MODE=clerk requires CLERK_ISSUER to be set")
+		}
+		return api.AuthConfig{Mode: api.AuthModeClerk, Verifier: auth.NewJWTVerifier(issuer)}, nil
+	case api.AuthModeToken:
+		token := os.Getenv("OPENMIND_TOKEN")
+		if token == "" {
+			slog.Warn("API is unauthenticated — set OPENMIND_TOKEN before exposing it")
+		}
+		return api.AuthConfig{Mode: api.AuthModeToken, LegacyToken: token}, nil
+	default:
+		return api.AuthConfig{}, fmt.Errorf("unknown AUTH_MODE %q (want %q or %q)", mode, api.AuthModeToken, api.AuthModeClerk)
+	}
+}
+
 func port() string {
 	if p := os.Getenv("PORT"); p != "" {
 		return p
@@ -185,11 +216,11 @@ func assetMaxBytesFromEnv() int64 {
 
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -226,7 +257,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, token string, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -235,7 +266,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, token, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigured)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

@@ -38,7 +38,7 @@ func newSrvWithAssets(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], ma
 	}
 	feedSvc := feeds.NewService(s)
 	feedSvc.River = rc
-	return api.NewServer(s, rc, ai.NewNoop(), "", as, maxBytes, feedSvc, false), dir
+	return api.NewServer(s, rc, ai.NewNoop(), api.AuthConfig{Mode: api.AuthModeToken}, as, maxBytes, feedSvc, false), dir
 }
 
 func pngBytes(t *testing.T) []byte {

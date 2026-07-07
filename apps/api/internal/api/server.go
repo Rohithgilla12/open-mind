@@ -48,23 +48,24 @@ type Server struct {
 	kindleConfigured bool
 }
 
-// NewServer wires the HTTP handler: dev-user middleware, optional bearer auth,
-// per-IP rate limiting, and generated routing. When token is empty, auth is
-// disabled (single-user self-host) — the caller is warned at startup.
-// assetStore backs the image upload/serve endpoints and maxBytes caps upload size.
-// kindleConfigured mirrors whether Send-to-Kindle's SMTP + destination env
-// vars were set at startup; the kindle handlers 409 when it is false.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, token string, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) http.Handler {
+// NewServer wires the HTTP handler: per-IP rate limiting, credential
+// resolution, and generated routing. In token mode with an empty
+// LegacyToken, auth is disabled (single-user self-host) — the caller is
+// warned at startup. assetStore backs the image upload/serve endpoints and
+// maxBytes caps upload size. kindleConfigured mirrors whether
+// Send-to-Kindle's SMTP + destination env vars were set at startup; the
+// kindle handlers 409 when it is false.
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, authCfg AuthConfig, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service, kindleConfigured bool) http.Handler {
 	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc, kindleConfigured: kindleConfigured}
 	r := chi.NewRouter()
-	r.Use(devUser)
-	// Rate limiting runs before bearer auth so failed token guesses consume
+	// Rate limiting runs before credential resolution so failed guesses consume
 	// limiter tokens by construction — brute-force attempts are throttled to
-	// 429 rather than getting unlimited 401 probes.
+	// 429 rather than getting unlimited 401 probes. The device-link claim
+	// endpoint layers its own stricter, dedicated bucket on top since its code
+	// is the only credential on that route.
 	r.Use(rateLimit(rate.Limit(1), 10))
-	if token != "" {
-		r.Use(requireBearer(token))
-	}
+	r.Use(claimRateLimit())
+	r.Use(authenticate(s, authCfg))
 	mcpHandler := appmcp.NewHandler(mcpBackend{srv}, func(ctx context.Context) uuid.UUID { return userID(ctx) })
 	r.Handle("/mcp", mcpHandler)
 	r.Handle("/mcp/*", mcpHandler)
