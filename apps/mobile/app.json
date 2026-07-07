@@ -74,6 +74,12 @@
         }
       }
     },
-    "owner": "gilladude"
+    "owner": "gilladude",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/787dda1f-ef57-4ef9-9a21-c213f656d09d"
+    }
   }
 }
