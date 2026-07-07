@@ -10,6 +10,17 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
+type ApiKey struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	KeyHash    []byte
+	Prefix     string
+	CreatedAt  pgtype.Timestamptz
+	LastUsedAt pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+}
+
 type Asset struct {
 	ID               uuid.UUID
 	UserID           uuid.UUID
@@ -18,6 +29,15 @@ type Asset struct {
 	ByteSize         int64
 	OriginalFilename string
 	CreatedAt        pgtype.Timestamptz
+}
+
+type DeviceLink struct {
+	CodeHash   []byte
+	UserID     uuid.UUID
+	DeviceHint string
+	CreatedAt  pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	ClaimedAt  pgtype.Timestamptz
 }
 
 type Feed struct {
@@ -75,6 +95,8 @@ type Link struct {
 }
 
 type User struct {
-	ID        uuid.UUID
-	CreatedAt pgtype.Timestamptz
+	ID          uuid.UUID
+	CreatedAt   pgtype.Timestamptz
+	ClerkUserID pgtype.Text
+	Email       string
 }
