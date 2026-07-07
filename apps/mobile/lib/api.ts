@@ -5,6 +5,9 @@
 import { getSettings, type Settings } from "./settings";
 
 /** Minimal item shape (subset of the OpenAPI Item schema). */
+/** Item plus the full archived body (detail endpoint). */
+export type ItemDetail = Item & { body?: string; tags?: string[]; userTags?: string[]; palette?: string[] };
+
 export type Item = {
   id: string;
   url: string;
@@ -155,5 +158,34 @@ export async function listItems(
     return { ok: res.ok, status: res.status, items };
   } catch {
     return { ok: false, status: 0, items: [] };
+  }
+}
+
+/**
+ * Fetch one item's full detail (including the archived body) via
+ * GET {instanceUrl}/api/items/{id}.
+ */
+export async function getItem(
+  id: string,
+  override?: Settings,
+): Promise<{ ok: boolean; status: number; item?: ItemDetail }> {
+  const settings = await resolveSettings(override);
+  if (!settings) return { ok: false, status: 0 };
+  try {
+    const res = await fetch(`${settings.instanceUrl}/api/items/${id}`, {
+      method: "GET",
+      headers: authHeaders(settings.token),
+    });
+    let item: ItemDetail | undefined;
+    if (res.ok) {
+      try {
+        item = (await res.json()) as ItemDetail;
+      } catch {
+        item = undefined;
+      }
+    }
+    return { ok: res.ok, status: res.status, item };
+  } catch {
+    return { ok: false, status: 0 };
   }
 }

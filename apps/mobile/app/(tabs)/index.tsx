@@ -1,5 +1,4 @@
-import { Redirect, useFocusEffect } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
+import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +23,7 @@ type LoadState =
   | { kind: "error" };
 
 export default function LibraryScreen() {
+  const router = useRouter();
   const { settings, configured, loading } = useSettingsContext();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
@@ -56,10 +56,9 @@ export default function LibraryScreen() {
 
   const onOpen = useCallback(
     (item: Item) => {
-      if (!settings) return;
-      void openBrowserAsync(`${settings.instanceUrl}/item/${item.id}`);
+      router.push(`/item/${item.id}`);
     },
-    [settings],
+    [router],
   );
 
   // Unconfigured guard: with no token stored, land on Settings.
