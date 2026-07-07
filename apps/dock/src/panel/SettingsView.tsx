@@ -19,6 +19,7 @@ type ConnectStatus =
   | { kind: "checking" }
   | { kind: "connected" }
   | { kind: "code-invalid" }
+  | { kind: "rate-limited" }
   | { kind: "unreachable" }
   | { kind: "incomplete" }
   | { kind: "save-failed" };
@@ -86,7 +87,11 @@ export function SettingsView({
     const result = await claimDeviceCode(url, code, "Mac dock");
     if (!result.ok) {
       setConnectStatus(
-        result.status === 0 ? { kind: "unreachable" } : { kind: "code-invalid" },
+        result.status === 0
+          ? { kind: "unreachable" }
+          : result.status === 429
+            ? { kind: "rate-limited" }
+            : { kind: "code-invalid" },
       );
       return;
     }
@@ -221,6 +226,12 @@ function ConnectStatusMessage({ status }: { status: ConnectStatus }) {
       return <p style={{ ...styles.status, color: tokens.color.cobalt }}>Connected — saved.</p>;
     case "code-invalid":
       return <p style={{ ...styles.status, color: tokens.color.danger }}>Invalid or expired code.</p>;
+    case "rate-limited":
+      return (
+        <p style={{ ...styles.status, color: tokens.color.danger }}>
+          Too many attempts — wait a moment and try again.
+        </p>
+      );
     case "unreachable":
       return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't reach the instance.</p>;
     case "save-failed":

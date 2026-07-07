@@ -19,11 +19,12 @@ const VALIDATION_LABEL: Record<ValidationState, string> = {
   unreachable: "Instance unreachable",
 };
 
-type ConnectState = "idle" | "invalid" | "unreachable";
+type ConnectState = "idle" | "invalid" | "rate-limited" | "unreachable";
 
 const CONNECT_LABEL: Record<ConnectState, string> = {
   idle: "",
   invalid: "Invalid or expired code",
+  "rate-limited": "Too many attempts — wait a moment and try again",
   unreachable: "Instance unreachable",
 };
 
@@ -78,7 +79,9 @@ export function Options() {
     const result = await claimDeviceCode(url, code, "Extension");
     setConnecting(false);
     if (!result.ok || !result.key) {
-      setConnectState(result.status === 0 ? "unreachable" : "invalid");
+      setConnectState(
+        result.status === 0 ? "unreachable" : result.status === 429 ? "rate-limited" : "invalid",
+      );
       return;
     }
     await setSettings({ instanceUrl: url, token: result.key });
