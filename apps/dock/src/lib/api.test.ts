@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkToken, saveItem, searchItems } from "./api";
+import { checkToken, claimDeviceCode, saveItem, searchItems } from "./api";
 import type { Settings } from "./settings";
 
 const settings: Settings = { instanceUrl: "https://openmind.example.com", token: "secret-tok" };
@@ -101,6 +101,44 @@ describe("api client", () => {
     it("treats a non-ok response as empty results", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 401 }));
       expect(await searchItems("x")).toEqual({ ok: false, status: 401, results: [] });
+    });
+  });
+
+  describe("claimDeviceCode", () => {
+    it("posts the normalised code and device name with no auth header", async () => {
+      const body = { key: "omk_abc123", name: "Mac dock" };
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 201 }));
+      const result = await claimDeviceCode("https://openmind.example.com", "abcd efgh", "Mac dock");
+      expect(result).toEqual({ ok: true, status: 201, key: "omk_abc123", name: "Mac dock" });
+      const [url, init] = vi.mocked(fetch).mock.calls[0];
+      expect(url).toBe("https://openmind.example.com/api/device-links/claim");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({ code: "ABCD-EFGH", deviceName: "Mac dock" });
+      expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
+      expect(getSettingsMock).not.toHaveBeenCalled();
+    });
+
+    it("normalises a code that already has a dash and mixed case", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ key: "k", name: "n" }), { status: 201 }));
+      await claimDeviceCode("https://openmind.example.com", "aBcd-eFgH", "Mac dock");
+      const [, init] = vi.mocked(fetch).mock.calls[0];
+      expect(JSON.parse(init?.body as string).code).toBe("ABCD-EFGH");
+    });
+
+    it("returns ok:false on a 404 (unknown, expired, or used code)", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 404 }));
+      expect(await claimDeviceCode("https://openmind.example.com", "ABCD-EFGH", "Mac dock")).toEqual({
+        ok: false,
+        status: 404,
+      });
+    });
+
+    it("maps a network failure to status 0", async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+      expect(await claimDeviceCode("https://openmind.example.com", "ABCD-EFGH", "Mac dock")).toEqual({
+        ok: false,
+        status: 0,
+      });
     });
   });
 });

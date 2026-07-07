@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { checkToken } from "@/lib/api";
+import { checkToken, claimDeviceCode } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
@@ -24,11 +24,19 @@ type Status =
   | { kind: "save_failed" }
   | { kind: "incomplete" };
 
+// Separate from `Status` above (which drives the manual token form and must
+// stay untouched) — this only tracks the connect-with-code attempt itself.
+// On success it hands off to the shared `status`/StatusMessage so a claimed
+// code produces the exact same confirmation as a successful Validate & save.
+type ClaimStatus = { kind: "idle" } | { kind: "claiming" } | { kind: "error"; message: string };
+
 export default function SettingsScreen() {
   const { settings, save, signOut } = useSettingsContext();
   const [instanceUrl, setInstanceUrl] = useState("");
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [code, setCode] = useState("");
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>({ kind: "idle" });
 
   useEffect(() => {
     if (settings) {
@@ -71,6 +79,39 @@ export default function SettingsScreen() {
     }
   }
 
+  async function onConnect() {
+    const url = instanceUrl.trim().replace(/\/+$/, "");
+    const codeInput = code.trim();
+    if (!url || !codeInput) {
+      setClaimStatus({ kind: "error", message: "Enter both an instance URL and a code." });
+      return;
+    }
+    setClaimStatus({ kind: "claiming" });
+    const res = await claimDeviceCode(url, codeInput, "Mobile");
+    if (res.ok && res.key) {
+      try {
+        await save({ instanceUrl: url, token: res.key });
+      } catch {
+        setClaimStatus({ kind: "error", message: "Couldn't save to secure storage — try again." });
+        return;
+      }
+      setCode("");
+      setClaimStatus({ kind: "idle" });
+      // Same confirmation a successful Validate & save would show.
+      setStatus({ kind: "valid" });
+      return;
+    }
+    if (res.status === 404) {
+      setClaimStatus({ kind: "error", message: "Invalid, expired, or already-used code." });
+    } else if (res.status === 429) {
+      setClaimStatus({ kind: "error", message: "Too many attempts — wait a moment and try again." });
+    } else if (res.status === 0) {
+      setClaimStatus({ kind: "error", message: "Couldn't reach that instance — check the URL." });
+    } else {
+      setClaimStatus({ kind: "error", message: "Couldn't connect — try again." });
+    }
+  }
+
   async function onSignOut() {
     await signOut();
     setInstanceUrl("");
@@ -79,6 +120,7 @@ export default function SettingsScreen() {
   }
 
   const checking = status.kind === "checking";
+  const claiming = claimStatus.kind === "claiming";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -104,6 +146,46 @@ export default function SettingsScreen() {
               inputMode="url"
             />
           </View>
+
+          <Text style={styles.sectionHeading}>Connect with code</Text>
+          <Text style={styles.sectionHint}>
+            Scan the QR code on your Openmind web app, or type the code it shows.
+          </Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>DEVICE-CONNECT CODE</Text>
+            <TextInput
+              style={styles.input}
+              value={code}
+              onChangeText={(next) => {
+                setCode(next);
+                if (claimStatus.kind === "error") setClaimStatus({ kind: "idle" });
+              }}
+              placeholder="ABCD-EFGH"
+              placeholderTextColor={colors.inkFaint}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          </View>
+
+          <ClaimStatusMessage status={claimStatus} />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.connectButton,
+              (pressed || claiming) && styles.buttonPressed,
+            ]}
+            onPress={onConnect}
+            disabled={claiming}
+          >
+            {claiming ? (
+              <ActivityIndicator color={colors.cobalt} />
+            ) : (
+              <Text style={styles.connectButtonText}>Connect</Text>
+            )}
+          </Pressable>
+
+          <Text style={styles.divider}>OR CONNECT MANUALLY</Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>API TOKEN</Text>
@@ -181,6 +263,11 @@ function StatusMessage({ status }: { status: Status }) {
   }
 }
 
+function ClaimStatusMessage({ status }: { status: ClaimStatus }) {
+  if (status.kind !== "error") return null;
+  return <Text style={[styles.status, { color: colors.danger }]}>{status.message}</Text>;
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
   flex: { flex: 1 },
@@ -192,6 +279,22 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
+  },
+  sectionHeading: { fontSize: 15, fontWeight: "600", color: colors.ink, marginBottom: spacing.xs },
+  sectionHint: {
+    fontSize: 13,
+    color: colors.inkMuted,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+  },
+  divider: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.inkFaint,
+    textAlign: "center",
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
   field: { marginBottom: spacing.lg },
   label: {
@@ -229,5 +332,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   secondaryButtonText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
+  connectButton: {
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.cobalt,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  connectButtonText: { color: colors.cobalt, fontSize: 15, fontWeight: "600" },
   buttonPressed: { opacity: 0.7 },
 });

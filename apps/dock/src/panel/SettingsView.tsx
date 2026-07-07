@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tokens } from "@openmind/ui";
-import { checkToken } from "../lib/api";
+import { checkToken, claimDeviceCode } from "../lib/api";
 import { setSettings, type Settings } from "../lib/settings";
 
 type Status =
@@ -13,6 +13,16 @@ type Status =
   | { kind: "saved-unconfirmed"; reason: "unreachable" | "server"; code?: number }
   | { kind: "save-failed" }
   | { kind: "incomplete" };
+
+type ConnectStatus =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "connected" }
+  | { kind: "code-invalid" }
+  | { kind: "rate-limited" }
+  | { kind: "unreachable" }
+  | { kind: "incomplete" }
+  | { kind: "save-failed" };
 
 export function SettingsView({
   initial,
@@ -26,8 +36,11 @@ export function SettingsView({
   const [instanceUrl, setInstanceUrl] = useState(initial?.instanceUrl ?? "");
   const [token, setToken] = useState(initial?.token ?? "");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [deviceCode, setDeviceCode] = useState("");
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus>({ kind: "idle" });
 
   const checking = status.kind === "checking";
+  const connecting = connectStatus.kind === "checking";
 
   async function onValidateAndSave() {
     const url = instanceUrl.trim().replace(/\/+$/, "");
@@ -60,6 +73,39 @@ export function SettingsView({
     } else {
       setStatus({ kind: "saved-unconfirmed", reason: "server", code });
     }
+    onSaved(settings);
+  }
+
+  async function onConnect() {
+    const url = instanceUrl.trim().replace(/\/+$/, "");
+    const code = deviceCode.trim();
+    if (!url || !code) {
+      setConnectStatus({ kind: "incomplete" });
+      return;
+    }
+    setConnectStatus({ kind: "checking" });
+    const result = await claimDeviceCode(url, code, "Mac dock");
+    if (!result.ok) {
+      setConnectStatus(
+        result.status === 0
+          ? { kind: "unreachable" }
+          : result.status === 429
+            ? { kind: "rate-limited" }
+            : { kind: "code-invalid" },
+      );
+      return;
+    }
+    const settings: Settings = { instanceUrl: url, token: result.key };
+    try {
+      await setSettings(settings);
+    } catch {
+      setConnectStatus({ kind: "save-failed" });
+      return;
+    }
+    setInstanceUrl(url);
+    setToken(result.key);
+    setDeviceCode("");
+    setConnectStatus({ kind: "connected" });
     onSaved(settings);
   }
 
@@ -119,6 +165,34 @@ export function SettingsView({
       >
         {checking ? "Checking…" : "Validate & save"}
       </button>
+
+      <hr style={styles.divider} />
+
+      <p style={styles.subtitle}>Or connect with a code from another device</p>
+
+      <label style={styles.field}>
+        <span style={styles.label}>Connect code</span>
+        <input
+          style={styles.input}
+          value={deviceCode}
+          onChange={(e) => setDeviceCode(e.target.value)}
+          placeholder="ABCD-EFGH"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+      </label>
+
+      <ConnectStatusMessage status={connectStatus} />
+
+      <button
+        type="button"
+        style={{ ...styles.primaryButton, ...(connecting ? styles.disabled : {}) }}
+        onClick={() => void onConnect()}
+        disabled={connecting}
+      >
+        {connecting ? "Connecting…" : "Connect"}
+      </button>
     </div>
   );
 }
@@ -141,6 +215,29 @@ function StatusMessage({ status }: { status: Status }) {
       return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't save to the keychain — try again.</p>;
     case "incomplete":
       return <p style={{ ...styles.status, color: tokens.color.danger }}>Enter both an instance URL and a token.</p>;
+    default:
+      return null;
+  }
+}
+
+function ConnectStatusMessage({ status }: { status: ConnectStatus }) {
+  switch (status.kind) {
+    case "connected":
+      return <p style={{ ...styles.status, color: tokens.color.cobalt }}>Connected — saved.</p>;
+    case "code-invalid":
+      return <p style={{ ...styles.status, color: tokens.color.danger }}>Invalid or expired code.</p>;
+    case "rate-limited":
+      return (
+        <p style={{ ...styles.status, color: tokens.color.danger }}>
+          Too many attempts — wait a moment and try again.
+        </p>
+      );
+    case "unreachable":
+      return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't reach the instance.</p>;
+    case "save-failed":
+      return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't save to the keychain — try again.</p>;
+    case "incomplete":
+      return <p style={{ ...styles.status, color: tokens.color.danger }}>Enter both an instance URL and a code.</p>;
     default:
       return null;
   }
@@ -206,6 +303,11 @@ const styles: Record<string, CSSProperties> = {
   status: {
     fontSize: 12,
     margin: "4px 0 10px",
+  },
+  divider: {
+    border: "none",
+    borderTop: `1px solid ${tokens.color.hairline}`,
+    margin: "16px 0",
   },
   primaryButton: {
     border: "none",

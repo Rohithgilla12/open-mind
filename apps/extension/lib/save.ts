@@ -125,6 +125,57 @@ export async function recentItems(limit: number): Promise<RecentResult> {
   }
 }
 
+export interface ClaimResult {
+  ok: boolean;
+  status: number;
+  key?: string;
+  name?: string;
+}
+
+/** Trim, uppercase, and reinsert the dash so "abcd efgh" -> "ABCD-EFGH". */
+function normaliseDeviceCode(code: string): string {
+  const cleaned = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (cleaned.length !== 8) return cleaned;
+  return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+}
+
+/**
+ * Redeem a device-connect code for a fresh API key via
+ * POST {instanceUrl}/api/device-links/claim. Unauthenticated — the code
+ * itself is the credential. Network failures surface as status 0. The
+ * returned key is never logged.
+ */
+export async function claimDeviceCode(
+  instanceUrl: string,
+  code: string,
+  deviceName: string,
+): Promise<ClaimResult> {
+  try {
+    const res = await fetch(
+      `${normaliseUrl(instanceUrl)}/api/device-links/claim`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: normaliseDeviceCode(code),
+          deviceName,
+        }),
+      },
+    );
+    if (res.status === 201) {
+      try {
+        const data = (await res.json()) as { key: string; name: string };
+        return { ok: true, status: res.status, key: data.key, name: data.name };
+      } catch {
+        return { ok: false, status: res.status };
+      }
+    }
+    return { ok: false, status: res.status };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
 /**
  * Validate the configured token against the instance. Returns the HTTP status
  * of GET /api/auth/check, or 0 when the instance is unreachable.
