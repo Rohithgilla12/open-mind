@@ -60,6 +60,30 @@ The `web` service reaches the API in-network via `API_URL=http://api:8080` and s
 
 When `OPENMIND_TOKEN` is set, the login page validates the token against the API before accepting it (wrong token → `401`). With no token set, any value is accepted (single-user localhost mode).
 
+### Multi-user mode (Clerk)
+
+**Self-hosting defaults to token mode** (above) — a single shared secret, no third-party dependency. If you want real multi-user accounts (e.g. a small cloud instance you share with friends), switch both services to [Clerk](https://clerk.com):
+
+| Variable | Service | Where it comes from |
+|---|---|---|
+| `AUTH_MODE=clerk` | `api` | set explicitly (default is `token`) |
+| `CLERK_ISSUER` | `api` | Clerk dashboard → **API keys** → **Frontend API URL** (looks like `https://your-app.clerk.accounts.dev`) |
+| `NEXT_PUBLIC_AUTH_MODE=clerk` | `web` | set explicitly (default is `token`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `web` | Clerk dashboard → **API keys** → **Publishable key** |
+| `CLERK_SECRET_KEY` | `web` | Clerk dashboard → **API keys** → **Secret key** — keep this out of git, same as any other secret in this file |
+
+With `AUTH_MODE=clerk`, `/login` renders Clerk's hosted `<SignIn/>` instead of the token form, and the API verifies the Clerk session JWT (via JWKS, matched against `CLERK_ISSUER`) instead of comparing against `OPENMIND_TOKEN`. API keys and device-connect codes (see [API keys & connecting devices](#api-keys--connecting-devices)) work the same in both modes.
+
+**Signup policy** (open / invite-only / allowlist) is a Clerk-dashboard setting, not something this app configures — see Clerk's **User & Authentication** settings.
+
+**Preserving an existing library when you cut over:** if you already have a single-user (token-mode) library and switch that instance to Clerk, your existing items are owned by the auto-provisioned dev user, not your new Clerk identity. Map them with a one-off SQL statement after your first Clerk sign-in (so `users` has a row with your `clerk_user_id`):
+
+```sql
+UPDATE users SET clerk_user_id = 'user_…' WHERE clerk_user_id IS NULL AND id = '<dev user id>';
+```
+
+Find `<dev user id>` and confirm `user_…` (your Clerk user ID, from the Clerk dashboard's **Users** list or your session's `sub` claim) before running this — it's a manual, one-time step, not an automated migration.
+
 ### Exposing to a network
 
 Both `api` and `web` bind to `127.0.0.1` only by default. **Map your public domain / reverse proxy to the `web` service (port 3000) only** — the browser never talks to the API directly, and the API does not need to be publicly reachable. Terminate TLS at your proxy (the login cookie is flagged `Secure` in production, so the UI must be served over HTTPS). Always set a strong `OPENMIND_TOKEN` before exposing anything.
@@ -248,7 +272,9 @@ Instead of sharing your `OPENMIND_TOKEN` across every device, mint **per-device 
 - `GET /api-keys` lists keys (name, prefix, last used); `DELETE /api-keys/{id}` revokes immediately.
 - **Connect a device without copy-pasting secrets:** `POST /device-links` (authenticated) returns a short single-use code (`ABCD-EFGH`, 10-minute expiry). The new device calls `POST /device-links/claim {"code","deviceName"}` — no auth needed, the code is the credential — and receives its own freshly-minted key. Wrong/expired/used codes all return an identical 404, and the claim endpoint is strictly rate-limited (5/min per IP).
 
-Multi-user login (`AUTH_MODE=clerk`) ships with the web slice — self-hosted single-user token mode remains the default and is unaffected.
+The web UI's **Settings → Devices & keys** page (`/settings/devices`) wraps all of the above: list/revoke keys, and a "connect a device" flow that renders the short code plus a QR code for scanning from your phone.
+
+See [Multi-user mode (Clerk)](#multi-user-mode-clerk) above for real multi-user accounts — self-hosted single-user token mode remains the default and is unaffected either way.
 
 > This is the Milestone 0 quickstart. Expanded operational docs (backups, upgrades, reverse proxy, auth) land in Milestone 1.
 
