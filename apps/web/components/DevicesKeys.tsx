@@ -46,14 +46,18 @@ function formatDate(iso?: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (id: string) => void }) {
+function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (id: string) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const revoked = Boolean(apiKey.revokedAt);
 
   async function handleRevoke() {
     if (!window.confirm(`Revoke “${apiKey.name}”? Anything using this key will stop working.`)) return;
     setBusy(true);
-    onRevoke(apiKey.id);
+    try {
+      await onRevoke(apiKey.id);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
