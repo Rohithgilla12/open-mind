@@ -8,6 +8,13 @@ COPY packages/ui/package.json packages/ui/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
+# NEXT_PUBLIC_* values are inlined into the client bundle at build time, so
+# multi-user (Clerk) mode must be selected when the image is built. Empty
+# defaults keep the default single-user token mode.
+ARG NEXT_PUBLIC_AUTH_MODE=
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+ENV NEXT_PUBLIC_AUTH_MODE=$NEXT_PUBLIC_AUTH_MODE
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 COPY openapi.yaml ./
 COPY packages ./packages
 COPY apps/web ./apps/web
