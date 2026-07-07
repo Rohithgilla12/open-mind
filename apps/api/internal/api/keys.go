@@ -200,9 +200,6 @@ func (s *Server) ClaimDeviceLink(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, DeviceLinkClaimed{Key: full, Name: deviceName})
 }
 
-// hashDeviceCode hashes a normalized (uppercase, undashed) device-link code
-// exactly as auth.GenerateCode hashes it at mint time, so a claim's hash
-// lookup matches the stored code_hash.
 // validateName trims raw and enforces the 1..80 rune bound shared by API key
 // names and claimed-device names, writing a 400 and returning ok=false on
 // violation.

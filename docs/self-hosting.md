@@ -240,6 +240,16 @@ To sanity-check the endpoint by hand, `apps/api/scripts/mcp-e2e.sh` drives `init
 API=https://openmind.example.com OPENMIND_TOKEN=your-token apps/api/scripts/mcp-e2e.sh
 ```
 
+## API keys & connecting devices
+
+Instead of sharing your `OPENMIND_TOKEN` across every device, mint **per-device API keys** (`omk_…`, shown once, revocable):
+
+- `POST /api-keys {"name":"laptop"}` → `{key: "omk_…"}` — use it as the Bearer token anywhere a token works today (extension, mobile, dock, MCP, curl).
+- `GET /api-keys` lists keys (name, prefix, last used); `DELETE /api-keys/{id}` revokes immediately.
+- **Connect a device without copy-pasting secrets:** `POST /device-links` (authenticated) returns a short single-use code (`ABCD-EFGH`, 10-minute expiry). The new device calls `POST /device-links/claim {"code","deviceName"}` — no auth needed, the code is the credential — and receives its own freshly-minted key. Wrong/expired/used codes all return an identical 404, and the claim endpoint is strictly rate-limited (5/min per IP).
+
+Multi-user login (`AUTH_MODE=clerk`) ships with the web slice — self-hosted single-user token mode remains the default and is unaffected.
+
 > This is the Milestone 0 quickstart. Expanded operational docs (backups, upgrades, reverse proxy, auth) land in Milestone 1.
 
 ## Send to Kindle
