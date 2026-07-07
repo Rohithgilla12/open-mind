@@ -50,32 +50,6 @@
     "extra": {
       "router": {},
       "eas": {
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "ShareExtension",
-                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.fun.gilla.openmind"
-                    ]
-                  }
-                },
-                {
-                  "targetName": "ShareExtension",
-                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.fun.gilla.openmind"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        },
         "projectId": "787dda1f-ef57-4ef9-9a21-c213f656d09d"
       }
     },
