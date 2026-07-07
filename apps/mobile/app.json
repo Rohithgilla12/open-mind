@@ -9,7 +9,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "fun.gilla.openmind"
+      "bundleIdentifier": "fun.gilla.openmind",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "fun.gilla.openmind",
@@ -34,7 +37,8 @@
           },
           "androidIntentFilters": [
             "text/*"
-          ]
+          ],
+          "disableExperimental": true
         }
       ]
     ],
@@ -50,7 +54,24 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "787dda1f-ef57-4ef9-9a21-c213f656d09d"
+        "projectId": "787dda1f-ef57-4ef9-9a21-c213f656d09d",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fun.gilla.openmind"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "gilladude"
