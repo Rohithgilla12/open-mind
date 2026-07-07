@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { tokens } from "@openmind/ui";
 import { getSettings, setSettings } from "../../lib/storage";
-import { checkToken } from "../../lib/save";
+import { checkToken, claimDeviceCode } from "../../lib/save";
 
 type ValidationState =
   | "idle"
@@ -19,12 +19,23 @@ const VALIDATION_LABEL: Record<ValidationState, string> = {
   unreachable: "Instance unreachable",
 };
 
+type ConnectState = "idle" | "invalid" | "unreachable";
+
+const CONNECT_LABEL: Record<ConnectState, string> = {
+  idle: "",
+  invalid: "Invalid or expired code",
+  unreachable: "Instance unreachable",
+};
+
 export function Options() {
   const [instanceUrl, setInstanceUrl] = useState("");
   const [token, setToken] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [validation, setValidation] = useState<ValidationState>("idle");
+  const [deviceCode, setDeviceCode] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [connectState, setConnectState] = useState<ConnectState>("idle");
 
   useEffect(() => {
     void getSettings().then((s) => {
@@ -53,6 +64,30 @@ export function Options() {
       // 0 (network failure) or 502+ server errors.
       setValidation("unreachable");
     }
+  }
+
+  async function handleConnect() {
+    const url = instanceUrl.trim();
+    const code = deviceCode.trim();
+    if (!url || !code) {
+      setConnectState("invalid");
+      return;
+    }
+    setConnecting(true);
+    setConnectState("idle");
+    const result = await claimDeviceCode(url, code, "Extension");
+    setConnecting(false);
+    if (!result.ok || !result.key) {
+      setConnectState(result.status === 0 ? "unreachable" : "invalid");
+      return;
+    }
+    await setSettings({ instanceUrl: url, token: result.key });
+    setInstanceUrl(url);
+    setToken(result.key);
+    setDeviceCode("");
+    setValidation("idle");
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2000);
   }
 
   const validationColor =
@@ -124,6 +159,50 @@ export function Options() {
         {validation !== "idle" && (
           <p style={{ ...styles.validation, color: validationColor }}>
             {VALIDATION_LABEL[validation]}
+          </p>
+        )}
+
+        <hr style={styles.divider} />
+
+        <h2 style={styles.sectionHeading}>Connect with a code</h2>
+        <p style={styles.subtitle}>
+          Generate a code on a signed-in device, then enter it here.
+        </p>
+
+        <label style={styles.label}>
+          Connect code
+          <input
+            style={styles.input}
+            type="text"
+            value={deviceCode}
+            placeholder="ABCD-EFGH"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            onChange={(e) => {
+              setDeviceCode(e.target.value);
+              setConnectState("idle");
+            }}
+          />
+        </label>
+
+        <div style={styles.actions}>
+          <button
+            type="button"
+            style={{
+              ...styles.primaryButton,
+              ...(connecting ? styles.disabled : {}),
+            }}
+            onClick={() => void handleConnect()}
+            disabled={connecting}
+          >
+            {connecting ? "Connecting…" : "Connect"}
+          </button>
+        </div>
+
+        {connectState !== "idle" && (
+          <p style={{ ...styles.validation, color: tokens.color.danger }}>
+            {CONNECT_LABEL[connectState]}
           </p>
         )}
       </main>
@@ -215,5 +294,19 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 16,
     fontSize: 13,
     fontWeight: 500,
+  },
+  divider: {
+    border: "none",
+    borderTop: `1px solid ${tokens.color.line}`,
+    margin: "28px 0 20px",
+  },
+  sectionHeading: {
+    margin: "0 0 4px",
+    fontSize: 16,
+    fontWeight: 600,
+  },
+  disabled: {
+    opacity: 0.6,
+    cursor: "default",
   },
 };

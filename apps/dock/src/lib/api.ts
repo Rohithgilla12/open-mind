@@ -85,6 +85,48 @@ export async function saveItem(
   }
 }
 
+/** Trim, uppercase, and reinsert the dash so "abcd efgh" -> "ABCD-EFGH". */
+function normaliseDeviceCode(code: string): string {
+  const cleaned = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (cleaned.length !== 8) return cleaned;
+  return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+}
+
+export type ClaimDeviceCodeResult =
+  | { ok: true; status: number; key: string; name: string }
+  | { ok: false; status: number };
+
+/**
+ * Redeem a device-connect code for a fresh API key via
+ * POST {instanceUrl}/api/device-links/claim. Unauthenticated — the code
+ * itself is the credential, so no Bearer header is sent. Network failures
+ * surface as status 0. The returned key is never logged.
+ */
+export async function claimDeviceCode(
+  instanceUrl: string,
+  code: string,
+  deviceName: string,
+): Promise<ClaimDeviceCodeResult> {
+  try {
+    const res = await fetch(apiUrl(instanceUrl, "/api/device-links/claim"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: normaliseDeviceCode(code), deviceName }),
+    });
+    if (res.status === 201) {
+      try {
+        const data = (await res.json()) as { key: string; name: string };
+        return { ok: true, status: res.status, key: data.key, name: data.name };
+      } catch {
+        return { ok: false, status: res.status };
+      }
+    }
+    return { ok: false, status: res.status };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
 /**
  * Search via GET {instanceUrl}/api/search?q=<q>&parse=true. Returns ranked
  * results and, when the query parser rewrote the input, an `understood`
