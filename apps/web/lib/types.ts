@@ -29,3 +29,12 @@ export type Feed =
 
 export type DriftResponse =
   paths["/drift"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export type ApiKey =
+  paths["/api-keys"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+export type ApiKeyCreated =
+  paths["/api-keys"]["post"]["responses"]["201"]["content"]["application/json"];
+
+export type DeviceLinkCreated =
+  paths["/device-links"]["post"]["responses"]["201"]["content"]["application/json"];

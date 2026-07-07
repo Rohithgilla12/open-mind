@@ -92,6 +92,20 @@ export function Topbar({ count, q }: { count: number; q?: string }) {
           Import
         </Link>
 
+        <Link
+          href="/settings/devices"
+          style={{
+            flex: "none",
+            fontFamily: font.mono,
+            fontSize: 11,
+            letterSpacing: ".04em",
+            color: color.cobalt,
+            textDecoration: "none",
+          }}
+        >
+          Devices
+        </Link>
+
         <a
           href="/api/export"
           style={{
