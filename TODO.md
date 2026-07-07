@@ -20,8 +20,8 @@
 
 ## Milestone 1 — "Save & find" (deferred tail)
 
-- [ ] Decide: name + domain check (user decision)
-- [ ] Real auth (multi-user) — replaces OPENMIND_TOKEN single-user mode. **Deferred to laptop session (2026-07-04)**; schema is already multi-tenant, so this is login/accounts work, not a data-model change.
+- [x] Decide: name — **Openmind confirmed by user 2026-07-07** (do a trademark/collision sweep before OSS launch: existing "OpenMind" projects exist in the AI space)
+- [ ] Real auth (multi-user) — **IN PROGRESS 2026-07-07**: spec at `docs/superpowers/specs/20260707-auth-design.md` (Clerk web-only + per-user API keys + QR/short-code device connect; self-host token mode unchanged). Three plans: auth-api → auth-web → auth-clients.
 
 ## Done
 
