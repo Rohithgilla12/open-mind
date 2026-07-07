@@ -59,7 +59,7 @@ func newFeedSrv(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], feedClie
 		fs.HTTPClient = feedClient
 	}
 	fs.River = rc
-	return api.NewServer(s, rc, ai.NewNoop(), "", as, 10<<20, fs, false)
+	return api.NewServer(s, rc, ai.NewNoop(), api.AuthConfig{Mode: api.AuthModeToken}, as, 10<<20, fs, false)
 }
 
 func TestCreateFeedBackfillsAndReturns201(t *testing.T) {

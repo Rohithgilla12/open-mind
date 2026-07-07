@@ -21,7 +21,7 @@
 ## Milestone 1 — "Save & find" (deferred tail)
 
 - [x] Decide: name — **Openmind confirmed by user 2026-07-07** (do a trademark/collision sweep before OSS launch: existing "OpenMind" projects exist in the AI space)
-- [ ] Real auth (multi-user) — **IN PROGRESS 2026-07-07**: spec at `docs/superpowers/specs/20260707-auth-design.md` (Clerk web-only + per-user API keys + QR/short-code device connect; self-host token mode unchanged). Three plans: auth-api → auth-web → auth-clients.
+- [ ] Real auth (multi-user) — **slice 1/3 (auth-api) DONE 2026-07-07**, spec `docs/superpowers/specs/20260707-auth-design.md`: migration 0011 (clerk_user_id/api_keys/device_links), `internal/auth` (omk_ keys, connect codes, Clerk JWT + coalescing JWKS cache), credential middleware (key → JWT → legacy), `/api-keys` + `/device-links` (+public claim, strict 5/min bucket), 36+ new tests, adversarial security review GO, dark-ship compose e2e green (legacy behaviour byte-identical; key mint→use→revoke; code mint→claim→reclaim-404). Next: slice 2 auth-web (Clerk UI + Devices&Keys page + QR), slice 3 auth-clients.
 
 ## Done
 

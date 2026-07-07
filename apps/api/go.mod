@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-shiori/go-readability v0.0.0-20241012063810-92284fa8a71f
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/markusmobius/go-trafilatura v1.12.2

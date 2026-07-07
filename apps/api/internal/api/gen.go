@@ -84,6 +84,49 @@ const (
 	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
 )
 
+// ApiKey defines model for ApiKey.
+type ApiKey struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// LastUsedAt Absent until the key has authenticated a request.
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	Name       string     `json:"name"`
+
+	// Prefix Non-secret display prefix (e.g. omk_AbCd1234).
+	Prefix string `json:"prefix"`
+
+	// RevokedAt Absent unless the key has been revoked.
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+}
+
+// ApiKeyCreated defines model for ApiKeyCreated.
+type ApiKeyCreated struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Key The full API key — shown exactly once.
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Prefix string `json:"prefix"`
+}
+
+// ClaimDeviceLinkRequest defines model for ClaimDeviceLinkRequest.
+type ClaimDeviceLinkRequest struct {
+	Code       string `json:"code"`
+	DeviceName string `json:"deviceName"`
+}
+
+// CreateApiKeyRequest defines model for CreateApiKeyRequest.
+type CreateApiKeyRequest struct {
+	Name string `json:"name"`
+}
+
+// CreateDeviceLinkRequest defines model for CreateDeviceLinkRequest.
+type CreateDeviceLinkRequest struct {
+	DeviceHint *string `json:"deviceHint,omitempty"`
+}
+
 // CreateFeedRequest defines model for CreateFeedRequest.
 type CreateFeedRequest struct {
 	Url string `json:"url"`
@@ -101,6 +144,20 @@ type CreateLensRequest struct {
 
 	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
 	Rule LensRule `json:"rule"`
+}
+
+// DeviceLinkClaimed defines model for DeviceLinkClaimed.
+type DeviceLinkClaimed struct {
+	// Key The full API key — shown exactly once.
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+// DeviceLinkCreated defines model for DeviceLinkCreated.
+type DeviceLinkCreated struct {
+	// Code 8-character code formatted as ABCD-EFGH.
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // DriftActionRequest defines model for DriftActionRequest.
@@ -290,8 +347,17 @@ type SearchItemsParams struct {
 	Parse *bool `form:"parse,omitempty" json:"parse,omitempty"`
 }
 
+// CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
+type CreateApiKeyJSONRequestBody = CreateApiKeyRequest
+
 // CreateAssetMultipartRequestBody defines body for CreateAsset for multipart/form-data ContentType.
 type CreateAssetMultipartRequestBody CreateAssetMultipartBody
+
+// CreateDeviceLinkJSONRequestBody defines body for CreateDeviceLink for application/json ContentType.
+type CreateDeviceLinkJSONRequestBody = CreateDeviceLinkRequest
+
+// ClaimDeviceLinkJSONRequestBody defines body for ClaimDeviceLink for application/json ContentType.
+type ClaimDeviceLinkJSONRequestBody = ClaimDeviceLinkRequest
 
 // DriftItemJSONRequestBody defines body for DriftItem for application/json ContentType.
 type DriftItemJSONRequestBody = DriftActionRequest
@@ -320,6 +386,15 @@ type UpdateLensJSONRequestBody = CreateLensRequest
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /api-keys)
+	ListApiKeys(w http.ResponseWriter, r *http.Request)
+
+	// (POST /api-keys)
+	CreateApiKey(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /api-keys/{id})
+	RevokeApiKey(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
 	// (POST /assets)
 	CreateAsset(w http.ResponseWriter, r *http.Request)
 
@@ -328,6 +403,12 @@ type ServerInterface interface {
 
 	// (GET /desk)
 	GetDesk(w http.ResponseWriter, r *http.Request)
+
+	// (POST /device-links)
+	CreateDeviceLink(w http.ResponseWriter, r *http.Request)
+
+	// (POST /device-links/claim)
+	ClaimDeviceLink(w http.ResponseWriter, r *http.Request)
 
 	// (GET /drift)
 	GetDrift(w http.ResponseWriter, r *http.Request)
@@ -409,6 +490,21 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
+// (GET /api-keys)
+func (_ Unimplemented) ListApiKeys(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /api-keys)
+func (_ Unimplemented) CreateApiKey(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /api-keys/{id})
+func (_ Unimplemented) RevokeApiKey(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (POST /assets)
 func (_ Unimplemented) CreateAsset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -421,6 +517,16 @@ func (_ Unimplemented) GetAsset(w http.ResponseWriter, r *http.Request, id opena
 
 // (GET /desk)
 func (_ Unimplemented) GetDesk(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /device-links)
+func (_ Unimplemented) CreateDeviceLink(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /device-links/claim)
+func (_ Unimplemented) ClaimDeviceLink(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -563,6 +669,77 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// ListApiKeys operation middleware
+func (siw *ServerInterfaceWrapper) ListApiKeys(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListApiKeys(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateApiKey operation middleware
+func (siw *ServerInterfaceWrapper) CreateApiKey(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateApiKey(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeApiKey operation middleware
+func (siw *ServerInterfaceWrapper) RevokeApiKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeApiKey(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateAsset operation middleware
 func (siw *ServerInterfaceWrapper) CreateAsset(w http.ResponseWriter, r *http.Request) {
 
@@ -625,6 +802,40 @@ func (siw *ServerInterfaceWrapper) GetDesk(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDesk(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDeviceLink operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeviceLink(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDeviceLink(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimDeviceLink operation middleware
+func (siw *ServerInterfaceWrapper) ClaimDeviceLink(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimDeviceLink(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1447,6 +1658,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api-keys", wrapper.ListApiKeys)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api-keys", wrapper.CreateApiKey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api-keys/{id}", wrapper.RevokeApiKey)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/assets", wrapper.CreateAsset)
 	})
 	r.Group(func(r chi.Router) {
@@ -1454,6 +1674,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/desk", wrapper.GetDesk)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/device-links", wrapper.CreateDeviceLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/device-links/claim", wrapper.ClaimDeviceLink)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/drift", wrapper.GetDrift)

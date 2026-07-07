@@ -349,6 +349,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List the caller's API keys, newest first. Full key values are never returned after creation. */
+        get: operations["listApiKeys"];
+        put?: never;
+        /** @description Create a new API key. The full key is returned exactly once — store it now. */
+        post: operations["createApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api-keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["revokeApiKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Mint a short-lived device-link code (10 minute TTL) that a second device can redeem via POST /device-links/claim to obtain its own API key. */
+        post: operations["createDeviceLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device-links/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Redeem a device-link code for a fresh API key. The code itself is the credential — this endpoint bypasses bearer auth but is rate-limited per IP. Unknown, expired, or already-claimed codes return an identical 404 to avoid leaking which case applied. */
+        post: operations["claimDeviceLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -457,6 +525,56 @@ export interface components {
         CreateFeedRequest: {
             /** Format: uri */
             url: string;
+        };
+        ApiKey: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Non-secret display prefix (e.g. omk_AbCd1234). */
+            prefix: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Absent until the key has authenticated a request.
+             */
+            lastUsedAt?: string;
+            /**
+             * Format: date-time
+             * @description Absent unless the key has been revoked.
+             */
+            revokedAt?: string;
+        };
+        ApiKeyCreated: {
+            /** @description The full API key — shown exactly once. */
+            key: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            prefix: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateApiKeyRequest: {
+            name: string;
+        };
+        CreateDeviceLinkRequest: {
+            deviceHint?: string;
+        };
+        DeviceLinkCreated: {
+            /** @description 8-character code formatted as ABCD-EFGH. */
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        ClaimDeviceLinkRequest: {
+            code: string;
+            deviceName: string;
+        };
+        DeviceLinkClaimed: {
+            /** @description The full API key — shown exactly once. */
+            key: string;
+            name: string;
         };
         /** @description Summary of a bulk import. */
         ImportResult: {
@@ -1337,6 +1455,139 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SearchResponse"];
                 };
+            };
+        };
+    };
+    listApiKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description api keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"][];
+                };
+            };
+        };
+    };
+    createApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description created api key */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyCreated"];
+                };
+            };
+            /** @description bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revokeApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createDeviceLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateDeviceLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description device link code */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceLinkCreated"];
+                };
+            };
+        };
+    };
+    claimDeviceLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimDeviceLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description minted api key */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceLinkClaimed"];
+                };
+            };
+            /** @description unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

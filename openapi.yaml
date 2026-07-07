@@ -409,6 +409,72 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SearchResponse" }
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      description: "List the caller's API keys, newest first. Full key values are never returned after creation."
+      responses:
+        "200":
+          description: api keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ApiKey" }
+    post:
+      operationId: createApiKey
+      description: "Create a new API key. The full key is returned exactly once — store it now."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApiKeyRequest" }
+      responses:
+        "201":
+          description: created api key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyCreated" }
+        "400": { description: bad request }
+  /api-keys/{id}:
+    delete:
+      operationId: revokeApiKey
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: revoked }
+        "404": { description: not found }
+  /device-links:
+    post:
+      operationId: createDeviceLink
+      description: "Mint a short-lived device-link code (10 minute TTL) that a second device can redeem via POST /device-links/claim to obtain its own API key."
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDeviceLinkRequest" }
+      responses:
+        "201":
+          description: device link code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceLinkCreated" }
+  /device-links/claim:
+    post:
+      operationId: claimDeviceLink
+      security: []
+      description: "Redeem a device-link code for a fresh API key. The code itself is the credential — this endpoint bypasses bearer auth but is rate-limited per IP. Unknown, expired, or already-claimed codes return an identical 404 to avoid leaking which case applied."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClaimDeviceLinkRequest" }
+      responses:
+        "201":
+          description: minted api key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceLinkClaimed" }
+        "404": { description: unknown, expired, or already-claimed code }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -526,6 +592,52 @@ components:
       required: [url]
       properties:
         url: { type: string, format: uri }
+    ApiKey:
+      type: object
+      required: [id, name, prefix, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string, description: "Non-secret display prefix (e.g. omk_AbCd1234)." }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time, description: "Absent until the key has authenticated a request." }
+        revokedAt: { type: string, format: date-time, description: "Absent unless the key has been revoked." }
+    ApiKeyCreated:
+      type: object
+      required: [key, id, name, prefix, createdAt]
+      properties:
+        key: { type: string, description: "The full API key — shown exactly once." }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string }
+        createdAt: { type: string, format: date-time }
+    CreateApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+    CreateDeviceLinkRequest:
+      type: object
+      properties:
+        deviceHint: { type: string, maxLength: 80 }
+    DeviceLinkCreated:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, description: "8-character code formatted as ABCD-EFGH." }
+        expiresAt: { type: string, format: date-time }
+    ClaimDeviceLinkRequest:
+      type: object
+      required: [code, deviceName]
+      properties:
+        code: { type: string }
+        deviceName: { type: string, minLength: 1, maxLength: 80 }
+    DeviceLinkClaimed:
+      type: object
+      required: [key, name]
+      properties:
+        key: { type: string, description: "The full API key — shown exactly once." }
+        name: { type: string }
     ImportResult:
       type: object
       description: "Summary of a bulk import."

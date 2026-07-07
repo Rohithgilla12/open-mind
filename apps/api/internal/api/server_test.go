@@ -40,7 +40,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 	if err := store.Migrate(ctx, pool); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, feeds, river_job CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, feeds, river_job, api_keys, device_links CASCADE`); err != nil {
 		t.Fatalf("truncating: %v", err)
 	}
 	s := store.New(pool)
@@ -82,7 +82,21 @@ func newSrvWithKindle(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], to
 	}
 	feedSvc := feeds.NewService(s)
 	feedSvc.River = rc
-	return api.NewServer(s, rc, p, token, as, 10<<20, feedSvc, kindleConfigured)
+	return api.NewServer(s, rc, p, api.AuthConfig{Mode: api.AuthModeToken, LegacyToken: token}, as, 10<<20, feedSvc, kindleConfigured)
+}
+
+// newSrvWithAuthConfig builds a Server with an explicit AuthConfig, for tests
+// exercising credential resolution beyond the legacy-token path (API keys,
+// Clerk JWTs).
+func newSrvWithAuthConfig(t *testing.T, s *store.Store, rc *river.Client[pgx.Tx], authCfg api.AuthConfig) http.Handler {
+	t.Helper()
+	as, err := assets.NewFSStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("asset store: %v", err)
+	}
+	feedSvc := feeds.NewService(s)
+	feedSvc.River = rc
+	return api.NewServer(s, rc, ai.NewNoop(), authCfg, as, 10<<20, feedSvc, false)
 }
 
 // parseProvider is a noop provider whose ParseQuery returns a scripted result,
@@ -161,7 +175,7 @@ func TestCreateItemRejectsBadURL(t *testing.T) {
 // reaches the store, so — like TestMCPMountedAndGuarded — a Server built with
 // a nil store/river/provider/assets is safe here; no Postgres required.
 func TestCreateItemRejectsWhitespacePaddedURL(t *testing.T) {
-	srv := httptest.NewServer(api.NewServer(nil, nil, nil, "", nil, 0, nil, false))
+	srv := httptest.NewServer(api.NewServer(nil, nil, nil, api.AuthConfig{Mode: api.AuthModeToken}, nil, 0, nil, false))
 	t.Cleanup(srv.Close)
 
 	resp := postJSON(t, srv.URL+"/items", `{"url":"http://x.com "}`)
