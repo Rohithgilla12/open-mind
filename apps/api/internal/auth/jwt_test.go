@@ -297,3 +297,80 @@ func flipMiddleChar(s string) string {
 	}
 	return s[:i] + string(replacement) + s[i+1:]
 }
+
+func TestVerify_FailedFetchDoesNotPoisonRefetchCooldown(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var failing int64 = 1
+	srv, fetches := newTestJWKSServer(t, &key.PublicKey)
+	// Wrap the server: while failing==1, return 500s.
+	wrapped := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.LoadInt64(&failing) == 1 {
+			atomic.AddInt64(fetches, 1)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		r.URL.Path = "/.well-known/jwks.json"
+		srv.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(wrapped.Close)
+
+	v := auth.NewJWTVerifier(wrapped.URL)
+	tok := signToken(t, key, testKid, testClaims{RegisteredClaims: jwt.RegisteredClaims{
+		Issuer: wrapped.URL, Subject: "user_1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}})
+
+	// First attempt: fetch fails.
+	if _, err := v.Verify(context.Background(), tok); err == nil {
+		t.Fatal("expected error while jwks is failing")
+	}
+	// Immediately after a FAILURE we must be on the short retry cooldown, not
+	// the long refetch cooldown (which only a success may start).
+	_, err = v.Verify(context.Background(), tok)
+	if err == nil || !strings.Contains(err.Error(), "retry cooldown") {
+		t.Fatalf("want short retry-cooldown error after failed fetch, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "refetch on cooldown") {
+		t.Fatalf("failed fetch poisoned the long refetch cooldown: %v", err)
+	}
+	atomic.StoreInt64(&failing, 0)
+}
+
+func TestVerify_ConcurrentKidMissesCoalesceIntoOneFetch(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, fetches := newTestJWKSServer(t, &key.PublicKey)
+	// Slow the fetch down so the goroutines genuinely overlap.
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		r.URL.Path = "/.well-known/jwks.json"
+		srv.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(slow.Close)
+
+	v := auth.NewJWTVerifier(slow.URL)
+	tok := signToken(t, key, testKid, testClaims{RegisteredClaims: jwt.RegisteredClaims{
+		Issuer: slow.URL, Subject: "user_1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}})
+
+	const n = 8
+	errs := make(chan error, n)
+	for range n {
+		go func() {
+			_, err := v.Verify(context.Background(), tok)
+			errs <- err
+		}()
+	}
+	for range n {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent verify failed (should have coalesced onto the in-flight fetch): %v", err)
+		}
+	}
+	if got := atomic.LoadInt64(fetches); got != 1 {
+		t.Fatalf("want exactly 1 jwks fetch, got %d", got)
+	}
+}

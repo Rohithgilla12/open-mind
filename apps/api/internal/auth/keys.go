@@ -48,8 +48,15 @@ func GenerateCode() (code string, hash []byte, err error) {
 	}
 	undashed := string(raw)
 	code = undashed[:4] + "-" + undashed[4:]
-	sum := sha256.Sum256([]byte(undashed))
-	return code, sum[:], nil
+	return code, HashCode(undashed), nil
+}
+
+// HashCode hashes a normalized (undashed, uppercase) device-link code. Mint
+// and claim must share this one implementation: a drift (case, dashes) would
+// not crash — every claim would just silently miss.
+func HashCode(normalized string) []byte {
+	sum := sha256.Sum256([]byte(normalized))
+	return sum[:]
 }
 
 // NormalizeCode strips dashes and whitespace from a user-entered device-link

@@ -17,6 +17,10 @@ import (
 const (
 	jwksFetchTimeout    = 10 * time.Second
 	jwksRefetchCooldown = 5 * time.Minute
+	// jwksFailureCooldown throttles retries after a FAILED fetch — long enough
+	// to avoid a fetch storm, short enough that a transient JWKS outage doesn't
+	// lock legitimate tokens out for the full refetch cooldown.
+	jwksFailureCooldown = 15 * time.Second
 	jwtLeeway           = 30 * time.Second
 )
 
@@ -37,9 +41,11 @@ type JWTVerifier struct {
 	jwksURL string
 	client  *http.Client
 
-	mu        sync.Mutex
-	keys      map[string]*rsa.PublicKey
-	lastFetch time.Time
+	mu          sync.Mutex
+	keys        map[string]*rsa.PublicKey
+	lastSuccess time.Time     // last successful fetch — gates kid-miss refetches
+	lastAttempt time.Time     // last attempt — gates retry storms after failures
+	inflight    chan struct{} // non-nil while a fetch runs; closed on completion
 }
 
 // NewJWTVerifier builds a verifier for tokens issued by issuer. The JWKS URL
@@ -86,29 +92,60 @@ func (v *JWTVerifier) Verify(ctx context.Context, token string) (ClerkClaims, er
 // jwksRefetchCooldown so a stream of tokens with bogus kids can't be used to
 // hammer the JWKS endpoint.
 func (v *JWTVerifier) keyForKid(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	v.mu.Lock()
-	if key, ok := v.keys[kid]; ok {
+	for {
+		v.mu.Lock()
+		if key, ok := v.keys[kid]; ok {
+			v.mu.Unlock()
+			return key, nil
+		}
+		if v.inflight != nil {
+			// Another caller is already fetching — wait for its result instead
+			// of failing, so a key rotation doesn't spuriously reject whoever
+			// loses the race.
+			wait := v.inflight
+			v.mu.Unlock()
+			select {
+			case <-wait:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if !v.lastSuccess.IsZero() && time.Since(v.lastSuccess) < jwksRefetchCooldown {
+			v.mu.Unlock()
+			return nil, fmt.Errorf("unknown key id %q (jwks refetch on cooldown)", kid)
+		}
+		if !v.lastAttempt.IsZero() && time.Since(v.lastAttempt) < jwksFailureCooldown {
+			v.mu.Unlock()
+			return nil, fmt.Errorf("unknown key id %q (jwks fetch failing, retry cooldown)", kid)
+		}
+		v.lastAttempt = time.Now()
+		done := make(chan struct{})
+		v.inflight = done
 		v.mu.Unlock()
+
+		err := v.fetchJWKS(ctx)
+
+		v.mu.Lock()
+		v.inflight = nil
+		if err == nil {
+			v.lastSuccess = time.Now()
+		}
+		v.mu.Unlock()
+		close(done)
+
+		if err != nil {
+			return nil, fmt.Errorf("fetching jwks: %w", err)
+		}
+
+		v.mu.Lock()
+		key, ok := v.keys[kid]
+		v.mu.Unlock()
+		if !ok {
+			return nil, fmt.Errorf("unknown key id %q", kid)
+		}
 		return key, nil
 	}
-	if time.Since(v.lastFetch) < jwksRefetchCooldown {
-		v.mu.Unlock()
-		return nil, fmt.Errorf("unknown key id %q (jwks refetch on cooldown)", kid)
-	}
-	v.lastFetch = time.Now()
-	v.mu.Unlock()
-
-	if err := v.fetchJWKS(ctx); err != nil {
-		return nil, fmt.Errorf("fetching jwks: %w", err)
-	}
-
-	v.mu.Lock()
-	key, ok := v.keys[kid]
-	v.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("unknown key id %q", kid)
-	}
-	return key, nil
 }
 
 type jwks struct {

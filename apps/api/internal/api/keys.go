@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -172,7 +171,7 @@ func (s *Server) ClaimDeviceLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	uid, err := s.store.Queries.ClaimDeviceLink(ctx, hashDeviceCode(normalized))
+	uid, err := s.store.Queries.ClaimDeviceLink(ctx, auth.HashCode(normalized))
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			slog.Error("claiming device link", "err", err)
@@ -204,11 +203,6 @@ func (s *Server) ClaimDeviceLink(w http.ResponseWriter, r *http.Request) {
 // hashDeviceCode hashes a normalized (uppercase, undashed) device-link code
 // exactly as auth.GenerateCode hashes it at mint time, so a claim's hash
 // lookup matches the stored code_hash.
-func hashDeviceCode(normalized string) []byte {
-	sum := sha256.Sum256([]byte(normalized))
-	return sum[:]
-}
-
 // validateName trims raw and enforces the 1..80 rune bound shared by API key
 // names and claimed-device names, writing a 400 and returning ok=false on
 // violation.
