@@ -32,12 +32,53 @@
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
             "NSExtensionActivationSupportsText": true
           },
-          "androidIntentFilters": ["text/*"]
+          "androidIntentFilters": [
+            "text/*"
+          ]
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#F4F0E6",
+      "resizeMode": "contain",
+      "image": "./assets/icon.png"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fun.gilla.openmind"
+                    ]
+                  }
+                },
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.fun.gilla.openmind"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "787dda1f-ef57-4ef9-9a21-c213f656d09d"
+      }
+    },
+    "owner": "gilladude"
   }
 }
