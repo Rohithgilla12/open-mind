@@ -6,7 +6,7 @@ import { getSettings, type Settings } from "./settings";
 
 /** Minimal item shape (subset of the OpenAPI Item schema). */
 /** Item plus the full archived body (detail endpoint). */
-export type ItemDetail = Item & { body?: string; tags?: string[]; userTags?: string[]; palette?: string[] };
+export type ItemDetail = Item & { body?: string };
 
 export type Item = {
   id: string;
@@ -16,6 +16,10 @@ export type Item = {
   status: string;
   cardType?: string;
   createdAt?: string;
+  palette?: string[];
+  leadImageUrl?: string;
+  tags?: string[];
+  userTags?: string[];
 };
 
 async function resolveSettings(override?: Settings): Promise<Settings | null> {

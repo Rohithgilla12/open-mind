@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PressScale } from "@/components/PressScale";
 import { checkToken, claimDeviceCode } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [code, setCode] = useState("");
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>({ kind: "idle" });
+  const [focusedField, setFocusedField] = useState<"instance" | "code" | "token" | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -134,17 +135,21 @@ export default function SettingsScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>INSTANCE URL</Text>
-            <TextInput
-              style={styles.input}
-              value={instanceUrl}
-              onChangeText={setInstanceUrl}
-              placeholder="https://openmind.example.com"
-              placeholderTextColor={colors.inkFaint}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              inputMode="url"
-            />
+            <View style={styles.inputCard}>
+              <TextInput
+                style={[styles.input, focusedField === "instance" && styles.inputFocused]}
+                value={instanceUrl}
+                onChangeText={setInstanceUrl}
+                onFocus={() => setFocusedField("instance")}
+                onBlur={() => setFocusedField(null)}
+                placeholder="https://openmind.example.com"
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                inputMode="url"
+              />
+            </View>
           </View>
 
           <Text style={styles.sectionHeading}>Connect with code</Text>
@@ -154,77 +159,74 @@ export default function SettingsScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>DEVICE-CONNECT CODE</Text>
-            <TextInput
-              style={styles.input}
-              value={code}
-              onChangeText={(next) => {
-                setCode(next);
-                if (claimStatus.kind === "error") setClaimStatus({ kind: "idle" });
-              }}
-              placeholder="ABCD-EFGH"
-              placeholderTextColor={colors.inkFaint}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
+            <View style={styles.inputCard}>
+              <TextInput
+                style={[styles.input, focusedField === "code" && styles.inputFocused]}
+                value={code}
+                onChangeText={(next) => {
+                  setCode(next);
+                  if (claimStatus.kind === "error") setClaimStatus({ kind: "idle" });
+                }}
+                onFocus={() => setFocusedField("code")}
+                onBlur={() => setFocusedField(null)}
+                placeholder="ABCD-EFGH"
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
           </View>
 
           <ClaimStatusMessage status={claimStatus} />
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.connectButton,
-              (pressed || claiming) && styles.buttonPressed,
-            ]}
-            onPress={onConnect}
-            disabled={claiming}
-          >
-            {claiming ? (
-              <ActivityIndicator color={colors.cobalt} />
-            ) : (
-              <Text style={styles.connectButtonText}>Connect</Text>
-            )}
-          </Pressable>
+          <PressScale onPress={onConnect} disabled={claiming}>
+            <View style={styles.connectButton}>
+              {claiming ? (
+                <ActivityIndicator color={colors.cobalt} />
+              ) : (
+                <Text style={styles.connectButtonText}>Connect</Text>
+              )}
+            </View>
+          </PressScale>
 
           <Text style={styles.divider}>OR CONNECT MANUALLY</Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>API TOKEN</Text>
-            <TextInput
-              style={styles.input}
-              value={token}
-              onChangeText={setToken}
-              placeholder="Paste your API token"
-              placeholderTextColor={colors.inkFaint}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-            />
+            <View style={styles.inputCard}>
+              <TextInput
+                style={[styles.input, focusedField === "token" && styles.inputFocused]}
+                value={token}
+                onChangeText={setToken}
+                onFocus={() => setFocusedField("token")}
+                onBlur={() => setFocusedField(null)}
+                placeholder="Paste your API token"
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+              />
+            </View>
           </View>
 
           <StatusMessage status={status} />
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              (pressed || checking) && styles.buttonPressed,
-            ]}
-            onPress={onValidateAndSave}
-            disabled={checking}
-          >
-            {checking ? (
-              <ActivityIndicator color={colors.paper} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Validate & save</Text>
-            )}
-          </Pressable>
+          <PressScale onPress={onValidateAndSave} disabled={checking}>
+            <View style={styles.primaryButton}>
+              {checking ? (
+                <ActivityIndicator color={colors.paper} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Validate & save</Text>
+              )}
+            </View>
+          </PressScale>
 
           {settings ? (
-            <Pressable
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-              onPress={onSignOut}
-            >
-              <Text style={styles.secondaryButtonText}>Sign out</Text>
-            </Pressable>
+            <PressScale onPress={onSignOut}>
+              <View style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Sign out</Text>
+              </View>
+            </PressScale>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -235,7 +237,7 @@ export default function SettingsScreen() {
 function StatusMessage({ status }: { status: Status }) {
   switch (status.kind) {
     case "valid":
-      return <Text style={[styles.status, { color: colors.cobalt }]}>Token valid — saved.</Text>;
+      return <Text style={[styles.status, { color: colors.cobalt }]}>Saved ✓ Token valid.</Text>;
     case "invalid":
       return <Text style={[styles.status, { color: colors.danger }]}>Invalid token (401).</Text>;
     case "saved_unconfirmed":
@@ -269,10 +271,10 @@ function ClaimStatusMessage({ status }: { status: ClaimStatus }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
+  safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   container: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontFamily: fonts.serif, fontSize: 27, fontWeight: "600", color: colors.ink },
+  title: { fontFamily: fonts.serifBold, fontSize: 27, color: colors.ink },
   subtitle: {
     fontFamily: fonts.mono,
     fontSize: 12,
@@ -280,8 +282,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
   },
-  sectionHeading: { fontSize: 15, fontWeight: "600", color: colors.ink, marginBottom: spacing.xs },
+  sectionHeading: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.ink, marginBottom: spacing.xs },
   sectionHint: {
+    fontFamily: fonts.sans,
     fontSize: 13,
     color: colors.inkMuted,
     lineHeight: 18,
@@ -298,11 +301,17 @@ const styles = StyleSheet.create({
   },
   field: { marginBottom: spacing.lg },
   label: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.monoMedium,
     fontSize: 10,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     color: colors.inkMuted,
     marginBottom: spacing.sm,
+  },
+  inputCard: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.card,
+    padding: 3,
   },
   input: {
     borderWidth: 1,
@@ -311,10 +320,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardSurface,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    fontFamily: fonts.sans,
     fontSize: 15,
     color: colors.ink,
   },
-  status: { fontSize: 13, marginBottom: spacing.md },
+  inputFocused: { borderColor: colors.cobalt, borderWidth: 1.5 },
+  status: { fontFamily: fonts.sans, fontSize: 13, marginBottom: spacing.md },
   primaryButton: {
     backgroundColor: colors.cobalt,
     borderRadius: radius.button,
@@ -322,7 +333,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.sm,
   },
-  primaryButtonText: { color: colors.paper, fontSize: 15, fontWeight: "600" },
+  primaryButtonText: { color: colors.paper, fontFamily: fonts.sansSemiBold, fontSize: 15 },
   secondaryButton: {
     borderRadius: radius.button,
     borderWidth: 1,
@@ -331,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.md,
   },
-  secondaryButtonText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
+  secondaryButtonText: { color: colors.danger, fontFamily: fonts.sansSemiBold, fontSize: 15 },
   connectButton: {
     borderRadius: radius.button,
     borderWidth: 1,
@@ -339,6 +350,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: "center",
   },
-  connectButtonText: { color: colors.cobalt, fontSize: 15, fontWeight: "600" },
+  connectButtonText: { color: colors.cobalt, fontFamily: fonts.sansSemiBold, fontSize: 15 },
   buttonPressed: { opacity: 0.7 },
 });

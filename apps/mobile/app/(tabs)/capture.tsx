@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PressScale } from "@/components/PressScale";
 import { listItems, saveItem } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
@@ -51,6 +51,7 @@ export default function CaptureScreen() {
   const params = useLocalSearchParams<{ shared?: string }>();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [focused, setFocused] = useState(false);
 
   // Prefill from a share-sheet intent (routed here by ShareIntentGate). Apply
   // each distinct shared value once so revisiting the tab doesn't clobber edits.
@@ -107,41 +108,39 @@ export default function CaptureScreen() {
             <>
               <View style={styles.field}>
                 <Text style={styles.label}>{isUrl ? "LINK" : "URL OR NOTE"}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={text}
-                  onChangeText={(next) => {
-                    setText(next);
-                    if (status.kind !== "idle" && status.kind !== "saving") {
-                      setStatus({ kind: "idle" });
-                    }
-                  }}
-                  placeholder="Paste a URL or jot a note…"
-                  placeholderTextColor={colors.inkFaint}
-                  multiline
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  textAlignVertical="top"
-                />
+                <View style={styles.inputCard}>
+                  <TextInput
+                    style={[styles.input, focused && styles.inputFocused]}
+                    value={text}
+                    onChangeText={(next) => {
+                      setText(next);
+                      if (status.kind !== "idle" && status.kind !== "saving") {
+                        setStatus({ kind: "idle" });
+                      }
+                    }}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    placeholder="Paste a URL or jot a note…"
+                    placeholderTextColor={colors.inkFaint}
+                    multiline
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textAlignVertical="top"
+                  />
+                </View>
               </View>
 
               <StatusMessage status={status} />
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  (pressed || saving) && styles.buttonPressed,
-                  !canSave && styles.buttonDisabled,
-                ]}
-                onPress={onSave}
-                disabled={!canSave}
-              >
-                {saving ? (
-                  <ActivityIndicator color={colors.paper} />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Save</Text>
-                )}
-              </Pressable>
+              <PressScale onPress={onSave} disabled={!canSave}>
+                <View style={[styles.primaryButton, !canSave && styles.buttonDisabled]}>
+                  {saving ? (
+                    <ActivityIndicator color={colors.paper} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Save</Text>
+                  )}
+                </View>
+              </PressScale>
             </>
           ) : (
             <View style={styles.placeholder}>
@@ -192,10 +191,10 @@ function StatusMessage({ status }: { status: Status }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
+  safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   container: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontFamily: fonts.serif, fontSize: 27, fontWeight: "600", color: colors.ink },
+  title: { fontFamily: fonts.serifBold, fontSize: 27, color: colors.ink },
   subtitle: {
     fontFamily: fonts.mono,
     fontSize: 12,
@@ -205,11 +204,17 @@ const styles = StyleSheet.create({
   },
   field: { marginBottom: spacing.lg },
   label: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.monoMedium,
     fontSize: 10,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     color: colors.inkMuted,
     marginBottom: spacing.sm,
+  },
+  inputCard: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.card,
+    padding: 3,
   },
   input: {
     borderWidth: 1,
@@ -218,12 +223,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardSurface,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    fontFamily: fonts.sans,
     fontSize: 15,
     color: colors.ink,
     minHeight: 120,
   },
+  inputFocused: { borderColor: colors.cobalt, borderWidth: 1.5 },
   savedRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
-  status: { fontSize: 13, marginBottom: spacing.md },
+  status: { fontFamily: fonts.sans, fontSize: 13, marginBottom: spacing.md },
   primaryButton: {
     backgroundColor: colors.cobalt,
     borderRadius: radius.button,
@@ -231,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.sm,
   },
-  primaryButtonText: { color: colors.paper, fontSize: 15, fontWeight: "600" },
+  primaryButtonText: { color: colors.paper, fontFamily: fonts.sansSemiBold, fontSize: 15 },
   buttonPressed: { opacity: 0.7 },
   buttonDisabled: { opacity: 0.4 },
   placeholder: {
@@ -240,9 +247,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.hairline,
-    backgroundColor: colors.cardSurface,
+    backgroundColor: colors.paper,
     gap: spacing.md,
   },
-  placeholderText: { fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
-  link: { fontSize: 14, fontWeight: "600", color: colors.cobalt },
+  placeholderText: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
+  link: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.cobalt },
 });
