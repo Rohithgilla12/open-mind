@@ -10,6 +10,7 @@ import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PressScale } from "@/components/PressScale";
 import { claimDeviceCode } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
@@ -115,12 +116,11 @@ function Body({ state, onConfirm }: { state: State; onConfirm: () => void }) {
             replace any existing connection. Only continue if this is your Openmind
             instance.
           </Text>
-          <Pressable
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={onConfirm}
-          >
-            <Text style={styles.primaryButtonText}>Connect to {state.host}</Text>
-          </Pressable>
+          <PressScale onPress={onConfirm}>
+            <View style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Connect to {state.host}</Text>
+            </View>
+          </PressScale>
           <Link href="/settings" style={styles.link}>
             Cancel — open Settings instead
           </Link>
@@ -154,21 +154,21 @@ function Body({ state, onConfirm }: { state: State; onConfirm: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
+  safe: { flex: 1, backgroundColor: colors.canvas },
   container: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.lg },
-  title: { fontFamily: fonts.serif, fontSize: 27, fontWeight: "600", color: colors.ink },
-  message: { fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
-  host: { fontFamily: fonts.mono, color: colors.ink, fontWeight: "600" },
+  title: { fontFamily: fonts.serifBold, fontSize: 27, color: colors.ink },
+  message: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
+  host: { fontFamily: fonts.mono, color: colors.ink },
   centre: { alignItems: "center", gap: spacing.md, marginTop: spacing.xl },
   centreText: { textAlign: "center" },
-  link: { fontSize: 14, fontWeight: "600", color: colors.cobalt },
+  link: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.cobalt },
   primaryButton: {
     backgroundColor: colors.cobalt,
     borderRadius: radius.button,
     paddingVertical: spacing.md,
     alignItems: "center",
   },
-  primaryButtonText: { color: colors.paper, fontSize: 15, fontWeight: "600" },
+  primaryButtonText: { color: colors.paper, fontFamily: fonts.sansSemiBold, fontSize: 15 },
   button: {
     borderRadius: radius.button,
     borderWidth: 1,
@@ -177,5 +177,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonPressed: { opacity: 0.7 },
-  buttonText: { color: colors.cobalt, fontSize: 15, fontWeight: "600" },
+  buttonText: { color: colors.cobalt, fontFamily: fonts.sansSemiBold, fontSize: 15 },
 });
