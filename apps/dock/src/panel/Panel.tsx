@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { tokens } from "@openmind/ui";
+import { PanelDragStrip } from "../components/DragRegion";
+import { IconButton, SettingsIcon } from "../components/SettingsIcon";
 import { saveItem, searchItems, type SearchResult } from "../lib/api";
 import { detectMode } from "../lib/input-mode";
 import { getSettings, type Settings } from "../lib/settings";
@@ -233,9 +235,14 @@ export function Panel() {
   if (view === "settings") {
     return (
       <div style={styles.shell}>
+        <PanelDragStrip />
         <SettingsView
           initial={settings}
           onCancel={settings ? () => setView("main") : undefined}
+          onSignedOut={() => {
+            setSettingsState(null);
+            setView("settings");
+          }}
           onSaved={(s) => {
             setSettingsState(s);
             setView("main");
@@ -247,6 +254,7 @@ export function Panel() {
 
   return (
     <div style={styles.shell}>
+      <PanelDragStrip />
       <div style={styles.inputRow}>
         <input
           ref={inputRef}
@@ -259,14 +267,9 @@ export function Panel() {
           autoCorrect="off"
           spellCheck={false}
         />
-        <button
-          type="button"
-          style={styles.gearButton}
-          onClick={() => setView("settings")}
-          aria-label="Open settings"
-        >
-          ⚙
-        </button>
+        <IconButton label="Open settings" onClick={() => setView("settings")}>
+          <SettingsIcon />
+        </IconButton>
       </div>
 
       {understood && understood !== query.trim() && mode === "search" ? (
@@ -288,7 +291,14 @@ export function Panel() {
             {saving ? "Saving…" : `Save ${host(query.trim())}`}
           </button>
         ) : searchError ? (
-          <div style={styles.errorRow}>{searchError}</div>
+          <div style={styles.errorBlock}>
+            <div style={styles.errorRow}>{searchError}</div>
+            {searchError.includes("Settings") || searchError === "Instance unreachable" ? (
+              <button type="button" style={styles.errorAction} onClick={() => setView("settings")}>
+                Open Settings
+              </button>
+            ) : null}
+          </div>
         ) : query.trim().length === 0 ? (
           <div style={styles.emptyRow}>Type to search your mind</div>
         ) : searching ? (
@@ -333,34 +343,28 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     background: tokens.color.paper,
     border: `1px solid ${tokens.color.hairline}`,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: "hidden",
     fontFamily: tokens.font.sans,
     color: tokens.color.ink,
+    boxShadow: "0 18px 48px rgba(28, 26, 22, 0.18), 0 2px 8px rgba(28, 26, 22, 0.08)",
   },
   inputRow: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
-    padding: "16px 18px",
+    gap: 10,
+    padding: "12px 16px",
     borderBottom: `1px solid ${tokens.color.hairline}`,
+    background: tokens.color.paper,
   },
   input: {
     flex: 1,
     border: "none",
     outline: "none",
     background: "transparent",
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: tokens.font.sans,
     color: tokens.color.ink,
-  },
-  gearButton: {
-    border: "none",
-    background: "none",
-    fontSize: 16,
-    color: tokens.color.inkFaint,
-    cursor: "pointer",
-    padding: 4,
   },
   understood: {
     fontFamily: tokens.font.mono,
@@ -374,16 +378,35 @@ const styles: Record<string, CSSProperties> = {
     padding: "8px 10px",
   },
   emptyRow: {
-    padding: "24px 8px",
+    padding: "28px 12px",
     textAlign: "center",
-    fontSize: 13,
+    fontSize: 14,
     color: tokens.color.inkFaint,
+    fontFamily: tokens.font.mono,
+  },
+  errorBlock: {
+    padding: "24px 12px",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 12,
   },
   errorRow: {
-    padding: "24px 8px",
-    textAlign: "center",
-    fontSize: 13,
+    fontSize: 14,
     color: tokens.color.danger,
+    fontFamily: tokens.font.quote,
+    fontStyle: "italic",
+  },
+  errorAction: {
+    border: `1px solid ${tokens.color.hairline}`,
+    borderRadius: 999,
+    background: tokens.color.cardSurface,
+    color: tokens.color.cobalt,
+    fontSize: 13,
+    fontWeight: 600,
+    padding: "8px 14px",
+    cursor: "pointer",
   },
   toastRow: {
     padding: "24px 8px",
@@ -430,7 +453,8 @@ const styles: Record<string, CSSProperties> = {
   },
   rowTitle: {
     fontFamily: tokens.font.quote,
-    fontSize: 15,
+    fontSize: 15.5,
+    fontWeight: 500,
     color: tokens.color.ink,
     overflow: "hidden",
     textOverflow: "ellipsis",

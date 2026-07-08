@@ -3,7 +3,8 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tokens } from "@openmind/ui";
 import { checkToken, claimDeviceCode } from "../lib/api";
-import { setSettings, type Settings } from "../lib/settings";
+import { clearSettings, setSettings, type Settings } from "../lib/settings";
+import { DragRegion } from "../components/DragRegion";
 
 type Status =
   | { kind: "idle" }
@@ -14,36 +15,34 @@ type Status =
   | { kind: "save-failed" }
   | { kind: "incomplete" };
 
-type ConnectStatus =
-  | { kind: "idle" }
-  | { kind: "checking" }
-  | { kind: "connected" }
-  | { kind: "code-invalid" }
-  | { kind: "rate-limited" }
-  | { kind: "unreachable" }
-  | { kind: "incomplete" }
-  | { kind: "save-failed" };
+type ClaimStatus = { kind: "idle" } | { kind: "claiming" } | { kind: "error"; message: string };
+
+function resolveInstanceUrl(typed: string, saved?: string | null): string {
+  return (typed || saved || "").trim().replace(/\/+$/, "");
+}
 
 export function SettingsView({
   initial,
   onSaved,
+  onSignedOut,
   onCancel,
 }: {
   initial: Settings | null;
   onSaved: (settings: Settings) => void;
+  onSignedOut?: () => void;
   onCancel?: () => void;
 }) {
   const [instanceUrl, setInstanceUrl] = useState(initial?.instanceUrl ?? "");
   const [token, setToken] = useState(initial?.token ?? "");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [deviceCode, setDeviceCode] = useState("");
-  const [connectStatus, setConnectStatus] = useState<ConnectStatus>({ kind: "idle" });
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>({ kind: "idle" });
 
   const checking = status.kind === "checking";
-  const connecting = connectStatus.kind === "checking";
+  const claiming = claimStatus.kind === "claiming";
 
   async function onValidateAndSave() {
-    const url = instanceUrl.trim().replace(/\/+$/, "");
+    const url = resolveInstanceUrl(instanceUrl);
     const tok = token.trim();
     if (!url || !tok) {
       setStatus({ kind: "incomplete" });
@@ -52,14 +51,10 @@ export function SettingsView({
     setStatus({ kind: "checking" });
     const settings: Settings = { instanceUrl: url, token: tok };
     const code = await checkToken(settings);
-    // 401 is the only definitive "wrong token" — never persist it.
     if (code === 401) {
       setStatus({ kind: "invalid" });
       return;
     }
-    // Every other result (200 confirmed; 0 unreachable; 429/5xx busy) still
-    // persists the settings, so the panel is usable once the instance
-    // recovers instead of forcing the user to re-enter the token.
     try {
       await setSettings(settings);
     } catch {
@@ -77,122 +72,177 @@ export function SettingsView({
   }
 
   async function onConnect() {
-    const url = instanceUrl.trim().replace(/\/+$/, "");
-    const code = deviceCode.trim();
-    if (!url || !code) {
-      setConnectStatus({ kind: "incomplete" });
+    const url = resolveInstanceUrl(instanceUrl, initial?.instanceUrl);
+    const codeInput = deviceCode.trim();
+    if (!url) {
+      setClaimStatus({
+        kind: "error",
+        message: "Enter your instance URL first — the code only works with a specific server.",
+      });
       return;
     }
-    setConnectStatus({ kind: "checking" });
-    const result = await claimDeviceCode(url, code, "Mac dock");
+    if (!codeInput) {
+      setClaimStatus({
+        kind: "error",
+        message: "Enter the connect code from your Openmind web app.",
+      });
+      return;
+    }
+    setClaimStatus({ kind: "claiming" });
+    const result = await claimDeviceCode(url, codeInput, "Mac dock");
     if (!result.ok) {
-      setConnectStatus(
-        result.status === 0
-          ? { kind: "unreachable" }
-          : result.status === 429
-            ? { kind: "rate-limited" }
-            : { kind: "code-invalid" },
-      );
+      setClaimStatus({
+        kind: "error",
+        message:
+          result.status === 0
+            ? "Couldn't reach that instance — check the URL."
+            : result.status === 429
+              ? "Too many attempts — wait a moment and try again."
+              : "Invalid, expired, or already-used code.",
+      });
       return;
     }
     const settings: Settings = { instanceUrl: url, token: result.key };
     try {
       await setSettings(settings);
     } catch {
-      setConnectStatus({ kind: "save-failed" });
+      setClaimStatus({ kind: "error", message: "Couldn't save to the keychain — try again." });
       return;
     }
     setInstanceUrl(url);
     setToken(result.key);
     setDeviceCode("");
-    setConnectStatus({ kind: "connected" });
+    setClaimStatus({ kind: "idle" });
+    setStatus({ kind: "valid" });
     onSaved(settings);
+  }
+
+  async function onSignOut() {
+    try {
+      await clearSettings();
+    } catch {
+      setStatus({ kind: "save-failed" });
+      return;
+    }
+    setInstanceUrl("");
+    setToken("");
+    setDeviceCode("");
+    setStatus({ kind: "idle" });
+    setClaimStatus({ kind: "idle" });
+    onSignedOut?.();
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
       e.preventDefault();
-      void getCurrentWindow().hide();
+      if (onCancel) {
+        onCancel();
+      } else {
+        void getCurrentWindow().hide();
+      }
     }
   }
 
   return (
     <div style={styles.page} onKeyDown={onKeyDown}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Settings</h1>
-        {onCancel ? (
-          <button type="button" style={styles.closeButton} onClick={onCancel} aria-label="Close settings">
-            ×
+      <div style={styles.scroll}>
+        <div style={styles.header}>
+          <DragRegion style={styles.headerDrag}>
+            <h1 style={styles.title}>Settings</h1>
+          </DragRegion>
+          {onCancel ? (
+            <button type="button" style={styles.closeButton} onClick={onCancel} aria-label="Close settings">
+              ×
+            </button>
+          ) : null}
+        </div>
+        <p style={styles.subtitle}>Connect to your Openmind instance</p>
+
+        <label style={styles.field}>
+          <span style={styles.label}>Instance URL</span>
+          <input
+            style={styles.input}
+            value={instanceUrl}
+            onChange={(e) => {
+              setInstanceUrl(e.target.value);
+              if (claimStatus.kind === "error") setClaimStatus({ kind: "idle" });
+            }}
+            placeholder="https://openmind.example.com"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="url"
+          />
+        </label>
+
+        <h2 style={styles.sectionHeading}>Connect with code</h2>
+        <p style={styles.sectionHint}>
+          On the web app, open Settings → Devices & keys, generate a code, then enter it here.
+        </p>
+
+        <label style={styles.field}>
+          <span style={styles.label}>Connect code</span>
+          <input
+            style={styles.input}
+            value={deviceCode}
+            onChange={(e) => {
+              setDeviceCode(e.target.value);
+              if (claimStatus.kind === "error") setClaimStatus({ kind: "idle" });
+            }}
+            placeholder="ABCD-EFGH"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </label>
+
+        <ClaimStatusMessage status={claimStatus} />
+
+        <button
+          type="button"
+          style={{ ...styles.outlineButton, ...(claiming ? styles.disabled : {}) }}
+          onClick={() => void onConnect()}
+          disabled={claiming}
+        >
+          {claiming ? "Connecting…" : "Connect"}
+        </button>
+
+        <p style={styles.divider}>Or connect manually</p>
+
+        <label style={styles.field}>
+          <span style={styles.label}>API token</span>
+          <input
+            style={styles.input}
+            value={token}
+            onChange={(e) => {
+              setToken(e.target.value);
+              if (status.kind !== "idle" && status.kind !== "checking") setStatus({ kind: "idle" });
+            }}
+            placeholder="Paste your API token"
+            type="password"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </label>
+
+        <StatusMessage status={status} />
+
+        <button
+          type="button"
+          style={{ ...styles.primaryButton, ...(checking ? styles.disabled : {}) }}
+          onClick={() => void onValidateAndSave()}
+          disabled={checking}
+        >
+          {checking ? "Checking…" : "Validate & save"}
+        </button>
+
+        {initial ? (
+          <button type="button" style={styles.signOutButton} onClick={() => void onSignOut()}>
+            Sign out
           </button>
         ) : null}
       </div>
-      <p style={styles.subtitle}>Connect to your Openmind instance</p>
-
-      <label style={styles.field}>
-        <span style={styles.label}>Instance URL</span>
-        <input
-          style={styles.input}
-          value={instanceUrl}
-          onChange={(e) => setInstanceUrl(e.target.value)}
-          placeholder="https://openmind.example.com"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </label>
-
-      <label style={styles.field}>
-        <span style={styles.label}>API Token</span>
-        <input
-          style={styles.input}
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Paste your API token"
-          type="password"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </label>
-
-      <StatusMessage status={status} />
-
-      <button
-        type="button"
-        style={{ ...styles.primaryButton, ...(checking ? styles.disabled : {}) }}
-        onClick={() => void onValidateAndSave()}
-        disabled={checking}
-      >
-        {checking ? "Checking…" : "Validate & save"}
-      </button>
-
-      <hr style={styles.divider} />
-
-      <p style={styles.subtitle}>Or connect with a code from another device</p>
-
-      <label style={styles.field}>
-        <span style={styles.label}>Connect code</span>
-        <input
-          style={styles.input}
-          value={deviceCode}
-          onChange={(e) => setDeviceCode(e.target.value)}
-          placeholder="ABCD-EFGH"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-      </label>
-
-      <ConnectStatusMessage status={connectStatus} />
-
-      <button
-        type="button"
-        style={{ ...styles.primaryButton, ...(connecting ? styles.disabled : {}) }}
-        onClick={() => void onConnect()}
-        disabled={connecting}
-      >
-        {connecting ? "Connecting…" : "Connect"}
-      </button>
     </div>
   );
 }
@@ -220,53 +270,51 @@ function StatusMessage({ status }: { status: Status }) {
   }
 }
 
-function ConnectStatusMessage({ status }: { status: ConnectStatus }) {
-  switch (status.kind) {
-    case "connected":
-      return <p style={{ ...styles.status, color: tokens.color.cobalt }}>Connected — saved.</p>;
-    case "code-invalid":
-      return <p style={{ ...styles.status, color: tokens.color.danger }}>Invalid or expired code.</p>;
-    case "rate-limited":
-      return (
-        <p style={{ ...styles.status, color: tokens.color.danger }}>
-          Too many attempts — wait a moment and try again.
-        </p>
-      );
-    case "unreachable":
-      return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't reach the instance.</p>;
-    case "save-failed":
-      return <p style={{ ...styles.status, color: tokens.color.danger }}>Couldn't save to the keychain — try again.</p>;
-    case "incomplete":
-      return <p style={{ ...styles.status, color: tokens.color.danger }}>Enter both an instance URL and a code.</p>;
-    default:
-      return null;
-  }
+function ClaimStatusMessage({ status }: { status: ClaimStatus }) {
+  if (status.kind !== "error") return null;
+  return <p style={{ ...styles.status, color: tokens.color.danger }}>{status.message}</p>;
 }
 
 const styles: Record<string, CSSProperties> = {
   page: {
     display: "flex",
     flexDirection: "column",
-    gap: 4,
-    padding: 20,
+    height: "100%",
+    minHeight: 0,
     fontFamily: tokens.font.sans,
     color: tokens.color.ink,
+  },
+  scroll: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "20px 22px 24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 0,
   },
   header: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 2,
+    gap: 8,
+  },
+  headerDrag: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
     fontFamily: tokens.font.quote,
     fontStyle: "italic",
-    fontSize: 22,
+    fontWeight: 600,
+    fontSize: 27,
     margin: 0,
+    letterSpacing: "-0.02em",
   },
   closeButton: {
     border: "none",
     background: "none",
-    fontSize: 20,
+    fontSize: 22,
     lineHeight: 1,
     color: tokens.color.inkFaint,
     cursor: "pointer",
@@ -274,54 +322,93 @@ const styles: Record<string, CSSProperties> = {
   },
   subtitle: {
     fontFamily: tokens.font.mono,
-    fontSize: 11,
+    fontSize: 12,
     color: tokens.color.inkFaint,
-    margin: "2px 0 12px",
+    margin: "0 0 20px",
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: 600,
+    margin: "4px 0 6px",
+    fontFamily: tokens.font.sans,
+  },
+  sectionHint: {
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: tokens.color.inkMuted,
+    margin: "0 0 14px",
   },
   field: {
     display: "flex",
     flexDirection: "column",
     gap: 6,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   label: {
     fontFamily: tokens.font.mono,
     fontSize: 10,
-    letterSpacing: "0.05em",
+    letterSpacing: "0.08em",
     textTransform: "uppercase",
     color: tokens.color.inkMuted,
   },
   input: {
     border: `1px solid ${tokens.color.hairline}`,
-    borderRadius: 8,
+    borderRadius: 10,
     background: tokens.color.cardSurface,
     color: tokens.color.ink,
-    padding: "9px 10px",
-    fontSize: 14,
+    padding: "11px 12px",
+    fontSize: 15,
     fontFamily: tokens.font.sans,
   },
   status: {
-    fontSize: 12,
-    margin: "4px 0 10px",
+    fontSize: 13,
+    lineHeight: 1.4,
+    margin: "0 0 12px",
   },
   divider: {
-    border: "none",
-    borderTop: `1px solid ${tokens.color.hairline}`,
-    margin: "16px 0",
+    fontFamily: tokens.font.mono,
+    fontSize: 10,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: tokens.color.inkFaint,
+    textAlign: "center",
+    margin: "20px 0 18px",
   },
   primaryButton: {
     border: "none",
-    borderRadius: 8,
+    borderRadius: 10,
     background: tokens.color.cobalt,
     color: tokens.color.paper,
-    padding: "10px 16px",
-    fontSize: 14,
+    padding: "12px 16px",
+    fontSize: 15,
     fontWeight: 600,
     cursor: "pointer",
     marginTop: 4,
   },
+  outlineButton: {
+    border: `1px solid ${tokens.color.cobalt}`,
+    borderRadius: 10,
+    background: "transparent",
+    color: tokens.color.cobalt,
+    padding: "12px 16px",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: 2,
+  },
+  signOutButton: {
+    border: `1px solid ${tokens.color.hairline}`,
+    borderRadius: 10,
+    background: "transparent",
+    color: tokens.color.danger,
+    padding: "12px 16px",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: 14,
+  },
   disabled: {
-    opacity: 0.6,
+    opacity: 0.65,
     cursor: "default",
   },
 };

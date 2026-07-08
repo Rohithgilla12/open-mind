@@ -1,0 +1,43 @@
+:root {
+  --font-instrument-sans: "Instrument Sans", system-ui, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-newsreader: "Newsreader", Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-instrument-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+input:focus-visible {
+  outline: 2px solid rgba(27, 63, 209, 0.35);
+  outline-offset: 1px;
+}
+
+[data-tauri-drag-region] {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[data-tauri-drag-region]:active {
+  cursor: grabbing;
+}
