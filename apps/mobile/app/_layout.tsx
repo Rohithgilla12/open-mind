@@ -1,10 +1,23 @@
+import {
+  InstrumentSans_400Regular,
+  InstrumentSans_500Medium,
+  InstrumentSans_600SemiBold,
+} from "@expo-google-fonts/instrument-sans";
+import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
+import { Newsreader_500Medium_Italic, Newsreader_600SemiBold_Italic } from "@expo-google-fonts/newsreader";
+import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
 import { Stack, useRouter } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SettingsProvider } from "@/lib/settings-context";
 import { colors } from "@/lib/theme";
+
+// Held open until the brand fonts finish loading below.
+void SplashScreen.preventAutoHideAsync();
 
 // Watches for a shared URL/text (iOS share extension / Android SEND intent) and,
 // when one arrives, routes to the Capture tab pre-filled with it. On web the
@@ -31,6 +44,24 @@ function ShareIntentGate() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    InstrumentSans_400Regular,
+    InstrumentSans_500Medium,
+    InstrumentSans_600SemiBold,
+    Newsreader_500Medium_Italic,
+    Newsreader_600SemiBold_Italic,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) void SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: colors.paper }} />;
+  }
+
   return (
     <SafeAreaProvider>
       <SettingsProvider>

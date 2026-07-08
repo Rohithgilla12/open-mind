@@ -40,7 +40,9 @@
           ],
           "disableExperimental": true
         }
-      ]
+      ],
+      "expo-font",
+      "expo-splash-screen"
     ],
     "experiments": {
       "typedRoutes": true
