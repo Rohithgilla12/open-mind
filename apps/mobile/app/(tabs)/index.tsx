@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ItemRow } from "@/components/ItemRow";
+import { ItemCard } from "@/components/ItemCard";
 import { listItems, type Item } from "@/lib/api";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
@@ -64,14 +64,20 @@ export default function LibraryScreen() {
   // Unconfigured guard: with no token stored, land on Settings.
   if (!loading && !configured) return <Redirect href="/settings" />;
 
+  const count = state.kind === "ready" ? state.items.length : 0;
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <View style={styles.topHairline} />
       <View style={styles.header}>
-        <Text style={styles.title}>Library</Text>
-        <Text style={styles.subtitle}>Your gatherings, organised by the machine</Text>
+        <Text style={styles.title}>The Mind</Text>
+        <Text style={styles.subtitle}>
+          {count} {count === 1 ? "gathering" : "gatherings"} · organised by the machine
+        </Text>
       </View>
       <Body
         state={state}
+        settings={settings}
         refreshing={refreshing}
         onRefresh={() => void load(true)}
         onRetry={() => void load(false)}
@@ -83,13 +89,14 @@ export default function LibraryScreen() {
 
 type BodyProps = {
   state: LoadState;
+  settings: ReturnType<typeof useSettingsContext>["settings"];
   refreshing: boolean;
   onRefresh: () => void;
   onRetry: () => void;
   onOpen: (item: Item) => void;
 };
 
-function Body({ state, refreshing, onRefresh, onRetry, onOpen }: BodyProps) {
+function Body({ state, settings, refreshing, onRefresh, onRetry, onOpen }: BodyProps) {
   if (state.kind === "loading") {
     return (
       <View style={styles.centre}>
@@ -117,7 +124,7 @@ function Body({ state, refreshing, onRefresh, onRetry, onOpen }: BodyProps) {
     <FlatList
       data={state.items}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <ItemRow item={item} onPress={onOpen} />}
+      renderItem={({ item }) => <ItemCard item={item} settings={settings} onPress={onOpen} />}
       contentContainerStyle={styles.list}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
       refreshControl={
@@ -149,9 +156,10 @@ function Message({ text, onRetry }: { text: string; onRetry?: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
+  safe: { flex: 1, backgroundColor: colors.canvas },
+  topHairline: { height: 2, backgroundColor: colors.terracotta },
   header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.md },
-  title: { fontFamily: fonts.serif, fontSize: 27, fontWeight: "600", color: colors.ink },
+  title: { fontFamily: fonts.serifBold, fontSize: 27, color: colors.ink },
   subtitle: {
     fontFamily: fonts.mono,
     fontSize: 12,
@@ -159,7 +167,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, flexGrow: 1 },
-  separator: { height: spacing.md },
+  separator: { height: 14 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   messageText: {
     fontSize: 14,
