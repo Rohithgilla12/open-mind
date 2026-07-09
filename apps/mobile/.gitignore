@@ -18,4 +18,4 @@ expo-env.d.ts
 *.log
 npm-debug.*
 .DS_Store
-apps/mobile/build-*.ipa
+build-*.ipa
