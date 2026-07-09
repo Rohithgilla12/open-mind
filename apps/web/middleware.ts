@@ -3,7 +3,7 @@ import type { NextFetchEvent, NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { authMode } from "./lib/auth-mode";
 
-const isPublicRoute = createRouteMatcher(["/login(.*)"]);
+const isPublicRoute = createRouteMatcher(["/login(.*)", "/privacy"]);
 
 // Proxy/protocol paths enforce their own auth at the API layer (bearer keys,
 // MCP session). They must still pass THROUGH clerkMiddleware in clerk mode —
@@ -30,6 +30,9 @@ const clerkHandler =
     : null;
 
 function legacyMiddleware(req: NextRequest) {
+  if (req.nextUrl.pathname.startsWith("/privacy")) {
+    return NextResponse.next();
+  }
   const hasToken = req.cookies.has("om_token");
   const isLogin = req.nextUrl.pathname.startsWith("/login");
   if (!hasToken && !isLogin) {
