@@ -5,6 +5,12 @@ import type { Settings } from "./settings";
 const settings: Settings = { instanceUrl: "https://openmind.example.com", token: "secret-tok" };
 
 const getSettingsMock = vi.fn<() => Promise<Settings | null>>();
+vi.mock("@tauri-apps/plugin-http", () => ({
+  // api.ts imports the plugin's fetch (CORS-free via Rust); tests keep using
+  // the same global mock so every existing assertion stays valid.
+  fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
+}));
+
 vi.mock("./settings", () => ({
   getSettings: () => getSettingsMock(),
 }));

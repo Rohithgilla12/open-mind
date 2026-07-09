@@ -4,6 +4,9 @@
 // override is passed (used to validate typed values before they persist).
 // The token is a secret and is never logged.
 import { getSettings, type Settings } from "./settings";
+// Plugin fetch tunnels through Rust — the webview's CORS policy would block
+// plain fetch() from the tauri:// origin to any instance URL.
+import { fetch } from "@tauri-apps/plugin-http";
 
 /** Minimal item shape (subset of the OpenAPI Item schema). */
 export type Item = {
