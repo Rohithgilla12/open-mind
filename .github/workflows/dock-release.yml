@@ -15,6 +15,8 @@ env:
 jobs:
   release:
     runs-on: macos-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: apps/dock
@@ -90,3 +92,14 @@ jobs:
         with:
           command: release publish ${{ env.CN_APPLICATION }} --framework tauri
           api-key: ${{ secrets.CN_API_KEY }}
+
+      - name: GitHub release (public download)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Openmind Dock ${GITHUB_REF_NAME#dock-v}" \
+            --generate-notes \
+            src-tauri/target/release/bundle/dmg/*.dmg \
+            src-tauri/target/release/bundle/macos/*.app.tar.gz \
+            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
