@@ -49,7 +49,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://cdn.crabnebula.app/update/CN_ORG_SLUG/openmind-dock/{{target}}-{{arch}}/{{current_version}}"
+        "https://cdn.crabnebula.app/update/rohith-gilla/openmind/{{target}}-{{arch}}/{{current_version}}"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0QkNBRDNENzE1Qzc1QUUKUldTdWRWeHhQYTI4RkhtUU9mOGpzM2g4RGpTR2NTZVltdDVKZU83MlJWSGNpeUZGZHg5ZlhjUEwK"
     }

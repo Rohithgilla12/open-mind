@@ -10,7 +10,7 @@ on:
       - "dock-v*"
 
 env:
-  CN_APPLICATION: "CN_ORG_SLUG/openmind-dock"
+  CN_APPLICATION: "rohith-gilla/openmind"
 
 jobs:
   release:
