@@ -10,9 +10,12 @@ export function DragRegion({
   children?: ReactNode;
   style?: CSSProperties;
 }) {
+  // data-tauri-drag-region only fires when the mousedown targets the element
+  // itself — children swallow the event otherwise, which made the panel feel
+  // stuck. Content is presentation-only, so it opts out of pointer events.
   return (
     <div data-tauri-drag-region style={style}>
-      {children}
+      <div style={{ pointerEvents: "none" }}>{children}</div>
     </div>
   );
 }

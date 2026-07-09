@@ -61,10 +61,10 @@ export function Panel() {
     let unlisten: (() => void) | undefined;
     void getCurrentWindow()
       .onFocusChanged(({ payload: focused }) => {
+        // The panel floats: losing focus no longer hides it (Esc / ⌘⇧O / tray
+        // do), so it can sit beside whatever you're reading.
         if (focused) {
           inputRef.current?.focus();
-        } else {
-          void getCurrentWindow().hide();
         }
       })
       .then((fn) => {
