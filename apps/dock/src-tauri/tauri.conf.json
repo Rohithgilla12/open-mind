@@ -32,7 +32,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +43,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": {}
+    "macOS": {},
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://cdn.crabnebula.app/update/CN_ORG_SLUG/openmind-dock/{{target}}-{{arch}}/{{current_version}}"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0QkNBRDNENzE1Qzc1QUUKUldTdWRWeHhQYTI4RkhtUU9mOGpzM2g4RGpTR2NTZVltdDVKZU83MlJWSGNpeUZGZHg5ZlhjUEwK"
+    }
   }
 }

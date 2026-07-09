@@ -163,11 +163,44 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+// Checks CrabNebula Cloud for a newer release on startup and installs it in
+// the background; the running instance keeps working and the new version
+// applies on next launch. Failures are silent by design — an offline start
+// must not nag.
+fn check_for_updates(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = match app.updater() {
+            Ok(u) => u,
+            Err(e) => {
+                log::debug!("updater unavailable: {e}");
+                return;
+            }
+        };
+        match updater.check().await {
+            Ok(Some(update)) => {
+                let version = update.version.clone();
+                match update.download_and_install(|_, _| {}, || {}).await {
+                    Ok(()) => notify(
+                        &app,
+                        &format!("Updated to {version} — quit and reopen the dock to apply."),
+                    ),
+                    Err(e) => log::debug!("update install failed: {e}"),
+                }
+            }
+            Ok(None) => {}
+            Err(e) => log::debug!("update check failed: {e}"),
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -207,6 +240,8 @@ pub fn run() {
             register_shortcut_or_warn(app.handle(), toggle_panel_shortcut(), "⌘⇧O");
 
             build_tray(app)?;
+
+            check_for_updates(app.handle().clone());
 
             Ok(())
         })
