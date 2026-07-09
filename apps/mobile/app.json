@@ -10,6 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "fun.gilla.openmind",
+      "entitlements": {
+        "keychain-access-groups": ["$(AppIdentifierPrefix)group.fun.gilla.openmind"]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -30,15 +33,28 @@
       [
         "expo-share-intent",
         {
-          "iosActivationRules": {
-            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
-            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
-            "NSExtensionActivationSupportsText": true
-          },
           "androidIntentFilters": [
             "text/*"
           ],
+          "disableIOS": true,
           "disableExperimental": true
+        }
+      ],
+      [
+        "expo-share-extension",
+        {
+          "activationRules": [
+            { "type": "url", "max": 1 },
+            { "type": "text" }
+          ],
+          "height": 280,
+          "backgroundColor": { "red": 0, "green": 0, "blue": 0, "alpha": 0 },
+          "excludedPackages": [
+            "expo-updates",
+            "expo-splash-screen",
+            "expo-font",
+            "expo-dev-client"
+          ]
         }
       ],
       "expo-font",
@@ -62,11 +78,11 @@
             "ios": {
               "appExtensions": [
                 {
-                  "targetName": "ShareExtension",
-                  "bundleIdentifier": "fun.gilla.openmind.share-extension",
+                  "targetName": "OpenmindShareExtension",
+                  "bundleIdentifier": "fun.gilla.openmind.ShareExtension",
                   "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.fun.gilla.openmind"
+                    "keychain-access-groups": [
+                      "$(AppIdentifierPrefix)group.fun.gilla.openmind"
                     ]
                   }
                 }

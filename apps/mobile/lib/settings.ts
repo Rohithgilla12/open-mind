@@ -15,6 +15,17 @@ export type Settings = {
 const INSTANCE_URL_KEY = "openmind.instanceUrl";
 const TOKEN_KEY = "openmind.token";
 
+// Shared keychain access group so the iOS Share Extension (a separate process)
+// can read the same instance URL + token the main app stored — that's what lets
+// it save inline without launching the app. The value mirrors the app group id
+// declared in app.json; both the app and the extension target must carry a
+// `keychain-access-groups` entitlement listing it. On Android this option is
+// ignored; on web the keychain isn't used at all (localStorage fallback below).
+const KEYCHAIN_ACCESS_GROUP = "group.fun.gilla.openmind";
+const secureOptions: SecureStore.SecureStoreOptions = {
+  accessGroup: KEYCHAIN_ACCESS_GROUP,
+};
+
 const isWeb = Platform.OS === "web";
 
 async function getItem(key: string): Promise<string | null> {
@@ -26,7 +37,7 @@ async function getItem(key: string): Promise<string | null> {
     }
   }
   try {
-    return await SecureStore.getItemAsync(key);
+    return await SecureStore.getItemAsync(key, secureOptions);
   } catch {
     // A keychain read failure is treated as "not stored" so callers degrade to
     // the setup flow rather than wedging on an unresolved read.
@@ -43,7 +54,7 @@ async function setItem(key: string, value: string): Promise<void> {
     }
     return;
   }
-  await SecureStore.setItemAsync(key, value);
+  await SecureStore.setItemAsync(key, value, secureOptions);
 }
 
 async function deleteItem(key: string): Promise<void> {
@@ -55,7 +66,7 @@ async function deleteItem(key: string): Promise<void> {
     }
     return;
   }
-  await SecureStore.deleteItemAsync(key);
+  await SecureStore.deleteItemAsync(key, secureOptions);
 }
 
 /** Read the stored settings, or null if not fully configured. */

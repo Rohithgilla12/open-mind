@@ -47,9 +47,8 @@ Then Capture and Library become usable.
 
 ## Share sheet — requires a dev build
 
-The share sheet uses [`expo-share-intent`](https://github.com/achorein/expo-share-intent),
-which registers a native **iOS Share Extension** and **Android SEND intent handler**.
-That native code **cannot run in Expo Go** — you need a custom dev build:
+Share-sheet capture uses native code that **cannot run in Expo Go** — you need a
+custom dev build:
 
 ```bash
 cd apps/mobile
@@ -57,13 +56,45 @@ npx expo run:ios       # or: npx expo run:android
 # (or build with EAS: npx eas build --profile development)
 ```
 
-Once installed, share a link or text from any app → pick **Openmind** → the app
-opens on **Capture** pre-filled with the shared URL/text; tap **Save**.
+The two platforms behave differently by design:
 
-Share activation is configured in `app.json` (`expo-share-intent` plugin):
+- **iOS — saves inline, no app switch.** Sharing a link/text and picking
+  **Openmind** opens a small **Share Extension** sheet *on top of* the app you're
+  in ([`expo-share-extension`](https://github.com/MaxAst/expo-share-extension),
+  root component `ShareExtension.tsx`). It shows the shared URL/text and a **Save**
+  button, POSTs straight to your instance, and dismisses — you never leave the
+  current app. `expo-share-intent`'s iOS half is disabled (`disableIOS: true`) so
+  the two don't both register an extension.
+- **Android — opens the app.** The `text/*` SEND intent
+  ([`expo-share-intent`](https://github.com/achorein/expo-share-intent)) opens
+  Openmind on **Capture**, pre-filled; tap **Save**. (An inline Android
+  save-and-dismiss activity is a planned follow-up.)
 
-- iOS: URLs (`public.url`), web pages, and plain text.
-- Android: `text/*` SEND intents.
+### How the iOS extension reads your token
+
+The Share Extension is a **separate process** and can't share React state with the
+app, so it reads the instance URL + token from a **shared keychain access group**
+(`group.fun.gilla.openmind`) written by `lib/settings.ts` (`accessGroup` option).
+Both targets must carry a matching `keychain-access-groups` entitlement:
+
+- The **main app** gets it from `ios.entitlements` in `app.json`.
+- The **extension** gets it from the `extra.eas.build.experimental.ios.appExtensions`
+  entitlements block — `expo-share-extension` merges those into the extension
+  target on **EAS Build**.
+
+> ⚠️ **Verify on a real build.** This share extension has only been type-checked
+> and config-resolved on CI — it hasn't been compiled/run on a device here. Two
+> things to confirm on your first `eas build` / `expo run:ios`:
+> 1. **SDK compatibility.** `expo-share-extension`'s published compatibility table
+>    currently tops out at Expo SDK 54; this app is on SDK 57. If the pinned
+>    `^5.0.6` doesn't build against SDK 57, bump to whatever version (or the 6.x
+>    line) lists SDK 57 support.
+> 2. **Local prebuild keychain entitlement.** On a *local* `expo run:ios`,
+>    `expo-share-extension` writes the extension's `.entitlements` file with only
+>    the app group — not the keychain group. If the extension can't read the token
+>    (shows "Connect this device…"), add `keychain-access-groups` to the
+>    extension target in Xcode, or build via EAS where the `appExtensions`
+>    entitlements block is honoured.
 
 > Do not commit the generated `ios/` and `android/` folders; regenerate with
 > `expo prebuild` / `expo run:*` before an EAS build.
