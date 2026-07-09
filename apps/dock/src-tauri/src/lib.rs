@@ -9,12 +9,19 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
 
+// ⌘ on macOS; Ctrl on Windows/Linux (SUPER there is the OS key — Win+Shift+S
+// is the system screenshot tool).
+#[cfg(target_os = "macos")]
+const PRIMARY_MODIFIER: Modifiers = Modifiers::SUPER;
+#[cfg(not(target_os = "macos"))]
+const PRIMARY_MODIFIER: Modifiers = Modifiers::CONTROL;
+
 fn quick_save_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyS)
+    Shortcut::new(Some(PRIMARY_MODIFIER | Modifiers::SHIFT), Code::KeyS)
 }
 
 fn toggle_panel_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyO)
+    Shortcut::new(Some(PRIMARY_MODIFIER | Modifiers::SHIFT), Code::KeyO)
 }
 
 fn notify(app: &AppHandle, body: &str) {
@@ -74,6 +81,9 @@ fn quick_save(app: &AppHandle) {
                 let msg = match e.as_str() {
                     "automation-denied" => {
                         "Allow automation for your browser in System Settings → Privacy"
+                    }
+                    "unsupported-platform" => {
+                        "Tab grab is macOS-only here — use the panel shortcut to capture."
                     }
                     "unsupported-app" => "Front app isn't a supported browser",
                     "firefox-unsupported" => "Firefox doesn't allow tab access — use ⌘⇧O",

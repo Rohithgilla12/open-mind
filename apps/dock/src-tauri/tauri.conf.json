@@ -1,7 +1,7 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "openmind-dock",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "identifier": "fun.gilla.openmind.dock",
   "build": {
     "frontendDist": "../dist",
@@ -32,10 +32,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

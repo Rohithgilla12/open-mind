@@ -66,6 +66,14 @@ pub fn parse_output(raw: &str, browser: &str) -> Result<TabInfo, String> {
 
 #[tauri::command]
 pub fn grab_frontmost_tab() -> Result<TabInfo, String> {
+    #[cfg(not(target_os = "macos"))]
+    return Err("unsupported-platform".into());
+    #[cfg(target_os = "macos")]
+    grab_frontmost_tab_macos()
+}
+
+#[cfg(target_os = "macos")]
+fn grab_frontmost_tab_macos() -> Result<TabInfo, String> {
     let bundle = frontmost_bundle_id()?;
     if bundle == "org.mozilla.firefox" {
         return Err("firefox-unsupported".into());

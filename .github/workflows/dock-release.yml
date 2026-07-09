@@ -1,9 +1,9 @@
 name: dock release
 
 # Tag a dock release (after bumping the version in apps/dock/src-tauri/tauri.conf.json):
-#   git tag dock-v0.2.0 && git push origin dock-v0.2.0
-# Builds the signed macOS bundle and publishes it to CrabNebula Cloud, which
-# serves both the download page and the in-app updater feed.
+#   git tag dock-vX.Y.Z && git push origin dock-vX.Y.Z
+# Builds macOS (signed + notarized), Linux, and Windows bundles; publishes to
+# CrabNebula Cloud (download page + in-app updater feed) and GitHub Releases.
 on:
   push:
     tags:
@@ -13,15 +13,38 @@ env:
   CN_APPLICATION: "rohith-gilla/openmind"
 
 jobs:
-  release:
-    runs-on: macos-latest
+  draft:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create draft release
+        uses: crabnebula-dev/cloud-release@v0
+        with:
+          command: release draft ${{ env.CN_APPLICATION }} --framework tauri
+          api-key: ${{ secrets.CN_API_KEY }}
+
+  build:
+    needs: draft
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
+        shell: bash
         working-directory: apps/dock
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
       - uses: pnpm/action-setup@v4
 
@@ -40,13 +63,8 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: .
 
-      - name: Create draft release
-        uses: crabnebula-dev/cloud-release@v0
-        with:
-          command: release draft ${{ env.CN_APPLICATION }} --framework tauri
-          api-key: ${{ secrets.CN_API_KEY }}
-
       - name: Prepare Apple signing (activates when secrets are configured)
+        if: matrix.os == 'macos-latest'
         run: |
           if [ -n "$CERT" ]; then
             {
@@ -56,7 +74,7 @@ jobs:
             } >> "$GITHUB_ENV"
             echo "Developer ID signing enabled"
           else
-            echo "No APPLE_CERTIFICATE secret — shipping unsigned (Gatekeeper right-click-open applies)"
+            echo "No APPLE_CERTIFICATE secret — shipping unsigned"
           fi
           if [ -n "$API_P8" ]; then
             echo "$API_P8" > "$RUNNER_TEMP/apple-api-key.p8"
@@ -80,26 +98,33 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""  # key generated without a password; the key itself is the secret
 
-      - name: Upload assets
+      - name: Upload assets to CrabNebula
         uses: crabnebula-dev/cloud-release@v0
         with:
           command: release upload ${{ env.CN_APPLICATION }} --framework tauri
           api-key: ${{ secrets.CN_API_KEY }}
           path: apps/dock/src-tauri
 
-      - name: Publish release
-        uses: crabnebula-dev/cloud-release@v0
-        with:
-          command: release publish ${{ env.CN_APPLICATION }} --framework tauri
-          api-key: ${{ secrets.CN_API_KEY }}
-
-      - name: GitHub release (public download)
+      - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             --title "Openmind Dock ${GITHUB_REF_NAME#dock-v}" \
-            --generate-notes \
-            src-tauri/target/release/bundle/dmg/*.dmg \
-            src-tauri/target/release/bundle/macos/*.app.tar.gz \
-            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
+            --generate-notes 2>/dev/null || true
+          find src-tauri/target/release/bundle -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.AppImage" \
+               -o -name "*.deb" -o -name "*.rpm" -o -name "*-setup.exe" \
+               -o -name "*.msi" -o -name "*.sig" \) \
+            -exec gh release upload "$GITHUB_REF_NAME" {} --clobber \;
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        uses: crabnebula-dev/cloud-release@v0
+        with:
+          command: release publish ${{ env.CN_APPLICATION }} --framework tauri
+          api-key: ${{ secrets.CN_API_KEY }}
