@@ -18,7 +18,7 @@ still covers both actions (Open panel / Save current tab / Settings / Quit).
 
 ## Install
 
-- **Download**: grab the latest `.dmg` from [GitHub Releases](https://github.com/Rohithgilla12/open-mind/releases) (signed + notarized — opens without warnings). The same builds are on the [CrabNebula download page](https://web.crabnebula.cloud/rohith-gilla/openmind/releases).
+- **Download**: grab the latest `.dmg` from [GitHub Releases](https://github.com/Rohithgilla12/open-mind/releases) (signed + notarized — opens without warnings). Direct link to the newest build: [latest dmg](https://cdn.crabnebula.app/download/rohith-gilla/openmind/latest/platform/dmg-aarch64).
 - **Auto-updates**: installed docks check for new releases on every launch and update themselves — no reinstalling.
 
 ## Run / build
