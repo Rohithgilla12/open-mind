@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -41,6 +41,7 @@ export function SettingsView({
   const [launchAtLogin, setLaunchAtLogin] = useState(false);
   const [launchBusy, setLaunchBusy] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const launchTouchedRef = useRef(false);
 
   const checking = status.kind === "checking";
   const claiming = claimStatus.kind === "claiming";
@@ -50,7 +51,8 @@ export function SettingsView({
     void (async () => {
       try {
         const on = await isEnabled();
-        if (!cancelled) setLaunchAtLogin(on);
+        // Don't clobber a toggle the user already made while isEnabled() was in flight.
+        if (!cancelled && !launchTouchedRef.current) setLaunchAtLogin(on);
       } catch {
         // Plugin unavailable in non-Tauri contexts (vitest) — leave off.
       }
@@ -61,6 +63,7 @@ export function SettingsView({
   }, []);
 
   async function onToggleLaunchAtLogin() {
+    launchTouchedRef.current = true;
     setLaunchBusy(true);
     setLaunchError(null);
     try {
