@@ -31,3 +31,6 @@ tauri-plugin-http = "2"
 tauri-plugin-process = "2"
 keyring = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-autostart = "2"

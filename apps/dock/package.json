@@ -13,6 +13,7 @@
   "dependencies": {
     "@openmind/ui": "workspace:*",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.0.0",

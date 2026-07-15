@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkToken, claimDeviceCode, saveItem, searchItems } from "./api";
+import { checkToken, claimDeviceCode, listDesk, listRecent, saveItem, searchItems } from "./api";
 import type { Settings } from "./settings";
 
 const settings: Settings = { instanceUrl: "https://openmind.example.com", token: "secret-tok" };
@@ -178,6 +178,38 @@ describe("api client", () => {
         ok: false,
         status: 0,
       });
+    });
+  });
+
+  describe("listDesk", () => {
+    it("GETs /api/desk with Bearer and returns items", async () => {
+      const items = [{ id: "1", url: "https://a.com", status: "enriched", title: "A" }];
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(items), { status: 200 }));
+      const result = await listDesk();
+      expect(result).toEqual({ ok: true, status: 200, items });
+      const [url, init] = vi.mocked(fetch).mock.calls[0];
+      expect(url).toBe("https://openmind.example.com/api/desk");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer secret-tok");
+    });
+
+    it("maps a network failure to status 0", async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+      expect(await listDesk()).toEqual({ ok: false, status: 0, items: [] });
+    });
+  });
+
+  describe("listRecent", () => {
+    it("GETs /api/items?limit= with Bearer", async () => {
+      const items = [{ id: "2", url: "https://b.com", status: "enriched" }];
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(items), { status: 200 }));
+      const result = await listRecent(8);
+      expect(result).toEqual({ ok: true, status: 200, items });
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe("https://openmind.example.com/api/items?limit=8");
+    });
+
+    it("treats a 401 as empty items", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 401 }));
+      expect(await listRecent(8)).toEqual({ ok: false, status: 401, items: [] });
     });
   });
 });

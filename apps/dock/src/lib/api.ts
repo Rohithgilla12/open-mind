@@ -234,3 +234,54 @@ export async function searchItems(
     return { ok: false, status: 0, results: [] };
   }
 }
+
+async function listItemsFrom(
+  path: string,
+  override?: Settings,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; status: number; items: Item[] }> {
+  const settings = await resolveSettings(override);
+  if (!settings) return { ok: false, status: 0, items: [] };
+  try {
+    const res = await timedFetch(apiUrl(settings.instanceUrl, path), {
+      method: "GET",
+      headers: authHeaders(settings.token),
+    }, signal);
+    if (!res.ok) {
+      return { ok: false, status: res.status, items: [] };
+    }
+    try {
+      const data = (await res.json()) as unknown;
+      return {
+        ok: true,
+        status: res.status,
+        items: Array.isArray(data) ? (data as Item[]) : [],
+      };
+    } catch {
+      return { ok: true, status: res.status, items: [] };
+    }
+  } catch (err) {
+    if (signal?.aborted) {
+      throw err instanceof Error ? err : new DOMException("Aborted", "AbortError");
+    }
+    return { ok: false, status: 0, items: [] };
+  }
+}
+
+/** Desk pins via GET {instanceUrl}/api/desk (newest-pinned first). */
+export function listDesk(
+  override?: Settings,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; status: number; items: Item[] }> {
+  return listItemsFrom("/api/desk", override, signal);
+}
+
+/** Recent library items via GET {instanceUrl}/api/items?limit=. */
+export function listRecent(
+  limit: number,
+  override?: Settings,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; status: number; items: Item[] }> {
+  const capped = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 8;
+  return listItemsFrom(`/api/items?limit=${capped}`, override, signal);
+}

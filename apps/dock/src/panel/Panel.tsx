@@ -6,7 +6,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { tokens } from "@openmind/ui";
 import { PanelDragStrip } from "../components/DragRegion";
 import { IconButton, SettingsIcon } from "../components/SettingsIcon";
-import { saveItem, searchItems, type SearchResult } from "../lib/api";
+import { saveItem, searchItems, listDesk, listRecent, type Item, type SearchResult } from "../lib/api";
+import { mergeHomeLists } from "../lib/home-lists";
 import { detectMode } from "../lib/input-mode";
 import { getSettings, type Settings } from "../lib/settings";
 import { SettingsView } from "./SettingsView";
@@ -16,6 +17,7 @@ type ViewMode = "settings" | "main";
 type Toast = { kind: "saved" } | { kind: "error"; message: string } | null;
 
 const SEARCH_DEBOUNCE_MS = 250;
+const HOME_RECENT_FETCH = 16; // fetch extra so merge can still fill 8 after desk dedupe
 
 /** Best-effort hostname for display; falls back to the raw string. */
 function host(url: string): string {
@@ -24,6 +26,43 @@ function host(url: string): string {
   } catch {
     return url;
   }
+}
+
+function statusMessage(status: number): string {
+  if (status === 401) return "Token rejected — open Settings";
+  if (status === 0) return "Instance unreachable";
+  return `Request failed (${status})`;
+}
+
+function ItemRow({
+  item,
+  selected,
+  onSelect,
+  onOpen,
+}: {
+  item: Item;
+  selected: boolean;
+  onSelect: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      style={{
+        ...styles.rowButton,
+        ...(selected ? styles.rowButtonSelected : {}),
+      }}
+      onMouseEnter={onSelect}
+      onClick={onOpen}
+    >
+      <span style={styles.rowTitle}>{item.title || host(item.url)}</span>
+      <span style={styles.rowCaption}>
+        {[host(item.url), item.cardType, (item.tags ?? item.userTags)?.join(", ")]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </button>
+  );
 }
 
 /** Keeps a render crash from blanking the whole panel until quit. */
@@ -75,13 +114,30 @@ export function Panel() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [homeDesk, setHomeDesk] = useState<Item[]>([]);
+  const [homeRecent, setHomeRecent] = useState<Item[]>([]);
+  const [homeLoading, setHomeLoading] = useState(false);
+  const [homeError, setHomeError] = useState<string | null>(null);
+  const [homeEpoch, setHomeEpoch] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const homeAbortRef = useRef<AbortController | null>(null);
 
   const mode = detectMode(query);
+  const queryEmpty = query.trim().length === 0;
+  const showHome = mode === "search" && queryEmpty && !!settings;
+  const homeItems = [...homeDesk, ...homeRecent];
+  const navigable =
+    showHome && !toast
+      ? homeItems.map((item) => ({ kind: "item" as const, item }))
+      : results.map((r) => ({ kind: "result" as const, item: r.item, result: r }));
+
+  function bumpHome() {
+    setHomeEpoch((n) => n + 1);
+  }
 
   async function loadSettings() {
     setBootError(null);
@@ -124,6 +180,7 @@ export function Panel() {
         // do), so it can sit beside whatever you're reading.
         if (focused) {
           inputRef.current?.focus();
+          bumpHome();
         }
       })
       .then((fn) => {
@@ -135,6 +192,7 @@ export function Panel() {
   useEffect(() => {
     if (view === "main") {
       inputRef.current?.focus();
+      bumpHome();
     }
   }, [view]);
 
@@ -146,6 +204,52 @@ export function Panel() {
     });
     return () => unlisten?.();
   }, []);
+
+  // Home: Desk + Recent when the query is empty.
+  useEffect(() => {
+    if (!showHome || view !== "main") return;
+
+    homeAbortRef.current?.abort();
+    const controller = new AbortController();
+    homeAbortRef.current = controller;
+    setHomeLoading(true);
+    setHomeError(null);
+    setSelectedIndex(0);
+
+    void (async () => {
+      try {
+        const [deskRes, recentRes] = await Promise.all([
+          listDesk(settings ?? undefined, controller.signal),
+          listRecent(HOME_RECENT_FETCH, settings ?? undefined, controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+
+        const merged = mergeHomeLists(
+          deskRes.ok ? deskRes.items : [],
+          recentRes.ok ? recentRes.items : [],
+        );
+        setHomeDesk(merged.desk);
+        setHomeRecent(merged.recent);
+        setHomeLoading(false);
+
+        if (!deskRes.ok && !recentRes.ok) {
+          setHomeError(statusMessage(deskRes.status || recentRes.status));
+        } else {
+          setHomeError(null);
+        }
+      } catch {
+        if (controller.signal.aborted) return;
+        setHomeLoading(false);
+        setHomeDesk([]);
+        setHomeRecent([]);
+        setHomeError("Instance unreachable");
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [showHome, view, settings, homeEpoch]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -262,9 +366,9 @@ export function Panel() {
     }
   }
 
-  async function openResult(result: SearchResult) {
+  async function openItem(item: Item) {
     if (!settings) return;
-    const url = `${settings.instanceUrl}/item/${result.item.id}`;
+    const url = `${settings.instanceUrl}/item/${item.id}`;
     try {
       await openUrl(url);
     } catch {
@@ -280,10 +384,10 @@ export function Panel() {
 
   function moveSelection(delta: number) {
     setSelectedIndex((i) => {
-      if (results.length === 0) return 0;
+      if (navigable.length === 0) return 0;
       const next = i + delta;
-      if (next < 0) return results.length - 1;
-      if (next >= results.length) return 0;
+      if (next < 0) return navigable.length - 1;
+      if (next >= navigable.length) return 0;
       return next;
     });
   }
@@ -308,8 +412,8 @@ export function Panel() {
         moveSelection(-1);
       } else if (e.key === "Enter") {
         e.preventDefault();
-        const result = results[selectedIndex];
-        if (result) void openResult(result);
+        const entry = navigable[selectedIndex];
+        if (entry) void openItem(entry.item);
       }
     } else if (mode === "save-url" && e.key === "Enter") {
       e.preventDefault();
@@ -393,6 +497,61 @@ export function Panel() {
           >
             {saving ? "Saving…" : `Save ${host(query.trim())}`}
           </button>
+        ) : showHome ? (
+          homeError && homeItems.length === 0 ? (
+            <div style={styles.errorBlock}>
+              <div style={styles.errorRow}>{homeError}</div>
+              {homeError.includes("Settings") || homeError === "Instance unreachable" ? (
+                <button type="button" style={styles.errorAction} onClick={() => setView("settings")}>
+                  Open Settings
+                </button>
+              ) : null}
+            </div>
+          ) : homeLoading && homeItems.length === 0 ? (
+            <div style={styles.emptyRow}>Loading…</div>
+          ) : homeItems.length === 0 ? (
+            <div style={styles.emptyRow}>Type to search · ⌘⇧S saves the front tab</div>
+          ) : (
+            <div style={styles.homeStack}>
+              {homeDesk.length > 0 ? (
+                <section>
+                  <h2 style={styles.sectionHeading}>Desk</h2>
+                  <ul style={styles.list}>
+                    {homeDesk.map((item, i) => (
+                      <li key={item.id}>
+                        <ItemRow
+                          item={item}
+                          selected={selectedIndex === i}
+                          onSelect={() => setSelectedIndex(i)}
+                          onOpen={() => void openItem(item)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {homeRecent.length > 0 ? (
+                <section>
+                  <h2 style={styles.sectionHeading}>Recent</h2>
+                  <ul style={styles.list}>
+                    {homeRecent.map((item, i) => {
+                      const index = homeDesk.length + i;
+                      return (
+                        <li key={item.id}>
+                          <ItemRow
+                            item={item}
+                            selected={selectedIndex === index}
+                            onSelect={() => setSelectedIndex(index)}
+                            onOpen={() => void openItem(item)}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
+          )
         ) : searchError ? (
           <div style={styles.errorBlock}>
             <div style={styles.errorRow}>{searchError}</div>
@@ -402,34 +561,20 @@ export function Panel() {
               </button>
             ) : null}
           </div>
-        ) : query.trim().length === 0 ? (
-          <div style={styles.emptyRow}>Type to search · ⌘⇧S saves the front tab</div>
         ) : searching ? (
           <div style={styles.emptyRow}>Searching…</div>
         ) : results.length === 0 ? (
-          <div style={styles.emptyRow}>
-            Nothing found · ⌘Enter saves as a note
-          </div>
+          <div style={styles.emptyRow}>Nothing found · ⌘Enter saves as a note</div>
         ) : (
           <ul style={styles.list}>
             {results.map((r, i) => (
               <li key={r.item.id}>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.rowButton,
-                    ...(i === selectedIndex ? styles.rowButtonSelected : {}),
-                  }}
-                  onMouseEnter={() => setSelectedIndex(i)}
-                  onClick={() => void openResult(r)}
-                >
-                  <span style={styles.rowTitle}>{r.item.title || host(r.item.url)}</span>
-                  <span style={styles.rowCaption}>
-                    {[host(r.item.url), r.item.cardType, (r.item.tags ?? r.item.userTags)?.join(", ")]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </button>
+                <ItemRow
+                  item={r.item}
+                  selected={i === selectedIndex}
+                  onSelect={() => setSelectedIndex(i)}
+                  onOpen={() => void openItem(r.item)}
+                />
               </li>
             ))}
           </ul>
@@ -481,6 +626,20 @@ const styles: Record<string, CSSProperties> = {
     flex: 1,
     overflowY: "auto",
     padding: "8px 10px",
+  },
+  homeStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  },
+  sectionHeading: {
+    fontFamily: tokens.font.mono,
+    fontSize: 10,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: tokens.color.inkFaint,
+    margin: "4px 10px 6px",
+    fontWeight: 500,
   },
   emptyRow: {
     padding: "28px 12px",

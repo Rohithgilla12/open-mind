@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { tokens } from "@openmind/ui";
 import { checkToken, claimDeviceCode } from "../lib/api";
 import { clearSettings, setSettings, type Settings } from "../lib/settings";
@@ -37,9 +38,45 @@ export function SettingsView({
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [deviceCode, setDeviceCode] = useState("");
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>({ kind: "idle" });
+  const [launchAtLogin, setLaunchAtLogin] = useState(false);
+  const [launchBusy, setLaunchBusy] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
 
   const checking = status.kind === "checking";
   const claiming = claimStatus.kind === "claiming";
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const on = await isEnabled();
+        if (!cancelled) setLaunchAtLogin(on);
+      } catch {
+        // Plugin unavailable in non-Tauri contexts (vitest) — leave off.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function onToggleLaunchAtLogin() {
+    setLaunchBusy(true);
+    setLaunchError(null);
+    try {
+      if (launchAtLogin) {
+        await disable();
+        setLaunchAtLogin(false);
+      } else {
+        await enable();
+        setLaunchAtLogin(true);
+      }
+    } catch {
+      setLaunchError("Couldn't update login item — try again.");
+    } finally {
+      setLaunchBusy(false);
+    }
+  }
 
   async function onValidateAndSave() {
     const url = resolveInstanceUrl(instanceUrl);
@@ -237,6 +274,34 @@ export function SettingsView({
           {checking ? "Checking…" : "Validate & save"}
         </button>
 
+        <div style={styles.launchRow}>
+          <div style={styles.launchCopy}>
+            <span style={styles.launchTitle}>Launch at login</span>
+            <span style={styles.launchHint}>Start the dock in the menu bar when you sign in to macOS.</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={launchAtLogin}
+            aria-label="Launch at login"
+            disabled={launchBusy}
+            onClick={() => void onToggleLaunchAtLogin()}
+            style={{
+              ...styles.switchTrack,
+              ...(launchAtLogin ? styles.switchTrackOn : {}),
+              ...(launchBusy ? styles.disabled : {}),
+            }}
+          >
+            <span
+              style={{
+                ...styles.switchThumb,
+                ...(launchAtLogin ? styles.switchThumbOn : {}),
+              }}
+            />
+          </button>
+        </div>
+        {launchError ? <p style={{ ...styles.status, color: tokens.color.danger }}>{launchError}</p> : null}
+
         {initial ? (
           <button type="button" style={styles.signOutButton} onClick={() => void onSignOut()}>
             Sign out
@@ -395,6 +460,57 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: "pointer",
     marginTop: 2,
+  },
+  launchRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    marginTop: 22,
+    padding: "14px 0 4px",
+    borderTop: `1px solid ${tokens.color.hairline}`,
+  },
+  launchCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+  },
+  launchTitle: {
+    fontSize: 15,
+    fontWeight: 600,
+  },
+  launchHint: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: tokens.color.inkMuted,
+  },
+  switchTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 999,
+    border: `1px solid ${tokens.color.hairline}`,
+    background: tokens.color.panel,
+    padding: 2,
+    cursor: "pointer",
+    flex: "none",
+    position: "relative",
+  },
+  switchTrackOn: {
+    background: tokens.color.cobalt,
+    borderColor: tokens.color.cobalt,
+  },
+  switchThumb: {
+    display: "block",
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    background: tokens.color.cardSurface,
+    transform: "translateX(0)",
+    transition: "transform 120ms ease",
+  },
+  switchThumbOn: {
+    transform: "translateX(18px)",
   },
   signOutButton: {
     border: `1px solid ${tokens.color.hairline}`,
