@@ -92,6 +92,11 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Public `/architecture` deep-dive page (web) — content as typed data in
+  `apps/web/lib/architecture.ts` with vitest coverage, page is a pure renderer,
+  exempted from auth in middleware, linked from the welcome footer + README.
+  Written 2026-07-17, rebased and opened as a PR 2026-08-01 after sitting
+  unmerged on a local-only branch (2026-08-01)
 - **Deployed to prod 2026-08-01** — PRs #56 (Feed spacing + summary markdown),
   #57 (Raindrop token import), #59 (place removal). Box had been on #54 since
   2026-07-31. Sequential api→web build (load peaked 5.5, well under the <8
