@@ -5,13 +5,11 @@ import { apiFetch } from "../../lib/api";
 
 const { color, font } = tokens;
 
-type PlaceWithItem = MapPlace & { hint: string; source: string; itemCardType: string };
-
-async function getPlaces(): Promise<PlaceWithItem[]> {
+async function getPlaces(): Promise<MapPlace[]> {
   try {
     const res = await apiFetch("/places");
     if (!res.ok) return [];
-    return ((await res.json()) as PlaceWithItem[]) ?? [];
+    return ((await res.json()) as MapPlace[]) ?? [];
   } catch {
     return [];
   }

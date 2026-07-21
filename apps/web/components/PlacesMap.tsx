@@ -5,16 +5,11 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { tokens } from "@openmind/ui";
+import type { paths } from "@openmind/api-client";
 
-export type MapPlace = {
-  id: string;
-  name: string;
-  address: string;
-  lat?: number;
-  lng?: number;
-  itemId: string;
-  itemTitle: string;
-};
+// One element of GET /places, straight from the OpenAPI contract.
+export type MapPlace =
+  paths["/places"]["get"]["responses"][200]["content"]["application/json"][number];
 
 const OSM_STYLE = {
   version: 8 as const,
