@@ -47,3 +47,11 @@ export function deleteQueueFile(uri: string): void {
     // Best-effort — a missing file is already the desired state.
   }
 }
+
+export function queueFileExists(uri: string): boolean {
+  try {
+    return new File(uri).exists;
+  } catch {
+    return false;
+  }
+}

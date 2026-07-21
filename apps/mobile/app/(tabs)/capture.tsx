@@ -127,9 +127,16 @@ export default function CaptureScreen() {
         } else if (res.status === 0) {
           // Network error: queue this file and every one not yet attempted so
           // nothing is lost, then let the durable queue sync later.
-          await enqueueAsset(files.slice(i));
+          const { ids } = await enqueueAsset(files.slice(i));
           if (saved > 0) invalidateLists();
-          setStatus({ kind: "queued" });
+          if (ids.length === 0) {
+            setStatus({
+              kind: "error",
+              message: "Couldn't save photo — check your connection and try again.",
+            });
+          } else {
+            setStatus({ kind: "queued" });
+          }
           return;
         } else if (res.status === 415) {
           setStatus({

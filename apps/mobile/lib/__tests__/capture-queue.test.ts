@@ -4,9 +4,11 @@ const mockCopyIntoQueue = jest.fn(
   async (_src: string, id: string, _mime: string) => `file:///q/${id}.jpg`,
 );
 const mockDeleteQueueFile = jest.fn();
+const mockQueueFileExists = jest.fn((_u: string) => true);
 jest.mock("../asset-store", () => ({
   copyIntoQueue: (s: string, id: string, m: string) => mockCopyIntoQueue(s, id, m),
   deleteQueueFile: (u: string) => mockDeleteQueueFile(u),
+  queueFileExists: (u: string) => mockQueueFileExists(u),
   extForMime: () => "jpg",
 }));
 
@@ -23,6 +25,8 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockCopyIntoQueue.mockClear();
   mockDeleteQueueFile.mockClear();
+  mockQueueFileExists.mockClear();
+  mockQueueFileExists.mockImplementation(() => true);
   mockUploadAsset.mockClear();
   mockSaveItem.mockClear();
 });
@@ -107,4 +111,40 @@ test("removeQueued deletes an asset's file but not for url/note entries", async 
   mockDeleteQueueFile.mockClear();
   await removeQueued(urlId);
   expect(mockDeleteQueueFile).not.toHaveBeenCalled();
+});
+
+test("flush drops an asset entry whose backing file vanished, without blocking a following entry", async () => {
+  const { ids } = await enqueueAsset([
+    { uri: "file:///tmp/gone.jpg", name: "gone.jpg", type: "image/jpeg" },
+  ]);
+  const goneFilePath = `file:///q/${ids[0]}.jpg`;
+  mockQueueFileExists.mockImplementation((u: string) => u !== goneFilePath);
+  await enqueue({ url: "https://still-flushes.com" });
+  mockSaveItem.mockResolvedValue({ ok: true, status: 201 });
+
+  const res = await flushQueue();
+  expect(res.sent).toBe(1);
+  expect(res.remaining).toBe(0);
+  expect(mockUploadAsset).not.toHaveBeenCalled();
+  expect(mockDeleteQueueFile).toHaveBeenCalledWith(goneFilePath);
+  const pending = await listQueued();
+  expect(pending).toHaveLength(0);
+});
+
+test("readQueue drops a row whose asset lacks a string filePath, keeps valid rows", async () => {
+  await AsyncStorage.setItem(
+    "openmind.captureQueue",
+    JSON.stringify([
+      { id: "corrupt", createdAt: 1, attempts: 0, asset: { name: "x.jpg", type: "image/jpeg" } },
+      { id: "url-ok", createdAt: 2, attempts: 0, url: "https://ok.com" },
+      {
+        id: "asset-ok",
+        createdAt: 3,
+        attempts: 0,
+        asset: { filePath: "file:///q/asset-ok.jpg", name: "x.jpg", type: "image/jpeg" },
+      },
+    ]),
+  );
+  const pending = await listQueued();
+  expect(pending.map((p) => p.id).sort()).toEqual(["asset-ok", "url-ok"]);
 });

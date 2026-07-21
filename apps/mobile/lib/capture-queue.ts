@@ -4,7 +4,7 @@
 // 401 stops the walk so a bad token does not burn the queue.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { saveItem, uploadAsset, type AssetUpload } from "./api";
-import { copyIntoQueue, deleteQueueFile } from "./asset-store";
+import { copyIntoQueue, deleteQueueFile, queueFileExists } from "./asset-store";
 
 const QUEUE_KEY = "openmind.captureQueue";
 const MAX_QUEUE = 100;
@@ -64,7 +64,11 @@ async function readQueue(): Promise<QueuedCapture[]> {
         !!row &&
         typeof row === "object" &&
         typeof (row as QueuedCapture).id === "string" &&
-        typeof (row as QueuedCapture).createdAt === "number",
+        typeof (row as QueuedCapture).createdAt === "number" &&
+        ((row as QueuedCapture).asset === undefined ||
+          (typeof (row as QueuedCapture).asset === "object" &&
+            (row as QueuedCapture).asset !== null &&
+            typeof (row as QueuedCapture).asset?.filePath === "string")),
     );
   } catch {
     return [];
@@ -194,6 +198,14 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
     for (const entry of [...items].sort((a, b) => a.createdAt - b.createdAt)) {
       // Re-check membership — earlier iterations may have rewritten the queue.
       if (!items.some((q) => q.id === entry.id)) continue;
+
+      if (entry.asset && !queueFileExists(entry.asset.filePath)) {
+        // Backing file is gone (evicted cache, user deleted it) — unrecoverable.
+        cleanupAsset(entry);
+        items = items.filter((q) => q.id !== entry.id);
+        await writeQueue(items);
+        continue;
+      }
 
       const res = entry.asset
         ? await uploadAsset({

@@ -55,13 +55,24 @@ function parseManifest(raw: string | null): PendingShare[] {
   }
 }
 
+let draining: Promise<number> | null = null;
+
 /**
  * Move every pending share into the JS queue, oldest-first. Each record is
  * cleared from the manifest only after its content is safely enqueued (or dropped with a warning if its container file is missing), so a
  * crash mid-drain leaves un-drained records intact rather than double-saving.
- * Returns the number of records drained.
+ * Returns the number of records drained. Concurrent calls coalesce onto the
+ * same in-flight run so overlapping foreground events cannot double-enqueue.
  */
-export async function drainSharedPending(): Promise<number> {
+export function drainSharedPending(): Promise<number> {
+  if (draining) return draining;
+  draining = doDrain().finally(() => {
+    draining = null;
+  });
+  return draining;
+}
+
+async function doDrain(): Promise<number> {
   const storage = extensionStorage();
   if (!storage) return 0;
   const records = parseManifest(storage.get(MANIFEST_KEY));

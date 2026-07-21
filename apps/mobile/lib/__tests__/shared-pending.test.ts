@@ -161,6 +161,29 @@ test("null container: url still drains, asset record survives for a later attemp
   }
 });
 
+test("concurrent drains coalesce onto one in-flight promise; the record is enqueued only once", async () => {
+  mockStore.pendingShares = [
+    { kind: "url", value: "https://coalesce.com", createdAt: 1 },
+  ];
+  let resolveEnqueue!: (v: { id: string; deduped: boolean }) => void;
+  mockEnqueue.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveEnqueue = resolve;
+      }),
+  );
+
+  const first = drainSharedPending();
+  const second = drainSharedPending();
+  expect(second).toBe(first);
+
+  resolveEnqueue({ id: "1", deduped: false });
+  const [n1, n2] = await Promise.all([first, second]);
+  expect(n1).toBe(1);
+  expect(n2).toBe(1);
+  expect(mockEnqueue).toHaveBeenCalledTimes(1);
+});
+
 test("record with non-numeric createdAt is filtered out before drain", async () => {
   mockStore.pendingShares = [
     { kind: "url", value: "https://ok.com", createdAt: 1 },
