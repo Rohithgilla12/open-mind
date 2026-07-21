@@ -17,6 +17,7 @@ import {
 import MapView, { Marker, type Region } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, listPlaces, type PlaceWithItem } from "@/lib/api";
+import { buildIndex, clustersForRegion, expansionRegion } from "@/lib/cluster";
 import { queryKeys } from "@/lib/query";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
@@ -172,6 +173,22 @@ function MapBody({
   const mapRef = useRef<MapView>(null);
   const insets = useSafeAreaInsets();
   const [locating, setLocating] = useState(false);
+  const [region, setRegion] = useState<Region>(initialRegion);
+  const index = useMemo(
+    () =>
+      buildIndex(
+        pinned.map((p) => ({
+          id: p.id,
+          name: p.name,
+          itemId: p.itemId,
+          itemTitle: p.itemTitle,
+          lat: p.lat,
+          lng: p.lng,
+        })),
+      ),
+    [pinned],
+  );
+  const features = useMemo(() => clustersForRegion(index, region), [index, region]);
 
   async function goToMyLocation() {
     setLocating(true);
@@ -204,18 +221,35 @@ function MapBody({
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
+          onRegionChangeComplete={setRegion}
           showsUserLocation
           showsMyLocationButton={false}
         >
-          {pinned.map((p) => (
-            <Marker
-              key={p.id}
-              coordinate={{ latitude: p.lat, longitude: p.lng }}
-              title={p.name}
-              description={p.itemTitle}
-              onCalloutPress={() => onOpenItem(p.itemId)}
-            />
-          ))}
+          {features.map((f) =>
+            f.kind === "cluster" ? (
+              <Marker
+                key={f.id}
+                coordinate={{ latitude: f.latitude, longitude: f.longitude }}
+                onPress={() =>
+                  mapRef.current?.animateToRegion(
+                    expansionRegion(index, f.clusterId, f.longitude, f.latitude),
+                  )
+                }
+              >
+                <View style={styles.cluster}>
+                  <Text style={styles.clusterText}>{f.count}</Text>
+                </View>
+              </Marker>
+            ) : (
+              <Marker
+                key={f.id}
+                coordinate={{ latitude: f.latitude, longitude: f.longitude }}
+                title={f.name}
+                description={f.itemTitle}
+                onCalloutPress={() => onOpenItem(f.itemId)}
+              />
+            ),
+          )}
         </MapView>
         <Pressable
           style={[styles.backFab, { top: insets.top + spacing.sm }]}
@@ -315,6 +349,18 @@ const styles = StyleSheet.create({
   },
   locateFabBusy: { opacity: 0.6 },
   locateFabText: { color: colors.cobalt, fontFamily: fonts.sansSemiBold, fontSize: 20, lineHeight: 24 },
+  cluster: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.cobalt,
+    borderWidth: 2,
+    borderColor: colors.paper,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clusterText: { color: colors.paper, fontFamily: fonts.sansSemiBold, fontSize: 13 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   messageText: {
     fontFamily: fonts.sans,
