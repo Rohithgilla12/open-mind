@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
@@ -25,6 +26,7 @@
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.3",
     "expo-crypto": "~57.0.1",
+    "expo-file-system": "~57.0.1",
     "expo-font": "~57.0.0",
     "expo-image-picker": "~57.0.5",
     "expo-linear-gradient": "~57.0.1",
@@ -46,7 +48,10 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.4",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.2",
     "typescript": "~6.0.3"
   }
 }
