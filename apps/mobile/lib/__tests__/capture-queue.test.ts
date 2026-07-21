@@ -17,7 +17,7 @@ jest.mock("../api", () => ({
   saveItem: (p: unknown) => mockSaveItem(p),
 }));
 
-import { enqueueAsset, flushQueue, listQueued } from "../capture-queue";
+import { enqueueAsset, flushQueue, listQueued, removeQueued, enqueue } from "../capture-queue";
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -68,4 +68,43 @@ test("network error on an asset keeps the entry and file, bumps attempts", async
   expect(mockDeleteQueueFile).not.toHaveBeenCalled();
   const pending = await listQueued();
   expect(pending[0].attempts).toBe(1);
+});
+
+test("enqueueAsset skips a file whose copy fails but still enqueues the rest", async () => {
+  mockCopyIntoQueue
+    .mockImplementationOnce(async () => {
+      throw new Error("disk full");
+    })
+    .mockImplementationOnce(async (_src: string, id: string) => `file:///q/${id}.jpg`);
+  const { ids } = await enqueueAsset([
+    { uri: "file:///tmp/bad.jpg", name: "bad.jpg", type: "image/jpeg" },
+    { uri: "file:///tmp/good.jpg", name: "good.jpg", type: "image/jpeg" },
+  ]);
+  expect(ids).toHaveLength(1);
+  const pending = await listQueued();
+  expect(pending).toHaveLength(1);
+  expect(pending[0].asset?.name).toBe("good.jpg");
+});
+
+test("cap eviction deletes the evicted oldest asset files", async () => {
+  for (let i = 0; i < 101; i += 1) {
+    await enqueueAsset([{ uri: `file:///tmp/${i}.jpg`, name: `${i}.jpg`, type: "image/jpeg" }]);
+  }
+  const pending = await listQueued();
+  expect(pending).toHaveLength(100);
+  expect(mockDeleteQueueFile).toHaveBeenCalled();
+});
+
+test("removeQueued deletes an asset's file but not for url/note entries", async () => {
+  const { ids } = await enqueueAsset([
+    { uri: "file:///tmp/a.jpg", name: "a.jpg", type: "image/jpeg" },
+  ]);
+  const { id: urlId } = await enqueue({ url: "https://example.com" });
+
+  await removeQueued(ids[0]);
+  expect(mockDeleteQueueFile).toHaveBeenCalledWith(expect.stringContaining("file:///q/"));
+
+  mockDeleteQueueFile.mockClear();
+  await removeQueued(urlId);
+  expect(mockDeleteQueueFile).not.toHaveBeenCalled();
 });

@@ -137,17 +137,24 @@ export async function enqueueAsset(
     const ids: string[] = [];
     for (const file of files) {
       const id = newId();
-      const filePath = await copyIntoQueue(file.uri, id, file.type);
-      items = [
-        ...items,
-        {
-          id,
-          asset: { filePath, name: file.name, type: file.type },
-          createdAt: Date.now(),
-          attempts: 0,
-        },
-      ];
-      ids.push(id);
+      try {
+        const filePath = await copyIntoQueue(file.uri, id, file.type);
+        items = [
+          ...items,
+          {
+            id,
+            asset: { filePath, name: file.name, type: file.type },
+            createdAt: Date.now(),
+            attempts: 0,
+          },
+        ];
+        ids.push(id);
+      } catch (err) {
+        // Copy failed — nothing was persisted for this file, so there is
+        // nothing to enqueue. Skip it; the rest of the batch still lands.
+        console.warn(`[capture-queue] copy failed for ${file.name}:`, err);
+        continue;
+      }
     }
     if (items.length > MAX_QUEUE) {
       const dropped = items.length - MAX_QUEUE;
