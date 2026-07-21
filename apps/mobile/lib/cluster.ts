@@ -19,7 +19,7 @@ export type ClusterFeature =
 type PointProps = { id: string; name: string; itemId: string; itemTitle: string };
 
 export function buildIndex(places: ClusterInput[]): Supercluster<PointProps> {
-  const index = new Supercluster<PointProps>({ radius: 50, maxZoom: 16 });
+  const index = new Supercluster<PointProps>({ radius: 50, maxZoom: 14 });
   index.load(
     places.map((p) => ({
       type: "Feature" as const,

@@ -235,6 +235,8 @@ function MapBody({
                     expansionRegion(index, f.clusterId, f.longitude, f.latitude),
                   )
                 }
+                accessibilityRole="button"
+                accessibilityLabel={`${f.count} places, tap to expand`}
               >
                 <View style={styles.cluster}>
                   <Text style={styles.clusterText}>{f.count}</Text>
