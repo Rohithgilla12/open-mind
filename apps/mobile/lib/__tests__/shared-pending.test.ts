@@ -7,13 +7,16 @@ jest.mock("../capture-queue", () => ({
   enqueueAsset: (f: unknown) => mockEnqueueAsset(f),
 }));
 
+const mockMissingFilenames = new Set<string>();
 const mockFileDelete = jest.fn();
 jest.mock("expo-file-system", () => {
   class File {
     uri: string;
-    exists = true;
+    exists: boolean;
     constructor(...parts: unknown[]) {
       this.uri = parts.map((p) => (p && (p as { uri?: string }).uri) || String(p)).join("/");
+      const filename = parts[parts.length - 1];
+      this.exists = !mockMissingFilenames.has(filename as string);
     }
     delete() {
       mockFileDelete(this.uri);
@@ -44,10 +47,12 @@ jest.mock("@bacons/apple-targets", () => ({
   },
 }));
 
+import { Paths } from "expo-file-system";
 import { drainSharedPending } from "../shared-pending";
 
 beforeEach(() => {
   mockStore = {};
+  mockMissingFilenames.clear();
   mockEnqueue.mockClear();
   mockEnqueueAsset.mockClear();
   mockFileDelete.mockClear();
@@ -124,4 +129,45 @@ test("module absent (@bacons/apple-targets throws) is a no-op", async () => {
     expect(mockEnqueue).not.toHaveBeenCalled();
     expect(mockEnqueueAsset).not.toHaveBeenCalled();
   });
+});
+
+test("asset with missing container file is dropped: not enqueued, not counted, removed from manifest", async () => {
+  mockMissingFilenames.add("missing.jpg");
+  mockStore.pendingShares = [
+    { kind: "asset", filename: "missing.jpg", name: "missing.jpg", mimeType: "image/jpeg", createdAt: 1 },
+  ];
+  const n = await drainSharedPending();
+  expect(n).toBe(0);
+  expect(mockEnqueueAsset).not.toHaveBeenCalled();
+  expect(mockStore.pendingShares).toBeUndefined();
+});
+
+test("null container: url still drains, asset record survives for a later attempt", async () => {
+  const original = Paths.appleSharedContainers;
+  (Paths as unknown as { appleSharedContainers: unknown }).appleSharedContainers = {};
+  try {
+    mockStore.pendingShares = [
+      { kind: "asset", filename: "u.jpg", name: "u.jpg", mimeType: "image/jpeg", createdAt: 1 },
+      { kind: "url", value: "https://e.com", createdAt: 2 },
+    ];
+    const n = await drainSharedPending();
+    expect(n).toBe(1);
+    expect(mockEnqueue).toHaveBeenCalledWith({ url: "https://e.com" });
+    const remaining = mockStore.pendingShares as Array<{ kind: string }>;
+    expect(remaining.length).toBe(1);
+    expect(remaining[0].kind).toBe("asset");
+  } finally {
+    (Paths as unknown as { appleSharedContainers: unknown }).appleSharedContainers = original;
+  }
+});
+
+test("record with non-numeric createdAt is filtered out before drain", async () => {
+  mockStore.pendingShares = [
+    { kind: "url", value: "https://ok.com", createdAt: 1 },
+    { kind: "url", value: "https://bad.com", createdAt: "nope" },
+  ];
+  const n = await drainSharedPending();
+  expect(n).toBe(1);
+  expect(mockEnqueue).toHaveBeenCalledWith({ url: "https://ok.com" });
+  expect(mockEnqueue).not.toHaveBeenCalledWith({ url: "https://bad.com" });
 });

@@ -57,7 +57,7 @@ function parseManifest(raw: string | null): PendingShare[] {
 
 /**
  * Move every pending share into the JS queue, oldest-first. Each record is
- * cleared from the manifest only after its content is safely enqueued, so a
+ * cleared from the manifest only after its content is safely enqueued (or dropped with a warning if its container file is missing), so a
  * crash mid-drain leaves un-drained records intact rather than double-saving.
  * Returns the number of records drained.
  */
