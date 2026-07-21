@@ -90,7 +90,7 @@ function parseSharedImages(raw: string | undefined): AssetUpload[] {
 
 export default function CaptureScreen() {
   const { configured, loading } = useSettingsContext();
-  const { pendingCount, flushing, enqueue, flush } = useCaptureQueue();
+  const { pendingCount, flushing, enqueue, enqueueAsset, flush } = useCaptureQueue();
   const invalidateLists = useInvalidateLists();
   const params = useLocalSearchParams<{ shared?: string; sharedImages?: string }>();
   const [text, setText] = useState("");
@@ -115,8 +115,8 @@ export default function CaptureScreen() {
       setStatus({ kind: "saving" });
       let saved = 0;
       let lastStatus = 0;
-      for (const file of files) {
-        const res = await uploadAsset(file);
+      for (let i = 0; i < files.length; i += 1) {
+        const res = await uploadAsset(files[i]);
         lastStatus = res.status;
         if (res.ok) {
           saved += 1;
@@ -125,11 +125,11 @@ export default function CaptureScreen() {
           if (saved > 0) invalidateLists();
           return;
         } else if (res.status === 0) {
-          setStatus({
-            kind: "error",
-            message: "Couldn't upload — check your connection and try again.",
-          });
+          // Network error: queue this file and every one not yet attempted so
+          // nothing is lost, then let the durable queue sync later.
+          await enqueueAsset(files.slice(i));
           if (saved > 0) invalidateLists();
+          setStatus({ kind: "queued" });
           return;
         } else if (res.status === 415) {
           setStatus({
@@ -150,11 +150,13 @@ export default function CaptureScreen() {
       } else {
         setStatus({
           kind: "error",
-          message: lastStatus ? `Couldn't save photo (HTTP ${lastStatus}).` : "Couldn't save photo — try again.",
+          message: lastStatus
+            ? `Couldn't save photo (HTTP ${lastStatus}).`
+            : "Couldn't save photo — try again.",
         });
       }
     },
-    [invalidateLists],
+    [invalidateLists, enqueueAsset],
   );
 
   // Shared images from Android SEND intents land here as JSON and upload
