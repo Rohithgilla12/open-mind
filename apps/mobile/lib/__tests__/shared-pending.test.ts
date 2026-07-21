@@ -97,3 +97,31 @@ test("a throw mid-drain leaves the remaining records intact", async () => {
   expect(n).toBe(1);
   expect((mockStore.pendingShares as unknown[]).length).toBe(1);
 });
+
+test("non-iOS is a no-op and never calls enqueue", async () => {
+  await jest.isolateModulesAsync(async () => {
+    jest.doMock("react-native", () => ({ Platform: { OS: "android" } }));
+    const { drainSharedPending: drain } = require("../shared-pending");
+    const n = await drain();
+    expect(n).toBe(0);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockEnqueueAsset).not.toHaveBeenCalled();
+  });
+});
+
+test("module absent (@bacons/apple-targets throws) is a no-op", async () => {
+  await jest.isolateModulesAsync(async () => {
+    jest.doMock("@bacons/apple-targets", () => ({
+      ExtensionStorage: class {
+        constructor() {
+          throw new Error("module not linked");
+        }
+      },
+    }));
+    const { drainSharedPending: drain } = require("../shared-pending");
+    const n = await drain();
+    expect(n).toBe(0);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(mockEnqueueAsset).not.toHaveBeenCalled();
+  });
+});

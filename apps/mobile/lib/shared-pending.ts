@@ -40,6 +40,7 @@ function parseManifest(raw: string | null): PendingShare[] {
     return parsed.filter((r): r is PendingShare => {
       if (!r || typeof r !== "object") return false;
       const rec = r as PendingShare;
+      if (typeof rec.createdAt !== "number") return false;
       if (rec.kind === "asset") {
         return (
           typeof rec.filename === "string" &&
@@ -72,19 +73,23 @@ export async function drainSharedPending(): Promise<number> {
 
   for (const rec of [...records].sort((a, b) => a.createdAt - b.createdAt)) {
     try {
+      let enqueued = true;
       if (rec.kind === "asset") {
-        if (!container) break;
+        if (!container) continue; // unresolved container, retry this record next foreground
         const src = new File(container, CONTAINER_SUBDIR, rec.filename);
         if (src.exists) {
           await enqueueAsset([{ uri: src.uri, name: rec.name, type: rec.mimeType }]);
           src.delete();
+        } else {
+          console.warn(`[shared-pending] container file missing, dropping record: ${rec.filename}`);
+          enqueued = false;
         }
       } else {
         await enqueue(rec.kind === "url" ? { url: rec.value } : { note: rec.value });
       }
       remaining = remaining.filter((r) => r !== rec);
       storage.set(MANIFEST_KEY, remaining.length ? remaining : undefined);
-      drained += 1;
+      if (enqueued) drained += 1;
     } catch (err) {
       console.warn("[shared-pending] drain stopped", err);
       break;
