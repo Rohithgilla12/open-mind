@@ -11,13 +11,16 @@ import {
   useState,
 } from "react";
 import { AppState, type AppStateStatus } from "react-native";
+import type { AssetUpload } from "./api";
 import {
   enqueue as enqueueRaw,
+  enqueueAsset as enqueueAssetRaw,
   flushQueue,
   listQueued,
   subscribeQueue,
   type QueuedCapture,
 } from "./capture-queue";
+import { drainSharedPending } from "./shared-pending";
 
 type CaptureQueueContextValue = {
   pending: QueuedCapture[];
@@ -25,6 +28,7 @@ type CaptureQueueContextValue = {
   flushing: boolean;
   refresh: () => Promise<void>;
   enqueue: (input: { url?: string; note?: string }) => Promise<{ id: string; deduped: boolean }>;
+  enqueueAsset: (files: AssetUpload[]) => Promise<{ ids: string[] }>;
   flush: () => Promise<{ sent: number; remaining: number }>;
 };
 
@@ -55,6 +59,21 @@ export function CaptureQueueProvider({ children }: { children: React.ReactNode }
     return result;
   }, []);
 
+  const enqueueAsset = useCallback(async (files: AssetUpload[]) => {
+    const result = await enqueueAssetRaw(files);
+    setPending(await listQueued());
+    return result;
+  }, []);
+
+  const drainAndFlush = useCallback(async () => {
+    try {
+      await drainSharedPending();
+    } catch {
+      // Draining is best-effort; a failure must never block the flush.
+    }
+    return flush();
+  }, [flush]);
+
   useEffect(() => {
     void refresh();
     return subscribeQueue(setPending);
@@ -63,13 +82,13 @@ export function CaptureQueueProvider({ children }: { children: React.ReactNode }
   // Flush when the app returns to the foreground.
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {
-      if (next === "active") void flush();
+      if (next === "active") void drainAndFlush();
     };
     const sub = AppState.addEventListener("change", onChange);
     // Initial mount flush.
-    void flush();
+    void drainAndFlush();
     return () => sub.remove();
-  }, [flush]);
+  }, [drainAndFlush]);
 
   // Flush when connectivity returns.
   useEffect(() => {
@@ -90,9 +109,10 @@ export function CaptureQueueProvider({ children }: { children: React.ReactNode }
       flushing,
       refresh,
       enqueue,
+      enqueueAsset,
       flush,
     }),
-    [pending, flushing, refresh, enqueue, flush],
+    [pending, flushing, refresh, enqueue, enqueueAsset, flush],
   );
 
   return (
