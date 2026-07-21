@@ -10,9 +10,11 @@
 - (see Issues)
 
 ## Later
-- Mobile: offline queue for photo uploads (copy into app storage, flush via
-  `POST /api/assets`) — share extension + in-app Capture currently online-only
-  for images
+- Mobile offline photo queue follow-ups (PR #44): verify iOS Part B end-to-end
+  on a fresh dev build (extension→app manifest round-trip; foreground drain
+  lands the image in Library); add direct unit tests for `queueFileExists`
+  catch path + `asset-store` `deleteQueueFile` negative path; RN component test
+  for `capture.tsx` offline status branch
 - Reel places Phase 4: optional yt-dlp deep media — see
   `docs/superpowers/specs/20260716-reel-places-design.md`
 - Reel places Phase 3 leftover: MCP `item_places` tool
@@ -25,6 +27,13 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Mobile: offline photo queue (PR #44) — in-app Capture + Android share intents
+  enqueue images on network error and flush via `POST /api/assets`; images
+  persisted to a durable `expo-file-system` dir (never lost to an ephemeral
+  URI); iOS native share extension persists failed shares to the App Group
+  (container file + `pendingShares` manifest), drained into the same queue on
+  foreground. jest-expo harness added, 23 tests. iOS Part B needs a dev build
+  to verify E2E (2026-07-21)
 - Mobile: native Clerk sign-in (Continue with Google + email code) — mints an
   `omk_` device key from the Clerk session, no web-first hop; self-hoster
   builds without a key fall back to manual device-key/QR. Needs Clerk dashboard
