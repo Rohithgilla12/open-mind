@@ -4,11 +4,15 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { Point } from "geojson";
 import { tokens } from "@openmind/ui";
 import type { MapPlace } from "../lib/types";
 
 export type { MapPlace };
+
+// Minimal geometry shape we read off clustered features. Kept inline rather
+// than importing GeoJSON types so it doesn't depend on @types/geojson being
+// resolvable in the web workspace (it isn't in CI).
+type PointGeometry = { coordinates: [number, number] };
 
 const OSM_STYLE = {
   version: 8 as const,
@@ -80,7 +84,7 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
         const f = e.features?.[0];
         if (!f) return;
         const p = f.properties as { name: string; address: string; itemId: string; itemTitle: string };
-        const [lng, lat] = (f.geometry as Point).coordinates;
+        const [lng, lat] = (f.geometry as unknown as PointGeometry).coordinates;
         new maplibregl.Popup({ offset: 18 })
           .setLngLat([lng, lat])
           .setHTML(
@@ -104,7 +108,7 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
           const props = f.properties as { cluster?: boolean; cluster_id?: number; point_count?: number };
           if (!props.cluster || props.cluster_id == null) continue;
           const id = props.cluster_id;
-          const [lng, lat] = (f.geometry as Point).coordinates;
+          const [lng, lat] = (f.geometry as unknown as PointGeometry).coordinates;
           let marker = clusterMarkers.get(id);
           if (!marker) {
             const el = document.createElement("div");
