@@ -18,15 +18,22 @@
 - Reel places Phase 4: optional yt-dlp deep media — see
   `docs/superpowers/specs/20260716-reel-places-design.md`
 - Reel places Phase 3 leftover: MCP `item_places` tool
-- Places map follow-ups: marker clustering,
-  consolidate web Place types via api-client `paths[]`, note OSM tile runtime
-  dep in self-hosting docs
+- Places map follow-ups: note OSM tile runtime dep in self-hosting docs;
+  clustering polish — keyboard-accessible web cluster markers (currently
+  pointer-only), and (optional) truer mobile zoom mapping using viewport width
+  instead of `longitudeDelta` alone
 - Android follow-ups: Play Console internal-testing track (auto-updates vs
   the current sideloaded APK), Android adaptive icon, add Play App Signing
   SHA-1 to the Maps key restriction if we ship via Play
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Places marker clustering — web (native MapLibre GeoJSON clustering, HTML
+  count markers, no new dep) + mobile (supercluster behind a pure tested
+  `lib/cluster.ts`); tap a cluster to zoom-and-expand, single pins keep their
+  popup/callout. Also derived the web Places type from the api-client contract.
+  Both platforms share supercluster (radius 50, maxZoom 14). Needs web dev +
+  iOS build for a visual pass (2026-07-21)
 - Mobile: offline photo queue (PR #44) — in-app Capture + Android share intents
   enqueue images on network error and flush via `POST /api/assets`; images
   persisted to a durable `expo-file-system` dir (never lost to an ephemeral
