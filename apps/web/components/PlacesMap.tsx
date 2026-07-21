@@ -4,12 +4,11 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { Point } from "geojson";
 import { tokens } from "@openmind/ui";
-import type { paths } from "@openmind/api-client";
+import type { MapPlace } from "../lib/types";
 
-// One element of GET /places, straight from the OpenAPI contract.
-export type MapPlace =
-  paths["/places"]["get"]["responses"][200]["content"]["application/json"][number];
+export type { MapPlace };
 
 const OSM_STYLE = {
   version: 8 as const,
@@ -81,7 +80,7 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
         const f = e.features?.[0];
         if (!f) return;
         const p = f.properties as { name: string; address: string; itemId: string; itemTitle: string };
-        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+        const [lng, lat] = (f.geometry as Point).coordinates;
         new maplibregl.Popup({ offset: 18 })
           .setLngLat([lng, lat])
           .setHTML(
@@ -94,6 +93,8 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
 
       // Cluster count bubbles: HTML markers synced to the source on each render
       // (a symbol text layer would need an external glyphs/font server).
+      // cluster_id is stable per index/zoom-bucket, so this cache is bounded by
+      // the cluster-tree size — no pruning needed; it's torn down with the map.
       const clusterMarkers = new Map<number, maplibregl.Marker>();
       let onScreen = new Map<number, maplibregl.Marker>();
       const syncClusters = () => {
@@ -103,7 +104,7 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
           const props = f.properties as { cluster?: boolean; cluster_id?: number; point_count?: number };
           if (!props.cluster || props.cluster_id == null) continue;
           const id = props.cluster_id;
-          const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+          const [lng, lat] = (f.geometry as Point).coordinates;
           let marker = clusterMarkers.get(id);
           if (!marker) {
             const el = document.createElement("div");
@@ -115,9 +116,24 @@ export function PlacesMap({ places }: { places: MapPlace[] }) {
               alignItems: "center", justifyContent: "center", cursor: "pointer",
               font: "600 13px system-ui, sans-serif",
             } as Partial<CSSStyleDeclaration>);
+            el.setAttribute("role", "button");
+            el.setAttribute("tabindex", "0");
+            el.setAttribute("aria-label", `${props.point_count ?? 0} places, activate to expand`);
             el.addEventListener("click", () => {
-              const src = map.getSource("places") as maplibregl.GeoJSONSource;
-              void src.getClusterExpansionZoom(id).then((zoom) => map.easeTo({ center: [lng, lat], zoom }));
+              const src = map.getSource("places") as maplibregl.GeoJSONSource | undefined;
+              if (!src) return;
+              src
+                .getClusterExpansionZoom(id)
+                .then((zoom) => {
+                  if (map.getSource("places")) map.easeTo({ center: [lng, lat], zoom });
+                })
+                .catch((err) => console.warn("cluster expansion zoom lookup failed", err));
+            });
+            el.addEventListener("keydown", (ev) => {
+              if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                el.click();
+              }
             });
             marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]);
             clusterMarkers.set(id, marker);

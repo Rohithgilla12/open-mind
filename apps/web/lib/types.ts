@@ -56,3 +56,7 @@ export type CreateHighlightResponse =
 
 export type RelatedItem =
   paths["/items/{id}/related"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+// One element of GET /places, straight from the OpenAPI contract.
+export type MapPlace =
+  paths["/places"]["get"]["responses"]["200"]["content"]["application/json"][number];

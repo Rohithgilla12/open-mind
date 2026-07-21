@@ -1,7 +1,8 @@
 import { tokens } from "@openmind/ui";
 import { Shell } from "../../components/Shell";
-import { PlacesMap, type MapPlace } from "../../components/PlacesMap";
+import { PlacesMap } from "../../components/PlacesMap";
 import { apiFetch } from "../../lib/api";
+import type { MapPlace } from "../../lib/types";
 
 const { color, font } = tokens;
 
