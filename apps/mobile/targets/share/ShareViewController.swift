@@ -47,6 +47,12 @@ class ShareViewController: UIViewController {
     case image(Data, filename: String, mimeType: String)
   }
 
+  private enum PendingRecord {
+    case asset(Data, name: String, mimeType: String)
+    case url(String)
+    case note(String)
+  }
+
   /// Walks every attachment on every input item (shares can carry mixed
   /// content) and hands back the first image, URL, or plain-text payload found.
   /// Images win over URL/text so Photos/Files shares upload as assets.
@@ -159,7 +165,7 @@ class ShareViewController: UIViewController {
     case .image(let data, let filename, let mimeType):
       uploadImage(data: data, filename: filename, mimeType: mimeType, instanceUrl: instanceUrl, token: token)
     case .url(let url):
-      postItem(body: ["url": url.absoluteString], instanceUrl: instanceUrl, token: token)
+      postItem(body: ["url": url.absoluteString], pending: .url(url.absoluteString), instanceUrl: instanceUrl, token: token)
     case .text(let text):
       let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmed.isEmpty else {
@@ -169,14 +175,14 @@ class ShareViewController: UIViewController {
       // Shared text that is itself a bare link is treated as a URL save.
       if let asURL = URL(string: trimmed), let scheme = asURL.scheme,
          ["http", "https"].contains(scheme.lowercased()) {
-        postItem(body: ["url": trimmed], instanceUrl: instanceUrl, token: token)
+        postItem(body: ["url": trimmed], pending: .url(trimmed), instanceUrl: instanceUrl, token: token)
       } else {
-        postItem(body: ["note": trimmed], instanceUrl: instanceUrl, token: token)
+        postItem(body: ["note": trimmed], pending: .note(trimmed), instanceUrl: instanceUrl, token: token)
       }
     }
   }
 
-  private func postItem(body: [String: String], instanceUrl: String, token: String) {
+  private func postItem(body: [String: String], pending: PendingRecord, instanceUrl: String, token: String) {
     guard let endpoint = URL(string: "\(instanceUrl)/api/items"),
           let payload = try? JSONSerialization.data(withJSONObject: body)
     else {
@@ -190,7 +196,7 @@ class ShareViewController: UIViewController {
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "content-type")
     request.timeoutInterval = 15
-    send(request)
+    send(request, pending: pending)
   }
 
   private func uploadImage(data: Data, filename: String, mimeType: String, instanceUrl: String, token: String) {
@@ -218,15 +224,16 @@ class ShareViewController: UIViewController {
     request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
     // Photos can be large; give the extension a bit more runway than text saves.
     request.timeoutInterval = 45
-    send(request)
+    send(request, pending: .asset(data, name: filename, mimeType: mimeType))
   }
 
-  private func send(_ request: URLRequest) {
+  private func send(_ request: URLRequest, pending: PendingRecord) {
     let session = URLSession(configuration: .ephemeral)
     session.dataTask(with: request) { [weak self] _, response, error in
       DispatchQueue.main.async {
         if error != nil {
-          self?.finish(success: false, message: "Network error — is the instance reachable?")
+          self?.persistPending(pending)
+          self?.finishOffline()
           return
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -254,6 +261,72 @@ class ShareViewController: UIViewController {
 
     // Leave the confirmation up briefly, longer on failure so it's readable.
     DispatchQueue.main.asyncAfter(deadline: .now() + (success ? 0.9 : 2.2)) { [weak self] in
+      self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+    }
+  }
+
+  private func persistPending(_ record: PendingRecord) {
+    guard let defaults = UserDefaults(suiteName: appGroup) else { return }
+    var manifest = (try? JSONSerialization.jsonObject(
+      with: defaults.data(forKey: "pendingShares") ?? Data()
+    )) as? [[String: Any]] ?? []
+    let createdAt = Date().timeIntervalSince1970 * 1000
+
+    switch record {
+    case .asset(let data, let name, let mimeType):
+      guard let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: appGroup
+      ) else { return }
+      let dir = container.appendingPathComponent("pending-shares", isDirectory: true)
+      try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+      let filename = UUID().uuidString + fileExtension(for: mimeType)
+      guard (try? data.write(to: dir.appendingPathComponent(filename))) != nil else { return }
+      manifest.append([
+        "kind": "asset", "filename": filename, "name": name,
+        "mimeType": mimeType, "createdAt": createdAt,
+      ])
+    case .url(let value):
+      manifest.append(["kind": "url", "value": value, "createdAt": createdAt])
+    case .note(let value):
+      manifest.append(["kind": "note", "value": value, "createdAt": createdAt])
+    }
+
+    // Cap at 20 pending shares, dropping the oldest (and their files).
+    if manifest.count > 20 {
+      let overflow = manifest.count - 20
+      if let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: appGroup
+      ) {
+        for old in manifest.prefix(overflow)
+        where (old["kind"] as? String) == "asset" {
+          if let fn = old["filename"] as? String {
+            try? FileManager.default.removeItem(
+              at: container.appendingPathComponent("pending-shares").appendingPathComponent(fn)
+            )
+          }
+        }
+      }
+      manifest = Array(manifest.suffix(20))
+    }
+
+    if let data = try? JSONSerialization.data(withJSONObject: manifest) {
+      defaults.set(data, forKey: "pendingShares")
+    }
+  }
+
+  private func fileExtension(for mime: String) -> String {
+    switch mime {
+    case "image/png": return ".png"
+    case "image/gif": return ".gif"
+    case "image/webp": return ".webp"
+    default: return ".jpg"
+    }
+  }
+
+  private func finishOffline() {
+    setState(title: "Saved offline", detail: "Will sync when you reopen Openmind.", busy: false)
+    titleLabel.textColor = green
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
       self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
   }
