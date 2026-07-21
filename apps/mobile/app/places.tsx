@@ -230,11 +230,20 @@ function MapBody({
               <Marker
                 key={f.id}
                 coordinate={{ latitude: f.latitude, longitude: f.longitude }}
-                onPress={() =>
-                  mapRef.current?.animateToRegion(
-                    expansionRegion(index, f.clusterId, f.longitude, f.latitude),
-                  )
-                }
+                onPress={() => {
+                  try {
+                    mapRef.current?.animateToRegion(
+                      expansionRegion(index, f.clusterId, f.longitude, f.latitude),
+                    );
+                  } catch {
+                    mapRef.current?.animateToRegion({
+                      latitude: f.latitude,
+                      longitude: f.longitude,
+                      latitudeDelta: region.latitudeDelta / 4,
+                      longitudeDelta: region.longitudeDelta / 4,
+                    });
+                  }
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`${f.count} places, tap to expand`}
               >

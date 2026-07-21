@@ -18,6 +18,16 @@ test("zoomForRegion maps wide→low and narrow→high zoom", () => {
   expect(zoomForRegion(NY)).toBeGreaterThan(8);
 });
 
+test("zoomForRegion clamps at the boundaries and guards NaN", () => {
+  expect(zoomForRegion({ ...WORLD, longitudeDelta: 400 })).toBe(0);
+  expect(zoomForRegion({ ...WORLD, longitudeDelta: 0.0000001 })).toBe(20);
+  expect(zoomForRegion({ ...WORLD, longitudeDelta: NaN })).toBe(0);
+});
+
+test("clustersForRegion on an empty index returns no features", () => {
+  expect(clustersForRegion(buildIndex([]), WORLD)).toEqual([]);
+});
+
 test("zoomed out: nearby NY points collapse into one cluster; London stays a point", () => {
   const feats = clustersForRegion(buildIndex([A, B, C, L]), WORLD);
   const clusters = feats.filter((f) => f.kind === "cluster");
@@ -32,6 +42,9 @@ test("zoomed in over NY: the three points separate into individual points", () =
   const feats = clustersForRegion(buildIndex([A, B, C, L]), NY);
   expect(feats.every((f) => f.kind === "point")).toBe(true);
   expect(feats).toHaveLength(3); // London is outside the NY bbox
+  expect(feats).toContainEqual(
+    expect.objectContaining({ name: "n-a", itemId: "i-a", itemTitle: "t-a" }),
+  );
 });
 
 test("a lone point is never a cluster", () => {
@@ -43,7 +56,11 @@ test("a lone point is never a cluster", () => {
 
 test("expansionRegion zooms tighter than the region the cluster came from", () => {
   const index = buildIndex([A, B, C, L]);
-  const cluster = clustersForRegion(index, WORLD).find((f) => f.kind === "cluster")!;
-  const region = expansionRegion(index, cluster.clusterId!, cluster.longitude, cluster.latitude);
+  const feats = clustersForRegion(index, WORLD);
+  const cluster = feats.find((f): f is Extract<typeof feats[number], { kind: "cluster" }> => f.kind === "cluster")!;
+  const region = expansionRegion(index, cluster.clusterId, cluster.longitude, cluster.latitude);
   expect(region.longitudeDelta).toBeLessThan(WORLD.longitudeDelta);
+  expect(region.longitude).toBe(cluster.longitude);
+  expect(region.latitude).toBe(cluster.latitude);
+  expect(region.longitudeDelta).toBe(region.latitudeDelta);
 });
