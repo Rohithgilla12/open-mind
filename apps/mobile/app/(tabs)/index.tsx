@@ -23,6 +23,7 @@ import { queryKeys } from "@/lib/query";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing, typeGradients, type CardKind } from "@/lib/theme";
 import { useMorph, type MorphRect } from "@/lib/morph";
+import { leadImageSource } from "@/lib/lead-image";
 import { useSoftFocusRefetch } from "@/lib/use-soft-focus-refetch";
 
 /** Group items by cardType, in a stable KNOWN_KINDS order, dropping empty groups. */
@@ -121,10 +122,18 @@ export default function LibraryScreen() {
   // underneath. onMorphPress in ItemCard supplies the measured card rect.
   const onMorphOpen = useCallback(
     (item: Item, rect: MorphRect) => {
-      morph.begin(rect, { colors: heroColors(item) });
+      // The morph is a cosmetic enhancement; never let it block navigation.
+      try {
+        morph.begin(rect, {
+          colors: heroColors(item),
+          image: leadImageSource(item.leadImageUrl, settings),
+        });
+      } catch (err) {
+        console.warn("[morph] begin failed", err);
+      }
       router.push(`/item/${item.id}`);
     },
-    [morph, router],
+    [morph, router, settings],
   );
 
   const onLongPress = useCallback(

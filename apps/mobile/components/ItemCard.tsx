@@ -129,7 +129,19 @@ export function ItemCard({ item, settings, onPress, onLongPress, onPickColor, on
   const morphable = kind !== "quote" && kind !== "note";
   const press = () => {
     if (onMorphPress && morphable && heroRef.current) {
+      // measureInWindow's callback can be silently dropped if the view detaches
+      // between tap and callback; a short fallback guarantees the tap always
+      // navigates (plainly) rather than dying.
+      let settled = false;
+      const fallback = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        onPress(item);
+      }, 120);
       heroRef.current.measureInWindow((x, y, width, height) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallback);
         onMorphPress(item, { x, y, width, height });
       });
       return;

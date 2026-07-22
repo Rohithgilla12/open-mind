@@ -1,9 +1,13 @@
 // Shared-element card→detail morph. A card reports its hero rect on press; this
-// overlay springs a gradient hero panel from that rect into the detail-hero
-// position while the destination screen fades in underneath, then cross-fades
-// out onto the real hero. Reduce-motion callers skip begin() and just navigate.
+// overlay springs the hero (lead image if present, else the palette gradient)
+// from that rect into the detail-hero position while the destination screen
+// fades in underneath, then cross-fades out onto the real hero.
+//
+// Reduce-motion is a best-effort gate: the OS setting is read async on mount,
+// so a tap in the first frames may still animate (navigation is unaffected —
+// begin() only drives the cosmetic overlay; callers push regardless).
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Dimensions, StyleSheet } from "react-native";
+import { AccessibilityInfo, Dimensions, Image, StyleSheet } from "react-native";
 import Animated, {
   Easing,
   runOnJS,
@@ -18,15 +22,18 @@ import { colors, radius, spacing } from "./theme";
 
 export type MorphRect = { x: number; y: number; width: number; height: number };
 
-/** What the overlay needs to paint the flying hero. */
-export type MorphHero = { colors: [string, string] };
+/** What the overlay paints: the palette gradient, plus the lead image when the
+ * card shows one (so the flying panel matches what the user actually tapped). */
+export type MorphHero = {
+  colors: [string, string];
+  image?: { uri: string; headers?: Record<string, string> };
+};
 
 type MorphState = { from: MorphRect; hero: MorphHero } | null;
 
 type MorphContextValue = {
   /** Kick off the morph from a measured card-hero rect. No-op under reduce-motion. */
   begin: (from: MorphRect, hero: MorphHero) => void;
-  enabled: boolean;
 };
 
 const MorphContext = createContext<MorphContextValue | null>(null);
@@ -41,10 +48,14 @@ export function useMorph(): MorphContextValue {
 // springs read as an instant cut rather than a morph.
 const SPRING = { mass: 1, damping: 17, stiffness: 95 };
 const SCREEN_W = Dimensions.get("window").width;
-// Detail-screen topbar: paddingVertical spacing.md around a ~20pt row.
+// Detail-screen topbar (item/[id].tsx styles.topbar): paddingVertical spacing.md
+// around a ~20pt row.
 const TOPBAR_H = spacing.md * 2 + 20;
-// Detail hero (item/[id].tsx styles.hero): inset by spacing.xl, height 120.
-const HERO_H = 120;
+const HERO_W = SCREEN_W - spacing.xl * 2;
+// Two detail hero shapes (item/[id].tsx): styles.hero is a fixed-height 120 wash
+// (no lead image); styles.heroImageWrap is a full-width 4:3 image (has one).
+const GRADIENT_HERO_H = 120;
+const IMAGE_HERO_H = (HERO_W * 3) / 4;
 
 export function MorphProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
@@ -55,9 +66,16 @@ export function MorphProvider({ children }: { children: React.ReactNode }) {
   const opacity = useSharedValue(1);
 
   useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then((r) => {
-      reduceMotion.current = r;
-    });
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((r) => {
+        reduceMotion.current = r;
+      })
+      .catch((err) => {
+        // Fail safe: if the setting can't be read, suppress motion rather than
+        // assume it's fine to animate.
+        console.warn("[morph] reduce-motion check failed", err);
+        reduceMotion.current = true;
+      });
   }, []);
 
   const clear = useCallback(() => setState(null), []);
@@ -65,6 +83,7 @@ export function MorphProvider({ children }: { children: React.ReactNode }) {
   const begin = useCallback(
     (from: MorphRect, hero: MorphHero) => {
       if (reduceMotion.current) return;
+      if (from.width <= 0 || from.height <= 0) return; // pre-layout / detached
       progress.value = 0;
       opacity.value = 1;
       setState({ from, hero });
@@ -83,18 +102,18 @@ export function MorphProvider({ children }: { children: React.ReactNode }) {
     if (!from) return { opacity: 0 };
     const tx = spacing.xl;
     const ty = insets.top + TOPBAR_H;
-    const tw = SCREEN_W - spacing.xl * 2;
+    const th = state?.hero.image ? IMAGE_HERO_H : GRADIENT_HERO_H;
     const p = progress.value;
     return {
       opacity: opacity.value,
       left: from.x + (tx - from.x) * p,
       top: from.y + (ty - from.y) * p,
-      width: from.width + (tw - from.width) * p,
-      height: from.height + (HERO_H - from.height) * p,
+      width: from.width + (HERO_W - from.width) * p,
+      height: from.height + (th - from.height) * p,
     };
   });
 
-  const value = useMemo<MorphContextValue>(() => ({ begin, enabled: true }), [begin]);
+  const value = useMemo<MorphContextValue>(() => ({ begin }), [begin]);
 
   return (
     <MorphContext.Provider value={value}>
@@ -107,6 +126,9 @@ export function MorphProvider({ children }: { children: React.ReactNode }) {
             end={{ x: 0, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
+          {state.hero.image ? (
+            <Image source={state.hero.image} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : null}
         </Animated.View>
       ) : null}
     </MorphContext.Provider>
