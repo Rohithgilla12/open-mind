@@ -21,7 +21,8 @@ import { showItemActions, useAndroidActionSheet } from "@/lib/item-actions";
 import { useDeleteItem, usePinItem } from "@/lib/mutations";
 import { queryKeys } from "@/lib/query";
 import { useSettingsContext } from "@/lib/settings-context";
-import { colors, fonts, radius, spacing, type CardKind } from "@/lib/theme";
+import { colors, fonts, radius, spacing, typeGradients, type CardKind } from "@/lib/theme";
+import { useMorph, type MorphRect } from "@/lib/morph";
 import { useSoftFocusRefetch } from "@/lib/use-soft-focus-refetch";
 
 /** Group items by cardType, in a stable KNOWN_KINDS order, dropping empty groups. */
@@ -39,6 +40,13 @@ function groupByKind(items: Item[]): { kind: CardKind; items: Item[] }[] {
 /** An unkept feed-river item: searchable, but not part of the Mind until kept. */
 function isFeedOnly(item: Item): boolean {
   return Boolean(item.feedId) && !item.keptAt;
+}
+
+/** The two hero-gradient colours for an item — mirrors ItemCard's Hero so the
+ * morph overlay starts on the exact colours the card is showing. */
+function heroColors(item: Item): [string, string] {
+  const dots = item.palette ?? [];
+  return dots.length >= 2 ? [dots[0], dots[1]] : typeGradients[cardKind(item.cardType)];
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -100,11 +108,23 @@ export default function LibraryScreen() {
     void flush();
   });
 
+  const morph = useMorph();
+
   const onOpen = useCallback(
     (item: Item) => {
       router.push(`/item/${item.id}`);
     },
     [router],
+  );
+
+  // Morph open: spring the card's hero into the detail hero, then navigate
+  // underneath. onMorphPress in ItemCard supplies the measured card rect.
+  const onMorphOpen = useCallback(
+    (item: Item, rect: MorphRect) => {
+      morph.begin(rect, { colors: heroColors(item) });
+      router.push(`/item/${item.id}`);
+    },
+    [morph, router],
   );
 
   const onLongPress = useCallback(
@@ -203,6 +223,7 @@ export default function LibraryScreen() {
         onRefresh={() => void listQuery.refetch()}
         onRetry={() => void listQuery.refetch()}
         onOpen={onOpen}
+        onMorphPress={onMorphOpen}
         onLongPress={onLongPress}
         onPickColor={(hex) => {
           setColorFilter(hex);
@@ -244,6 +265,7 @@ type BodyProps = {
   onRefresh: () => void;
   onRetry: () => void;
   onOpen: (item: Item) => void;
+  onMorphPress: (item: Item, rect: MorphRect) => void;
   onLongPress: (item: Item) => void;
   onPickColor: (hex: string) => void;
 };
@@ -260,6 +282,7 @@ function Body({
   onRefresh,
   onRetry,
   onOpen,
+  onMorphPress,
   onLongPress,
   onPickColor,
 }: BodyProps) {
@@ -332,7 +355,7 @@ function Body({
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ItemCard item={item} settings={settings} onPress={onOpen} onLongPress={onLongPress} onPickColor={onPickColor} />
+          <ItemCard item={item} settings={settings} onPress={onOpen} onMorphPress={onMorphPress} onLongPress={onLongPress} onPickColor={onPickColor} />
         )}
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionHeader}>{section.title}</Text>

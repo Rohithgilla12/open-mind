@@ -13,8 +13,10 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CaptureQueueProvider } from "@/lib/capture-queue-context";
+import { MorphProvider } from "@/lib/morph";
 import { clerkPublishableKey, tokenCache } from "@/lib/clerk";
 import { QueryProvider } from "@/lib/query";
 import { SettingsProvider } from "@/lib/settings-context";
@@ -102,14 +104,18 @@ export default function RootLayout() {
   );
 
   return (
-    <SafeAreaProvider>
-      {clerkPublishableKey ? (
-        <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-          {tree}
-        </ClerkProvider>
-      ) : (
-        tree
-      )}
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+      <MorphProvider>
+        {clerkPublishableKey ? (
+          <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+            {tree}
+          </ClerkProvider>
+        ) : (
+          tree
+        )}
+      </MorphProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

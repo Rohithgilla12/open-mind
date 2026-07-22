@@ -2,6 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Item } from "@/lib/api";
+import type { MorphRect } from "@/lib/morph";
 import { cardKind, typeLabel } from "@/lib/cards";
 import { leadImageSource } from "@/lib/lead-image";
 import type { Settings } from "@/lib/settings";
@@ -79,15 +80,17 @@ function Hero({
   dots,
   source,
   height,
+  innerRef,
 }: {
   kind: CardKind;
   dots: string[];
   source?: { uri: string; headers?: Record<string, string> };
   height: number;
+  innerRef?: React.Ref<View>;
 }) {
   const gradientColors: [string, string] = dots.length >= 2 ? [dots[0], dots[1]] : typeGradients[kind];
   return (
-    <View style={[styles.hero, { height }]}>
+    <View ref={innerRef} style={[styles.hero, { height }]}>
       <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFill} />
       {source ? (
         <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -104,9 +107,13 @@ type ItemCardProps = {
   onLongPress?: (item: Item) => void;
   /** Tapping a palette dot filters the Library by that colour — omit to disable. */
   onPickColor?: (hex: string) => void;
+  /** When set, press measures the card's window rect and reports it for the
+   * card→detail morph (the handler also navigates). Falls back to onPress. */
+  onMorphPress?: (item: Item, rect: MorphRect) => void;
 };
 
-export function ItemCard({ item, settings, onPress, onLongPress, onPickColor }: ItemCardProps) {
+export function ItemCard({ item, settings, onPress, onLongPress, onPickColor, onMorphPress }: ItemCardProps) {
+  const heroRef = useRef<View>(null);
   const kind = cardKind(item.cardType);
   const pending = item.status === "pending";
   const pinned = !!item.pinnedAt;
@@ -117,7 +124,18 @@ export function ItemCard({ item, settings, onPress, onLongPress, onPickColor }: 
   const title = rawTitle || domain || item.url || "Untitled";
   const summary = stripMarkdown(item.summary);
 
-  const press = () => onPress(item);
+  // Quote/note cards have no gradient hero on the detail screen, so only
+  // hero-bearing kinds morph; the rest navigate plainly.
+  const morphable = kind !== "quote" && kind !== "note";
+  const press = () => {
+    if (onMorphPress && morphable && heroRef.current) {
+      heroRef.current.measureInWindow((x, y, width, height) => {
+        onMorphPress(item, { x, y, width, height });
+      });
+      return;
+    }
+    onPress(item);
+  };
   const wrap = (children: React.ReactNode) => (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -170,7 +188,7 @@ export function ItemCard({ item, settings, onPress, onLongPress, onPickColor }: 
   if (kind === "image") {
     return wrap(
       <View>
-        <Hero kind={kind} dots={dots} source={source} height={180} />
+        <Hero kind={kind} dots={dots} source={source} height={180} innerRef={heroRef} />
         <View style={styles.body}>
           {rawTitle ? (
             <Text style={styles.cardTitle} numberOfLines={2}>
@@ -190,7 +208,7 @@ export function ItemCard({ item, settings, onPress, onLongPress, onPickColor }: 
   // article / product / book / recipe / video / tweet — hero + serif title + summary.
   return wrap(
     <View>
-      <Hero kind={kind} dots={dots} source={source} height={84} />
+      <Hero kind={kind} dots={dots} source={source} height={84} innerRef={heroRef} />
       <View style={styles.body}>
         <Text style={styles.cardTitle} numberOfLines={2}>
           {title}
