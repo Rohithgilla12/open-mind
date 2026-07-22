@@ -106,15 +106,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-      <MorphProvider>
-        {clerkPublishableKey ? (
-          <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-            {tree}
-          </ClerkProvider>
-        ) : (
-          tree
-        )}
-      </MorphProvider>
+        <MorphProvider>
+          {clerkPublishableKey ? (
+            <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+              {tree}
+            </ClerkProvider>
+          ) : (
+            tree
+          )}
+        </MorphProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

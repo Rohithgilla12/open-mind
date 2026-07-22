@@ -2,7 +2,7 @@
 // overlay springs a gradient hero panel from that rect into the detail-hero
 // position while the destination screen fades in underneath, then cross-fades
 // out onto the real hero. Reduce-motion callers skip begin() and just navigate.
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Dimensions, StyleSheet } from "react-native";
 import Animated, {
   Easing,
@@ -54,7 +54,7 @@ export function MorphProvider({ children }: { children: React.ReactNode }) {
   const progress = useSharedValue(0);
   const opacity = useSharedValue(1);
 
-  useMemo(() => {
+  useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then((r) => {
       reduceMotion.current = r;
     });

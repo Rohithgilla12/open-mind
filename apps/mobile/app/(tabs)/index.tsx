@@ -373,7 +373,7 @@ function Body({
       data={items}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
-        <ItemCard item={item} settings={settings} onPress={onOpen} onLongPress={onLongPress} onPickColor={onPickColor} />
+        <ItemCard item={item} settings={settings} onPress={onOpen} onMorphPress={onMorphPress} onLongPress={onLongPress} onPickColor={onPickColor} />
       )}
       contentContainerStyle={styles.list}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
