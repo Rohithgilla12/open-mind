@@ -14,6 +14,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/geo"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
 
@@ -79,7 +80,7 @@ const pollInterval = 30 * time.Minute
 // passed nil. kindleDeps is likewise only exercised by the worker process;
 // the insert-only path still accepts it (unused) so callers don't need two
 // signatures.
-func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, kindleDeps KindleDeps, geocoder geo.Geocoder, workersOn bool) (*river.Client[pgx.Tx], error) {
+func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, kindleDeps KindleDeps, geocoder geo.Geocoder, reelMode reelmedia.Mode, reelExtractor *reelmedia.Extractor, workersOn bool) (*river.Client[pgx.Tx], error) {
 	cfg := &river.Config{}
 	// scanWorker and enrichWorker are registered before the client exists
 	// (AddWorker needs a worker instance up front), but their River fields —
@@ -94,7 +95,11 @@ func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefr
 		scanWorker = &ScanDigestsWorker{Store: p.Store, Provider: p.AI, Deps: kindleDeps}
 		enrichWorker = &EnrichWorker{Pipeline: p}
 		river.AddWorker(workers, enrichWorker)
-		river.AddWorker(workers, &ExtractPlacesWorker{Store: p.Store, Provider: p.AI, Geocoder: geocoder})
+		epw := &ExtractPlacesWorker{Store: p.Store, Provider: p.AI, Geocoder: geocoder, Mode: reelMode}
+		if reelExtractor != nil {
+			epw.Extractor = reelExtractor
+		}
+		river.AddWorker(workers, epw)
 		river.AddWorker(workers, &PollFeedsWorker{Service: feedService})
 		river.AddWorker(workers, &SendKindleWorker{Store: p.Store, Provider: p.AI, Deps: kindleDeps})
 		river.AddWorker(workers, scanWorker)

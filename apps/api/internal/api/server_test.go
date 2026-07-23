@@ -21,6 +21,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -48,7 +49,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 		t.Fatalf("ensure user: %v", err)
 	}
 	p := &enrich.Pipeline{Store: s, AI: ai.NewNoop(), Extractor: enrich.NewTrafilatura(nil)}
-	rc, err := jobs.NewRiverClient(pool, p, nil, jobs.KindleDeps{}, nil, false)
+	rc, err := jobs.NewRiverClient(pool, p, nil, jobs.KindleDeps{}, nil, reelmedia.ModeThumbnail, nil, false)
 	if err != nil {
 		t.Fatalf("river client: %v", err)
 	}

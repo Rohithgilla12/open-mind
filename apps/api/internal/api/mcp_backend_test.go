@@ -16,6 +16,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	appmcp "github.com/rohithgilla12/openmind/api/internal/mcp"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -285,7 +286,7 @@ func TestNewMCPBackendCaptureAndRead(t *testing.T) {
 		t.Fatalf("ensure user: %v", err)
 	}
 
-	riverClient, err := jobs.NewRiverClient(pool, nil, nil, jobs.KindleDeps{}, nil, false)
+	riverClient, err := jobs.NewRiverClient(pool, nil, nil, jobs.KindleDeps{}, nil, reelmedia.ModeThumbnail, nil, false)
 	if err != nil {
 		t.Fatalf("new river client: %v", err)
 	}

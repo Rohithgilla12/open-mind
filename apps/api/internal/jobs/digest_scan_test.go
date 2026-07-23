@@ -14,6 +14,7 @@ import (
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -46,7 +47,7 @@ func newDigestScanTestStore(t *testing.T) (*store.Store, *river.Client[pgx.Tx]) 
 	if err := s.Queries.EnsureUser(ctx, digestScanTestUser); err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	rc, err := jobs.NewRiverClient(pool, nil, nil, jobs.KindleDeps{}, nil, false)
+	rc, err := jobs.NewRiverClient(pool, nil, nil, jobs.KindleDeps{}, nil, reelmedia.ModeThumbnail, nil, false)
 	if err != nil {
 		t.Fatalf("river client: %v", err)
 	}

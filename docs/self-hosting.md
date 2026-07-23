@@ -176,6 +176,21 @@ Runs enrichment fully locally against Ollama. Use `host.docker.internal` (not `l
 
 The `items_embedding` table's vector column is declared as `vector(768)` (`apps/api/internal/store/migrations/0001_init.sql`), and the codebase's `EmbedDims` constant is fixed at `768` (`apps/api/internal/ai/gemini.go`). `nomic-embed-text` produces 768-dimension embeddings, so it matches out of the box — no config change needed. If you pick a different embedding model with a mismatched dimension, the pipeline does not crash or fail the save: the embed stage compares the returned vector length against `EmbedDims` and, on a mismatch, logs a warning (`skipping embedding: unexpected dimension`) and skips saving the embedding row, leaving the item `enriched` with FTS search only (no semantic search) rather than failing the job (`apps/api/internal/enrich/pipeline.go`).
 
+### Reel deep media (optional)
+
+Place extraction reads a reel's caption, an embedded tagged location, and (by
+default) its thumbnail. Set `REEL_MEDIA` to control the vision ladder:
+
+| `REEL_MEDIA` | Behaviour |
+|---|---|
+| `off` | Caption + tagged location only — no vision model calls. |
+| `thumbnail` (default) | Adds thumbnail vision (on-screen text). |
+| `video` | Adds a deep-media rung: when caption/thumbnail name no place, download the clip and read sampled frames. |
+
+`video` requires user-installed **`yt-dlp`** and **`ffmpeg`** on `PATH`; if either
+is missing the server logs a warning and behaves as `thumbnail`. These binaries
+are never bundled and never a `docker compose` requirement.
+
 ## Importing
 
 `POST /import` (or the web app's **Import** page) bulk-imports an export file: Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV with a URL column, a plain list of URLs, or an **Omnivore zip export**. Every new URL becomes a pending item and enriches asynchronously; URLs already in your library are skipped, so re-importing is safe.

@@ -51,8 +51,11 @@ type ExtractPlacesWorker struct {
 	// HTTPClient fetches lead-image thumbnails for vision. Nil defaults to
 	// enrich.SafeHTTPClient inside fetchLeadImage.
 	HTTPClient *http.Client
-	// Mode is the resolved REEL_MEDIA ceiling. Thumbnail (default) runs caption
-	// + thumbnail vision; Off is caption + location only; Video adds frames.
+	// Mode is the resolved REEL_MEDIA ceiling. The zero value is ModeOff
+	// (caption + location only, no vision calls) — callers that want the
+	// thumbnail-vision rung must set it explicitly. reelmedia.ModeFromEnv is
+	// what defaults to ModeThumbnail; production wiring in cmd/openmind uses
+	// that, so Off only applies when a caller (e.g. a test) leaves Mode unset.
 	Mode reelmedia.Mode
 	// Extractor runs the deep-media rung. Nil (or Mode != Video) disables it.
 	Extractor framer

@@ -30,6 +30,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/mailer"
 	appmcp "github.com/rohithgilla12/openmind/api/internal/mcp"
 	"github.com/rohithgilla12/openmind/api/internal/pdftext"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 )
 
@@ -158,23 +159,42 @@ func run(ctx context.Context, args []string) error {
 		slog.Info("geocoder ready", "geocoder", geocoder.Name())
 	}
 
+	// REEL_MEDIA controls the vision ladder for place extraction from social
+	// videos: off (caption + location only), thumbnail (default, adds
+	// thumbnail vision), or video (adds a deep-media rung sampling frames via
+	// yt-dlp+ffmpeg). ModeVideo downgrades to thumbnail if those binaries are
+	// missing, so the deep-media rung is only ever wired up when it can
+	// actually run.
+	reelMode := reelmedia.ModeFromEnv()
+	var reelExtractor *reelmedia.Extractor
+	if reelMode == reelmedia.ModeVideo {
+		ext, ok := reelmedia.Detect()
+		if !ok {
+			slog.Warn("REEL_MEDIA=video but yt-dlp/ffmpeg not found on PATH; downgrading to thumbnail")
+			reelMode = reelmedia.ModeThumbnail
+		} else {
+			reelExtractor = ext
+		}
+	}
+	slog.Info("reel media", "mode", reelMode, "deep_media", reelExtractor != nil)
+
 	switch cmd {
 	case "serve":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, false)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, reelMode, reelExtractor, false)
 		if err != nil {
 			return err
 		}
 		feedSvc.River = client
 		return serveHTTP(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigFromDeps(kindleDeps), trustedProxies)
 	case "work":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, reelMode, reelExtractor, true)
 		if err != nil {
 			return err
 		}
 		feedSvc.River = client
 		return work(ctx, client)
 	case "all":
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, true)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, reelMode, reelExtractor, true)
 		if err != nil {
 			return err
 		}
@@ -184,7 +204,7 @@ func run(ctx context.Context, args []string) error {
 		if err := checkStdioAuthMode(); err != nil {
 			return err
 		}
-		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, false)
+		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, geocoder, reelMode, reelExtractor, false)
 		if err != nil {
 			return err
 		}
