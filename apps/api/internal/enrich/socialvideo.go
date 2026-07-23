@@ -1,12 +1,15 @@
 package enrich
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -65,11 +68,36 @@ func extractOpenGraph(ctx context.Context, client *http.Client, rawURL string) (
 	if resp.StatusCode >= 400 {
 		return Extraction{}, fmt.Errorf("fetching %s: status %d", rawURL, resp.StatusCode)
 	}
-	og, err := parseOpenGraph(io.LimitReader(resp.Body, maxResponseBytes))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	if err != nil {
+		return Extraction{}, fmt.Errorf("reading %s: %w", rawURL, err)
+	}
+	og, err := parseOpenGraph(bytes.NewReader(raw))
 	if err != nil {
 		return Extraction{}, fmt.Errorf("parsing %s: %w", rawURL, err)
 	}
+	og.TaggedLocation = parseTaggedLocation(raw)
 	return og, nil
+}
+
+// locationNameRe matches an inline-JSON tagged location, e.g. Instagram's
+// GraphQL blob `"location":{"id":"…","name":"Blue Bottle Coffee"}`. Best-effort
+// and opportunistic: most login-walled pages omit it, which is fine.
+var locationNameRe = regexp.MustCompile(`"location":\{[^{}]*?"name":"([^"]{1,200})"`)
+
+// parseTaggedLocation returns the first inline-JSON tagged-location name in the
+// page, JSON-unescaped, or "" when none is present.
+func parseTaggedLocation(raw []byte) string {
+	m := locationNameRe.FindSubmatch(raw)
+	if m == nil {
+		return ""
+	}
+	name := string(m[1])
+	// The capture is a raw JSON string body; unescape \uXXXX and friends.
+	if unq, err := strconv.Unquote(`"` + name + `"`); err == nil {
+		name = unq
+	}
+	return strings.TrimSpace(name)
 }
 
 // parseOpenGraph tokenises HTML and collects the first og:title,
@@ -146,6 +174,7 @@ func (p *Pipeline) runSocialVideo(ctx context.Context, userID uuid.UUID, item db
 	if err := q.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
 		UserID: userID, ID: item.ID,
 		Title: ex.Title, Body: ex.Body, LeadImageUrl: ex.LeadImageURL, CardType: "video",
+		TaggedLocation: ex.TaggedLocation,
 	}); err != nil {
 		return fmt.Errorf("saving social video extraction: %w", err)
 	}

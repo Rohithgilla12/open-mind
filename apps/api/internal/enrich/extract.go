@@ -10,9 +10,10 @@ const maxResponseBytes = 10 << 20 // 10 MB
 
 // Extraction holds the article content pulled from a saved URL.
 type Extraction struct {
-	Title        string
-	Body         string
-	LeadImageURL string
+	Title          string
+	Body           string
+	LeadImageURL   string
+	TaggedLocation string
 }
 
 // Extractor fetches and extracts the main content of a URL.

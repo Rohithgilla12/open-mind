@@ -210,6 +210,27 @@ func TestNormalizeSocialVideo(t *testing.T) {
 	}
 }
 
+func TestParseTaggedLocation(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want string
+	}{
+		{"present", `<script>{"location":{"id":"123","name":"Blue Bottle Coffee"}}</script>`, "Blue Bottle Coffee"},
+		{"unicode escapes", `{"location":{"name":"Café Lisboa"}}`, "Café Lisboa"},
+		{"absent", `<html><head><meta property="og:title" content="x"></head></html>`, ""},
+		{"malformed no name", `{"location":{"id":"9"}}`, ""},
+		{"empty", ``, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseTaggedLocation([]byte(tt.html)); got != tt.want {
+				t.Fatalf("parseTaggedLocation() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTruncateRunes(t *testing.T) {
 	if got := truncateRunes("short", 10); got != "short" {
 		t.Errorf("truncateRunes short = %q", got)
