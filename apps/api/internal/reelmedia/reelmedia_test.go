@@ -3,7 +3,6 @@ package reelmedia
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -62,12 +61,55 @@ func TestFramesHappyPath(t *testing.T) {
 	if !strings.Contains(joined, "fps=") {
 		t.Errorf("ffmpeg args missing fps filter:\n%s", joined)
 	}
+	if !strings.Contains(joined, "scale=768:768") {
+		t.Errorf("ffmpeg args missing box-fit scale filter:\n%s", joined)
+	}
 	// Temp working dir is cleaned up.
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
 		t.Errorf("temp dir not cleaned: %v", entries)
 	}
-	_ = filepath.Join // keep import if unused after edits
+}
+
+// badDurationRunner behaves like fakeRunner but returns non-numeric ffprobe
+// output, exercising the dur <= 0 -> fps fallback path in Frames.
+type badDurationRunner struct{ calls [][]string }
+
+func (r *badDurationRunner) run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, append([]string{name}, args...))
+	switch {
+	case strings.Contains(name, "yt-dlp"):
+		out := argValue(args, "-o")
+		_ = os.WriteFile(out, []byte("fakevideo"), 0o600)
+	case strings.Contains(name, "ffprobe"):
+		return []byte("N/A\n"), nil
+	case strings.Contains(name, "ffmpeg"):
+		pattern := args[len(args)-1]
+		for i := 1; i <= 3; i++ {
+			_ = os.WriteFile(strings.Replace(pattern, "%03d", pad3(i), 1), []byte{0xFF, 0xD8, byte(i)}, 0o600)
+		}
+	}
+	return nil, nil
+}
+
+func TestFramesFpsFallbackOnBadDuration(t *testing.T) {
+	dir := t.TempDir()
+	r := &badDurationRunner{}
+	e := &Extractor{ytDLP: "yt-dlp", ffmpeg: "ffmpeg", ffprobe: "ffprobe", maxFrames: 8, run: r.run, tempBase: dir}
+	frames, err := e.Frames(context.Background(), "https://instagram.com/reel/abc")
+	if err != nil {
+		t.Fatalf("Frames: %v", err)
+	}
+	if len(frames) != 3 {
+		t.Fatalf("want 3 frames, got %d", len(frames))
+	}
+	joined := ""
+	for _, c := range r.calls {
+		joined += strings.Join(c, " ") + "\n"
+	}
+	if !strings.Contains(joined, "fps=1,") {
+		t.Errorf("ffmpeg args missing fallback fps=1 filter:\n%s", joined)
+	}
 }
 
 func argValue(args []string, flag string) string {

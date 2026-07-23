@@ -104,7 +104,7 @@ func (e *Extractor) Frames(ctx context.Context, url string) (frames [][]byte, er
 	pattern := filepath.Join(dir, "frame_%03d.jpg")
 	if _, err := e.run(ctx, e.ffmpeg,
 		"-hide_banner", "-loglevel", "error", "-i", video,
-		"-vf", fmt.Sprintf("fps=%s,scale=%d:-1:force_original_aspect_ratio=decrease", fps, frameLongEdge),
+		"-vf", fmt.Sprintf("fps=%s,scale=%d:%d:force_original_aspect_ratio=decrease", fps, frameLongEdge, frameLongEdge),
 		"-frames:v", strconv.Itoa(e.maxFrames), "-q:v", "4", pattern,
 	); err != nil {
 		return nil, fmt.Errorf("ffmpeg: %w", err)
