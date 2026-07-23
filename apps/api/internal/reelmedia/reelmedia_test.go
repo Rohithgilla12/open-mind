@@ -78,4 +78,6 @@ func argValue(args []string, flag string) string {
 	}
 	return ""
 }
-func pad3(i int) string { return string(rune('0'+i/100%10)) + string(rune('0'+i/10%10)) + string(rune('0'+i%10)) }
+func pad3(i int) string {
+	return string(rune('0'+i/100%10)) + string(rune('0'+i/10%10)) + string(rune('0'+i%10))
+}
