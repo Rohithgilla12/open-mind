@@ -17,7 +17,12 @@ services:
       retries: 15
 
   api:
-    build: apps/api
+    build:
+      context: apps/api
+      args:
+        # Opt-in: install yt-dlp+ffmpeg so REEL_MEDIA=video works (default off
+        # keeps the lean distroless image). See docs/self-hosting.md.
+        INSTALL_REEL_MEDIA: ${INSTALL_REEL_MEDIA:-false}
     command: ["all"]
     environment:
       DATABASE_URL: postgres://openmind:openmind@db:5432/openmind
@@ -34,6 +39,7 @@ services:
       NOMINATIM_URL: ${NOMINATIM_URL:-}
       NOMINATIM_EMAIL: ${NOMINATIM_EMAIL:-}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      REEL_MEDIA: ${REEL_MEDIA:-thumbnail}
       OPENMIND_TOKEN: ${OPENMIND_TOKEN:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       AUTH_MODE: ${AUTH_MODE:-}
