@@ -15,9 +15,16 @@ import (
 
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/geo"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
+
+// framer samples video frames for the deep-media rung; *reelmedia.Extractor
+// satisfies it. nil means the rung is unavailable.
+type framer interface {
+	Frames(ctx context.Context, url string) ([][]byte, error)
+}
 
 // ExtractPlacesArgs is the River job payload for extracting places from an
 // enriched social-video item. IDs only; the worker fetches fresh state.
@@ -44,6 +51,11 @@ type ExtractPlacesWorker struct {
 	// HTTPClient fetches lead-image thumbnails for vision. Nil defaults to
 	// enrich.SafeHTTPClient inside fetchLeadImage.
 	HTTPClient *http.Client
+	// Mode is the resolved REEL_MEDIA ceiling. Thumbnail (default) runs caption
+	// + thumbnail vision; Off is caption + location only; Video adds frames.
+	Mode reelmedia.Mode
+	// Extractor runs the deep-media rung. Nil (or Mode != Video) disables it.
+	Extractor framer
 }
 
 // Work extracts and stores places for one item. Idempotent: it replaces the
@@ -63,12 +75,18 @@ func (w *ExtractPlacesWorker) Work(ctx context.Context, job *river.Job[ExtractPl
 		return nil
 	}
 
-	// ran tracks whether any provider call succeeded (including an empty
-	// list). ErrNotSupported / fetch misses do not count — those leave any
-	// existing rows alone, matching Phase 1 noop behaviour. A successful
+	// locationPlaces come from the user-tagged location (e.g. Instagram's own
+	// location tag) — the highest-confidence signal since it is not inferred
+	// at all. ran tracks whether any provider call succeeded (including an
+	// empty list). ErrNotSupported / fetch misses do not count — those leave
+	// any existing rows alone, matching Phase 1 noop behaviour. A successful
 	// empty extraction must still replace the place set so re-runs stay
 	// idempotent when the model finds nothing.
-	var captionPlaces, visionPlaces []ai.Place
+	loc := strings.TrimSpace(item.TaggedLocation)
+	var locationPlaces, captionPlaces, visionPlaces, videoPlaces []ai.Place
+	if loc != "" {
+		locationPlaces = []ai.Place{{Name: loc, Confidence: 0.98}}
+	}
 	ran := false
 
 	if hasText {
@@ -84,7 +102,7 @@ func (w *ExtractPlacesWorker) Work(ctx context.Context, job *river.Job[ExtractPl
 		}
 	}
 
-	if hasImage {
+	if hasImage && w.Mode >= reelmedia.ModeThumbnail {
 		data, _ := fetchLeadImage(ctx, w.HTTPClient, item.LeadImageUrl)
 		if len(data) > 0 {
 			places, err := w.Provider.ExtractPlacesVision(ctx, item.Title, item.Body, data)
@@ -104,14 +122,43 @@ func (w *ExtractPlacesWorker) Work(ctx context.Context, job *river.Job[ExtractPl
 		}
 	}
 
-	if !ran {
-		return nil
-	}
-
 	merged := ai.MergePlaces(
+		ai.PlaceGroup{Places: locationPlaces, Source: "location", DefaultConf: 0.98},
 		ai.PlaceGroup{Places: captionPlaces, Source: "caption", DefaultConf: 0.85},
 		ai.PlaceGroup{Places: visionPlaces, Source: "vision", DefaultConf: 0.70},
 	)
+
+	// Deep-media rung: escalate only when the cheaper rungs found nothing.
+	if w.Mode == reelmedia.ModeVideo && w.Extractor != nil && len(merged) == 0 {
+		frames, ferr := w.Extractor.Frames(ctx, item.Url)
+		switch {
+		case ferr != nil:
+			slog.Warn("reel frame extraction failed", "item_id", item.ID, "err", ferr)
+		case len(frames) > 0:
+			places, verr := w.Provider.ExtractPlacesVisionFrames(ctx, item.Title, item.Body, frames)
+			switch {
+			case errors.Is(verr, ai.ErrNotSupported):
+			case verr != nil:
+				slog.Warn("frame place extraction failed", "item_id", item.ID, "err", verr)
+			default:
+				videoPlaces, ran = places, true
+				merged = ai.MergePlaces(
+					ai.PlaceGroup{Places: locationPlaces, Source: "location", DefaultConf: 0.98},
+					ai.PlaceGroup{Places: captionPlaces, Source: "caption", DefaultConf: 0.85},
+					ai.PlaceGroup{Places: videoPlaces, Source: "video", DefaultConf: 0.75},
+					ai.PlaceGroup{Places: visionPlaces, Source: "vision", DefaultConf: 0.70},
+				)
+			}
+		}
+	}
+
+	// Write when any provider rung ran, or when a location tag exists (so a
+	// noop instance still records the tagged place). Nothing at all → leave
+	// existing rows untouched.
+	if !ran && len(locationPlaces) == 0 {
+		return nil
+	}
+
 	rows := make([]db.InsertItemPlaceParams, 0, len(merged))
 	for _, p := range merged {
 		row := db.InsertItemPlaceParams{

@@ -14,6 +14,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/geo"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
+	"github.com/rohithgilla12/openmind/api/internal/reelmedia"
 	"github.com/rohithgilla12/openmind/api/internal/store"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -160,7 +161,7 @@ func TestExtractPlacesWorker(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		item := newPlacesTestItem(t, s, placesTestUser, "reel", "cafes in lisbon", srv.URL+"/thumb.png")
-		w := &jobs.ExtractPlacesWorker{Store: s, Provider: ai.NewFake(), HTTPClient: srv.Client()}
+		w := &jobs.ExtractPlacesWorker{Store: s, Provider: ai.NewFake(), HTTPClient: srv.Client(), Mode: reelmedia.ModeThumbnail}
 		if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -194,7 +195,7 @@ func TestExtractPlacesWorker(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		item := newPlacesTestItem(t, s, placesTestUser, "", "", srv.URL+"/thumb.png")
-		w := &jobs.ExtractPlacesWorker{Store: s, Provider: ai.NewFake(), HTTPClient: srv.Client()}
+		w := &jobs.ExtractPlacesWorker{Store: s, Provider: ai.NewFake(), HTTPClient: srv.Client(), Mode: reelmedia.ModeThumbnail}
 		if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -242,4 +243,188 @@ func TestExtractPlacesWorker(t *testing.T) {
 			t.Error("expected error loading another user's item")
 		}
 	})
+}
+
+// placesStub is a scripted ai.Provider for ladder tests. Unlike ai.Fake, each
+// rung's output is set independently so a test can pin exactly which rungs
+// find places and which come back empty, without the built-in fixtures
+// interfering (ai.Fake always returns caption places for non-empty text).
+type placesStub struct {
+	captionPlaces []ai.Place
+	captionErr    error
+	visionPlaces  []ai.Place
+	visionErr     error
+	framePlaces   []ai.Place
+	frameErr      error
+}
+
+func (*placesStub) Name() string { return "stub" }
+
+func (*placesStub) Summarise(context.Context, string, string) (string, error) {
+	return "", ai.ErrNotSupported
+}
+
+func (*placesStub) Tag(context.Context, string, string) ([]string, error) {
+	return nil, ai.ErrNotSupported
+}
+
+func (*placesStub) Embed(context.Context, string) ([]float32, error) {
+	return nil, ai.ErrNotSupported
+}
+
+func (*placesStub) ParseQuery(_ context.Context, q string) (ai.ParsedQuery, error) {
+	return ai.ParsedQuery{Text: q}, nil
+}
+
+func (s *placesStub) ExtractPlaces(context.Context, string, string) ([]ai.Place, error) {
+	return s.captionPlaces, s.captionErr
+}
+
+func (s *placesStub) ExtractPlacesVision(context.Context, string, string, []byte) ([]ai.Place, error) {
+	return s.visionPlaces, s.visionErr
+}
+
+func (s *placesStub) ExtractPlacesVisionFrames(context.Context, string, string, [][]byte) ([]ai.Place, error) {
+	return s.framePlaces, s.frameErr
+}
+
+// stubFramer is a scripted framer for ladder tests: it returns canned frames
+// (or an error) and counts how many times Frames was called, so a test can
+// assert the deep-media rung was (or was not) reached.
+type stubFramer struct {
+	frames [][]byte
+	err    error
+	calls  int
+}
+
+func (f *stubFramer) Frames(context.Context, string) ([][]byte, error) {
+	f.calls++
+	return f.frames, f.err
+}
+
+// A tagged location is stored even when the provider is noop: it is not an
+// inferred signal, so it never depends on AI being configured.
+func TestExtractPlaces_LocationTagUnderNoop(t *testing.T) {
+	s := newPlacesTestStore(t)
+	ctx := context.Background()
+
+	item := newPlacesTestItem(t, s, placesTestUser, "reel", "cafes in lisbon", "")
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: placesTestUser, ID: item.ID,
+		Title: "reel", Body: "cafes in lisbon", CardType: "video",
+		TaggedLocation: "Fabrica, Lisbon",
+	}); err != nil {
+		t.Fatalf("tagging location: %v", err)
+	}
+
+	w := &jobs.ExtractPlacesWorker{Store: s, Provider: ai.NewNoop()}
+	for run := 0; run < 2; run++ { // idempotent: same row both times
+		if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
+			t.Fatalf("run %d: noop provider must not error: %v", run, err)
+		}
+	}
+
+	rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: placesTestUser, ItemID: item.ID})
+	if err != nil {
+		t.Fatalf("listing places: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d places, want 1 (location tag)", len(rows))
+	}
+	if rows[0].Name != "Fabrica, Lisbon" || rows[0].Source != "location" {
+		t.Errorf("place = %q/%q, want Fabrica, Lisbon/location", rows[0].Name, rows[0].Source)
+	}
+}
+
+// Video mode escalates to sampled frames only when the cheaper rungs (caption,
+// thumbnail vision, location tag) all came back empty.
+func TestExtractPlaces_VideoEscalatesWhenEmpty(t *testing.T) {
+	s := newPlacesTestStore(t)
+	ctx := context.Background()
+
+	item := newPlacesTestItem(t, s, placesTestUser, "reel", "no place signal here", "")
+	provider := &placesStub{
+		framePlaces: []ai.Place{{Name: "Frame Cafe", Hint: "Faketown", Confidence: 0.8}},
+	}
+	extractor := &stubFramer{frames: [][]byte{[]byte("frame-one")}}
+	w := &jobs.ExtractPlacesWorker{Store: s, Provider: provider, Mode: reelmedia.ModeVideo, Extractor: extractor}
+
+	var rows []db.ItemPlace
+	for run := 0; run < 2; run++ { // idempotent: same row both times
+		if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
+			t.Fatalf("run %d: %v", run, err)
+		}
+		r, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: placesTestUser, ItemID: item.ID})
+		if err != nil {
+			t.Fatalf("run %d: listing places: %v", run, err)
+		}
+		if run == 1 && (len(r) != len(rows) || r[0].Name != rows[0].Name || r[0].Source != rows[0].Source) {
+			t.Fatalf("second run diverged: %+v vs %+v", r, rows)
+		}
+		rows = r
+	}
+
+	if extractor.calls != 2 { // one Frames call per Work invocation above
+		t.Fatalf("Frames called %d times, want 2 (once per run)", extractor.calls)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d places, want 1 (frame place)", len(rows))
+	}
+	if rows[0].Name != "Frame Cafe" || rows[0].Source != "video" {
+		t.Errorf("place = %q/%q, want Frame Cafe/video", rows[0].Name, rows[0].Source)
+	}
+}
+
+// Video mode must not escalate to frames when a cheaper rung (caption, here)
+// already found a place — the deep-media rung is the last resort.
+func TestExtractPlaces_NoEscalationWhenCaptionHit(t *testing.T) {
+	s := newPlacesTestStore(t)
+	ctx := context.Background()
+
+	item := newPlacesTestItem(t, s, placesTestUser, "reel", "dinner at Caption Cafe", "")
+	provider := &placesStub{
+		captionPlaces: []ai.Place{{Name: "Caption Cafe", Confidence: 0.9}},
+	}
+	extractor := &stubFramer{frames: [][]byte{[]byte("frame-one")}}
+	w := &jobs.ExtractPlacesWorker{Store: s, Provider: provider, Mode: reelmedia.ModeVideo, Extractor: extractor}
+	if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if extractor.calls != 0 {
+		t.Fatalf("Frames called %d times, want 0 (caption already found a place)", extractor.calls)
+	}
+	rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: placesTestUser, ItemID: item.ID})
+	if err != nil {
+		t.Fatalf("listing places: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Name != "Caption Cafe" || rows[0].Source != "caption" {
+		t.Fatalf("got %+v, want 1 caption place", rows)
+	}
+}
+
+// Thumbnail mode is the ceiling: it must never reach for frames, even when
+// the cheaper rungs found nothing.
+func TestExtractPlaces_ThumbnailModeSkipsVideo(t *testing.T) {
+	s := newPlacesTestStore(t)
+	ctx := context.Background()
+
+	item := newPlacesTestItem(t, s, placesTestUser, "reel", "no place signal here", "")
+	provider := &placesStub{} // every rung comes back empty
+	extractor := &stubFramer{frames: [][]byte{[]byte("frame-one")}}
+	w := &jobs.ExtractPlacesWorker{Store: s, Provider: provider, Mode: reelmedia.ModeThumbnail, Extractor: extractor}
+	if err := runPlacesWorker(t, w, placesTestUser, item.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if extractor.calls != 0 {
+		t.Fatalf("Frames called %d times under ModeThumbnail, want 0", extractor.calls)
+	}
+	rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: placesTestUser, ItemID: item.ID})
+	if err != nil {
+		t.Fatalf("listing places: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("got %d places, want 0", len(rows))
+	}
 }
