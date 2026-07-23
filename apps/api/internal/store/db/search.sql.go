@@ -14,7 +14,7 @@ import (
 )
 
 const listItemsWithPalette = `-- name: ListItemsWithPalette :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at FROM items WHERE user_id = $1 AND cardinality(palette) > 0
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 AND cardinality(palette) > 0
 `
 
 func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -47,6 +47,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 			&i.PageCount,
 			&i.FeedID,
 			&i.KeptAt,
+			&i.TaggedLocation,
 		); err != nil {
 			return nil, err
 		}
@@ -59,7 +60,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 }
 
 const relatedByEmbedding = `-- name: RelatedByEmbedding :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, (e.embedding <=> src.embedding)::float8 AS distance
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, (e.embedding <=> src.embedding)::float8 AS distance
 FROM item_embeddings src
 JOIN item_embeddings e ON e.user_id = src.user_id AND e.item_id <> src.item_id
 JOIN items i ON i.id = e.item_id
@@ -83,27 +84,28 @@ type RelatedByEmbeddingParams struct {
 }
 
 type RelatedByEmbeddingRow struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Url           string
-	Title         string
-	Body          string
-	LeadImageUrl  string
-	Summary       string
-	Tags          []string
-	CardType      string
-	Status        string
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Palette       []string
-	UserTags      []string
-	PinnedAt      pgtype.Timestamptz
-	LastDriftedAt pgtype.Timestamptz
-	SearchTsv     interface{}
-	PageCount     pgtype.Int4
-	FeedID        pgtype.UUID
-	KeptAt        pgtype.Timestamptz
-	Distance      float64
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Url            string
+	Title          string
+	Body           string
+	LeadImageUrl   string
+	Summary        string
+	Tags           []string
+	CardType       string
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Palette        []string
+	UserTags       []string
+	PinnedAt       pgtype.Timestamptz
+	LastDriftedAt  pgtype.Timestamptz
+	SearchTsv      interface{}
+	PageCount      pgtype.Int4
+	FeedID         pgtype.UUID
+	KeptAt         pgtype.Timestamptz
+	TaggedLocation string
+	Distance       float64
 }
 
 // Nearest unlinked items to the given item's embedding, same user only.
@@ -144,6 +146,7 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 			&i.PageCount,
 			&i.FeedID,
 			&i.KeptAt,
+			&i.TaggedLocation,
 			&i.Distance,
 		); err != nil {
 			return nil, err
@@ -157,7 +160,7 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 }
 
 const searchFTS = `-- name: SearchFTS :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items
 WHERE user_id = $1 AND search_tsv @@ websearch_to_tsquery('english', $2)
 ORDER BY rank DESC LIMIT $3
@@ -170,27 +173,28 @@ type SearchFTSParams struct {
 }
 
 type SearchFTSRow struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Url           string
-	Title         string
-	Body          string
-	LeadImageUrl  string
-	Summary       string
-	Tags          []string
-	CardType      string
-	Status        string
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Palette       []string
-	UserTags      []string
-	PinnedAt      pgtype.Timestamptz
-	LastDriftedAt pgtype.Timestamptz
-	SearchTsv     interface{}
-	PageCount     pgtype.Int4
-	FeedID        pgtype.UUID
-	KeptAt        pgtype.Timestamptz
-	Rank          float64
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Url            string
+	Title          string
+	Body           string
+	LeadImageUrl   string
+	Summary        string
+	Tags           []string
+	CardType       string
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Palette        []string
+	UserTags       []string
+	PinnedAt       pgtype.Timestamptz
+	LastDriftedAt  pgtype.Timestamptz
+	SearchTsv      interface{}
+	PageCount      pgtype.Int4
+	FeedID         pgtype.UUID
+	KeptAt         pgtype.Timestamptz
+	TaggedLocation string
+	Rank           float64
 }
 
 func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchFTSRow, error) {
@@ -223,6 +227,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 			&i.PageCount,
 			&i.FeedID,
 			&i.KeptAt,
+			&i.TaggedLocation,
 			&i.Rank,
 		); err != nil {
 			return nil, err
@@ -236,7 +241,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 }
 
 const searchVector = `-- name: SearchVector :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, (1 - (e.embedding <=> $2))::float8 AS similarity
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, (1 - (e.embedding <=> $2))::float8 AS similarity
 FROM item_embeddings e JOIN items i ON i.id = e.item_id
 WHERE e.user_id = $1
 ORDER BY e.embedding <=> $2 LIMIT $3
@@ -249,27 +254,28 @@ type SearchVectorParams struct {
 }
 
 type SearchVectorRow struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Url           string
-	Title         string
-	Body          string
-	LeadImageUrl  string
-	Summary       string
-	Tags          []string
-	CardType      string
-	Status        string
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Palette       []string
-	UserTags      []string
-	PinnedAt      pgtype.Timestamptz
-	LastDriftedAt pgtype.Timestamptz
-	SearchTsv     interface{}
-	PageCount     pgtype.Int4
-	FeedID        pgtype.UUID
-	KeptAt        pgtype.Timestamptz
-	Similarity    float64
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Url            string
+	Title          string
+	Body           string
+	LeadImageUrl   string
+	Summary        string
+	Tags           []string
+	CardType       string
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Palette        []string
+	UserTags       []string
+	PinnedAt       pgtype.Timestamptz
+	LastDriftedAt  pgtype.Timestamptz
+	SearchTsv      interface{}
+	PageCount      pgtype.Int4
+	FeedID         pgtype.UUID
+	KeptAt         pgtype.Timestamptz
+	TaggedLocation string
+	Similarity     float64
 }
 
 func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]SearchVectorRow, error) {
@@ -302,6 +308,7 @@ func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]S
 			&i.PageCount,
 			&i.FeedID,
 			&i.KeptAt,
+			&i.TaggedLocation,
 			&i.Similarity,
 		); err != nil {
 			return nil, err

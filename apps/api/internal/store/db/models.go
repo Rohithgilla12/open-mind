@@ -68,26 +68,27 @@ type Highlight struct {
 }
 
 type Item struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Url           string
-	Title         string
-	Body          string
-	LeadImageUrl  string
-	Summary       string
-	Tags          []string
-	CardType      string
-	Status        string
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Palette       []string
-	UserTags      []string
-	PinnedAt      pgtype.Timestamptz
-	LastDriftedAt pgtype.Timestamptz
-	SearchTsv     interface{}
-	PageCount     pgtype.Int4
-	FeedID        pgtype.UUID
-	KeptAt        pgtype.Timestamptz
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Url            string
+	Title          string
+	Body           string
+	LeadImageUrl   string
+	Summary        string
+	Tags           []string
+	CardType       string
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	Palette        []string
+	UserTags       []string
+	PinnedAt       pgtype.Timestamptz
+	LastDriftedAt  pgtype.Timestamptz
+	SearchTsv      interface{}
+	PageCount      pgtype.Int4
+	FeedID         pgtype.UUID
+	KeptAt         pgtype.Timestamptz
+	TaggedLocation string
 }
 
 type ItemEmbedding struct {

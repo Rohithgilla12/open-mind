@@ -49,7 +49,7 @@ SELECT url FROM items WHERE user_id = $1 AND url <> '';
 UPDATE items SET feed_id = $3 WHERE user_id = $1 AND id = ANY($2::uuid[]) AND feed_id IS NULL;
 
 -- name: UpdateItemExtraction :exec
-UPDATE items SET title = $3, body = $4, lead_image_url = $5, card_type = $6, updated_at = now()
+UPDATE items SET title = $3, body = $4, lead_image_url = $5, card_type = $6, tagged_location = $7, updated_at = now()
 WHERE user_id = $1 AND id = $2;
 
 -- name: UpdateItemEnrichment :exec
