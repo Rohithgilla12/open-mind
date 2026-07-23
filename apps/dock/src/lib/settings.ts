@@ -8,6 +8,10 @@ export type Settings = {
   token: string;
 };
 
+/** Hosted Openmind instance — pre-filled so the dock connects out of the box.
+ *  Self-hosters just replace it with their own URL in Settings. */
+export const DEFAULT_INSTANCE_URL = "https://openmind.gilla.fun";
+
 type RustSettings = {
   instance_url: string;
   token: string;

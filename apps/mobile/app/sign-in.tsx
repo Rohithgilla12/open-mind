@@ -2,12 +2,13 @@
 // ends the same way: mint a durable omk_ API key from the Clerk session,
 // sign the Clerk session back out (the app never keeps a live Clerk session;
 // the minted key is the only credential it stores), then persist it exactly
-// like a manual Settings save. Self-hosters who haven't configured Clerk (no
-// publishable key) only ever see the manual fallback below. The top-level
-// screen never calls a Clerk hook — those live in ClerkSignIn, which only
-// mounts when a publishable key is configured, so there's no ClerkProvider
-// to violate the Rules of Hooks against. Never log the Clerk token or the
-// omk_ key.
+// like a manual Settings save. By default the publishable key points at the
+// hosted instance's Clerk, so sign-in works out of the box; self-hosters on an
+// instance without Clerk build with an empty EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+// (falsy) and only ever see the manual fallback below. The top-level screen
+// never calls a Clerk hook — those live in ClerkSignIn, which only mounts when
+// a publishable key is configured, so there's no ClerkProvider to violate the
+// Rules of Hooks against. Never log the Clerk token or the omk_ key.
 import type { EmailCodeFactor, SignInFirstFactor } from "@clerk/types";
 import { useAuth, useSignIn, useSSO } from "@clerk/clerk-expo";
 import * as AuthSession from "expo-auth-session";

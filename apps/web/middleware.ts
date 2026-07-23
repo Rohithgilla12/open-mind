@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { authMode } from "./lib/auth-mode";
+import { clerkPublishableKey } from "./lib/clerk";
 
 const isPublicRoute = createRouteMatcher(["/login(.*)", "/privacy", "/terms", "/welcome"]);
 
@@ -34,7 +35,7 @@ const clerkHandler =
           return;
         }
         await auth.protect({ unauthenticatedUrl: new URL("/login", req.url).toString() });
-      })
+      }, { publishableKey: clerkPublishableKey })
     : null;
 
 function legacyMiddleware(req: NextRequest) {

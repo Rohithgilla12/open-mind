@@ -5,8 +5,11 @@ export interface Settings {
   token: string;
 }
 
+// Pre-fill the hosted Openmind instance so the extension points at it out of
+// the box — the user only needs to add a token. Self-hosters change the URL in
+// the extension's options page.
 const DEFAULT_SETTINGS: Settings = {
-  instanceUrl: "",
+  instanceUrl: "https://openmind.gilla.fun",
   token: "",
 };
 

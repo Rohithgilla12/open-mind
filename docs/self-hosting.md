@@ -62,7 +62,9 @@ When `OPENMIND_TOKEN` is set, the login page validates the token against the API
 
 ### Multi-user mode (Clerk)
 
-**Self-hosting defaults to token mode** (above) — a single shared secret, no third-party dependency. If you want real multi-user accounts (e.g. a small cloud instance you share with friends), switch both services to [Clerk](https://clerk.com):
+**Self-hosting defaults to token mode** (above) — a single shared secret, no third-party dependency. The Docker images and `docker compose up` pin token mode, so a stock self-host deploy needs no Clerk keys. (The app *source* defaults to the hosted `openmind.gilla.fun` instance and its Clerk — that's what the prebuilt mobile/desktop/extension clients target — but your `web` container is pinned to token unless you set the variables below.)
+
+If you want real multi-user accounts (e.g. a small cloud instance you share with friends), switch both services to [Clerk](https://clerk.com):
 
 | Variable | Service | Where it comes from |
 |---|---|---|

@@ -6,7 +6,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { tokens } from "@openmind/ui";
 import { checkToken, claimDeviceCode } from "../lib/api";
 import { captureToAccelerator, normaliseDisplay, DEFAULT_QUICK_SAVE, DEFAULT_QUICK_FIND } from "../lib/accelerator";
-import { clearSettings, setSettings, type Settings } from "../lib/settings";
+import { clearSettings, setSettings, DEFAULT_INSTANCE_URL, type Settings } from "../lib/settings";
 import { DragRegion } from "../components/DragRegion";
 
 /** Rust's `ShortcutPair`/`rebind_shortcuts` use snake_case field names — no
@@ -41,7 +41,7 @@ export function SettingsView({
   onSignedOut?: () => void;
   onCancel?: () => void;
 }) {
-  const [instanceUrl, setInstanceUrl] = useState(initial?.instanceUrl ?? "");
+  const [instanceUrl, setInstanceUrl] = useState(initial?.instanceUrl ?? DEFAULT_INSTANCE_URL);
   const [token, setToken] = useState(initial?.token ?? "");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [deviceCode, setDeviceCode] = useState("");
@@ -243,7 +243,7 @@ export function SettingsView({
       setStatus({ kind: "save-failed" });
       return;
     }
-    setInstanceUrl("");
+    setInstanceUrl(DEFAULT_INSTANCE_URL);
     setToken("");
     setDeviceCode("");
     setStatus({ kind: "idle" });

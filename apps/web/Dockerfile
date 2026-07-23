@@ -11,7 +11,10 @@ FROM deps AS build
 # NEXT_PUBLIC_* values are inlined into the client bundle at build time, so
 # multi-user (Clerk) mode must be selected when the image is built. Empty
 # defaults keep the default single-user token mode.
-ARG NEXT_PUBLIC_AUTH_MODE=
+# Self-host images default to token mode (single shared secret, no Clerk keys
+# needed) even though the app source defaults to the hosted instance's Clerk.
+# The maintainer's deploy passes NEXT_PUBLIC_AUTH_MODE=clerk explicitly.
+ARG NEXT_PUBLIC_AUTH_MODE=token
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 ENV NEXT_PUBLIC_AUTH_MODE=$NEXT_PUBLIC_AUTH_MODE
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY

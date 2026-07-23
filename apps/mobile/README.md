@@ -39,20 +39,20 @@ authentication, the app exchanges the Clerk JWT for a long-lived device API key
 4. In the application's OAuth redirect settings, add: `openmind://`
 5. Copy your **Publishable Key**.
 
-**EAS environment variables (preview):**
+**Defaults:** out of the box the app targets the hosted instance
+(`https://openmind.gilla.fun`) and its Clerk, so a plain build has working
+sign-in with no configuration. Both are overridable via `EXPO_PUBLIC_*`:
 
-To enable Clerk sign-in in EAS preview builds, set these Expo environment variables
-in the **preview** EAS environment:
-
-- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — your Clerk publishable key (required to
-  enable in-app sign-in).
-- `EXPO_PUBLIC_INSTANCE_URL` (optional) — your instance URL; defaults to
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — your Clerk publishable key. Defaults to
+  the hosted instance's key (a publishable key is public and safe to ship). Set
+  this to point in-app sign-in at your own Clerk.
+- `EXPO_PUBLIC_INSTANCE_URL` — your instance URL; defaults to
   `https://openmind.gilla.fun`.
 
 Expo automatically inlines `EXPO_PUBLIC_*` variables into the app during builds.
 
-If `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is not set—for example, when self-hosting on a
-different instance—in-app Clerk sign-in is hidden and users fall back to manual
+Self-hosters on an instance **without** Clerk should build with
+`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` set to their own key, or use manual
 authentication (see below).
 
 ### Manual authentication (self-hosters and alternative instances)

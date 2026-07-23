@@ -2,7 +2,13 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import type { TokenCache } from "@clerk/clerk-expo";
 
-export const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+// Default to the hosted Openmind instance's Clerk so a plain build signs in
+// out of the box. A publishable key is public by design (it ships in every
+// client bundle), so committing it is safe. Self-hosters override it — and the
+// instance URL below — with EXPO_PUBLIC_* at build time.
+export const clerkPublishableKey =
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+  "pk_live_Y2xlcmsub3Blbm1pbmQuZ2lsbGEuZnVuJA";
 
 export const defaultInstanceUrl =
   process.env.EXPO_PUBLIC_INSTANCE_URL ?? "https://openmind.gilla.fun";

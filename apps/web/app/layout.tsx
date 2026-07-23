@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { tokens } from "@openmind/ui";
 import { fontVariables } from "../lib/fonts";
 import { authMode } from "../lib/auth-mode";
+import { clerkPublishableKey } from "../lib/clerk";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 // validates Clerk env at runtime.
 function Providers({ children }: { children: React.ReactNode }) {
   if (authMode === "clerk") {
-    return <ClerkProvider>{children}</ClerkProvider>;
+    return <ClerkProvider publishableKey={clerkPublishableKey}>{children}</ClerkProvider>;
   }
   return children;
 }
