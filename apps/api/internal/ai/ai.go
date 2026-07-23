@@ -141,52 +141,47 @@ func sanitisePlaces(in []Place) []Place {
 // Placed is a Place tagged with which signal produced (or won) it.
 type Placed struct {
 	Place
-	Source string // "caption" or "vision"
+	Source string // "location", "caption", "video", or "vision"
 }
 
-// MergePlacesWithSource combines caption- and vision-sourced candidates by
-// normalised name, keeping the higher-confidence row and the winning signal
-// name for item_places.source. On a confidence tie, caption wins (text is the
-// cheaper, more grounded signal). Missing confidence (0) gets a source
-// default: 0.85 for caption, 0.7 for vision.
-func MergePlacesWithSource(caption, vision []Place) []Placed {
-	type tagged struct {
-		Place
-		source string
-	}
-	byName := make(map[string]tagged, len(caption)+len(vision))
-	order := make([]string, 0, len(caption)+len(vision))
+// PlaceGroup is one source's candidates plus the source label and the
+// confidence to assume when a candidate carries none (0).
+type PlaceGroup struct {
+	Places      []Place
+	Source      string
+	DefaultConf float64
+}
 
-	add := func(p Place, source string, defaultConf float64) {
-		if p.Confidence == 0 {
-			p.Confidence = defaultConf
-		}
-		key := strings.ToLower(strings.TrimSpace(p.Name))
-		if key == "" {
-			return
-		}
-		cur, ok := byName[key]
-		if !ok {
-			byName[key] = tagged{Place: p, source: source}
-			order = append(order, key)
-			return
-		}
-		if p.Confidence > cur.Confidence {
-			byName[key] = tagged{Place: p, source: source}
+// MergePlaces combines candidate groups by normalised name, keeping the
+// highest-confidence candidate and its source. Ties are broken by group order
+// (earlier group wins), so callers pass groups in precedence order. First-seen
+// name order is preserved in the result.
+func MergePlaces(groups ...PlaceGroup) []Placed {
+	byName := make(map[string]Placed)
+	order := make([]string, 0)
+	for _, g := range groups {
+		for _, p := range g.Places {
+			if p.Confidence == 0 {
+				p.Confidence = g.DefaultConf
+			}
+			key := strings.ToLower(strings.TrimSpace(p.Name))
+			if key == "" {
+				continue
+			}
+			cur, ok := byName[key]
+			if !ok {
+				byName[key] = Placed{Place: p, Source: g.Source}
+				order = append(order, key)
+				continue
+			}
+			if p.Confidence > cur.Confidence {
+				byName[key] = Placed{Place: p, Source: g.Source}
+			}
 		}
 	}
-
-	for _, p := range caption {
-		add(p, "caption", 0.85)
-	}
-	for _, p := range vision {
-		add(p, "vision", 0.7)
-	}
-
 	out := make([]Placed, 0, len(order))
 	for _, key := range order {
-		t := byName[key]
-		out = append(out, Placed{Place: t.Place, Source: t.source})
+		out = append(out, byName[key])
 	}
 	return out
 }

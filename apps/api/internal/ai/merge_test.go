@@ -2,59 +2,27 @@ package ai
 
 import "testing"
 
-func TestMergePlacesWithSource(t *testing.T) {
-	caption := []Place{
-		{Name: "Fake Cafe", Hint: "Faketown", Confidence: 0.6},
-		{Name: "Fake Museum", Hint: "", Confidence: 0.7},
-	}
-	vision := []Place{
-		{Name: "Fake Cafe", Hint: "Faketown", Confidence: 0.95},
-		{Name: "Vision Landmark", Hint: "Faketown", Confidence: 0.8},
-	}
+func TestMergePlaces(t *testing.T) {
+	loc := []Place{{Name: "Fabrica"}}                                       // default 0.98
+	caption := []Place{{Name: "Fabrica"}, {Name: "Copenhagen Coffee Lab"}} // default 0.85
+	vision := []Place{{Name: "Fabrica", Confidence: 0.9}}                   // explicit 0.9
 
-	got := MergePlacesWithSource(caption, vision)
-	if len(got) != 3 {
-		t.Fatalf("got %d places, want 3", len(got))
-	}
+	got := MergePlaces(
+		PlaceGroup{Places: loc, Source: "location", DefaultConf: 0.98},
+		PlaceGroup{Places: caption, Source: "caption", DefaultConf: 0.85},
+		PlaceGroup{Places: vision, Source: "vision", DefaultConf: 0.70},
+	)
 
-	byName := map[string]Placed{}
-	for _, p := range got {
-		byName[p.Name] = p
+	if len(got) != 2 {
+		t.Fatalf("want 2 merged places, got %d: %+v", len(got), got)
 	}
-
-	cafe := byName["Fake Cafe"]
-	if cafe.Source != "vision" || cafe.Confidence != 0.95 {
-		t.Errorf("Fake Cafe = %+v, want vision @ 0.95", cafe)
+	// Fabrica: location 0.98 beats caption 0.85 and vision 0.9 → source "location".
+	if got[0].Name != "Fabrica" || got[0].Source != "location" {
+		t.Errorf("Fabrica winner = %+v, want location", got[0])
 	}
-	museum := byName["Fake Museum"]
-	if museum.Source != "caption" {
-		t.Errorf("Fake Museum source = %q, want caption", museum.Source)
-	}
-	landmark := byName["Vision Landmark"]
-	if landmark.Source != "vision" {
-		t.Errorf("Vision Landmark source = %q, want vision", landmark.Source)
-	}
-}
-
-func TestMergePlacesWithSource_TieKeepsCaption(t *testing.T) {
-	caption := []Place{{Name: "Same Spot", Hint: "A", Confidence: 0.8}}
-	vision := []Place{{Name: "same spot", Hint: "B", Confidence: 0.8}}
-	got := MergePlacesWithSource(caption, vision)
-	if len(got) != 1 {
-		t.Fatalf("got %d, want 1", len(got))
-	}
-	if got[0].Source != "caption" || got[0].Hint != "A" {
-		t.Errorf("tie should keep caption: %+v", got[0])
-	}
-}
-
-func TestMergePlacesWithSource_DefaultConfidence(t *testing.T) {
-	// Missing confidence (0) gets source defaults; vision default 0.7 < caption 0.85.
-	caption := []Place{{Name: "Spot", Hint: ""}}
-	vision := []Place{{Name: "Spot", Hint: "elsewhere"}}
-	got := MergePlacesWithSource(caption, vision)
-	if len(got) != 1 || got[0].Source != "caption" || got[0].Confidence != 0.85 {
-		t.Errorf("default confidence merge = %+v, want caption @ 0.85", got)
+	// First-seen order preserved (location added Fabrica first).
+	if got[1].Name != "Copenhagen Coffee Lab" || got[1].Source != "caption" {
+		t.Errorf("second = %+v, want Copenhagen Coffee Lab/caption", got[1])
 	}
 }
 

@@ -108,7 +108,10 @@ func (w *ExtractPlacesWorker) Work(ctx context.Context, job *river.Job[ExtractPl
 		return nil
 	}
 
-	merged := ai.MergePlacesWithSource(captionPlaces, visionPlaces)
+	merged := ai.MergePlaces(
+		ai.PlaceGroup{Places: captionPlaces, Source: "caption", DefaultConf: 0.85},
+		ai.PlaceGroup{Places: visionPlaces, Source: "vision", DefaultConf: 0.70},
+	)
 	rows := make([]db.InsertItemPlaceParams, 0, len(merged))
 	for _, p := range merged {
 		row := db.InsertItemPlaceParams{
