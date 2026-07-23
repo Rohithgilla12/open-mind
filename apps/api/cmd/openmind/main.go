@@ -176,7 +176,7 @@ func run(ctx context.Context, args []string) error {
 			reelExtractor = ext
 		}
 	}
-	slog.Info("reel media", "mode", reelMode, "deep_media", reelExtractor != nil)
+	slog.Info("reel media", "mode", reelMode.String(), "deep_media", reelExtractor != nil)
 
 	switch cmd {
 	case "serve":

@@ -79,7 +79,11 @@ const pollInterval = 30 * time.Minute
 // poll worker + periodic job); the insert-only path ignores it and may be
 // passed nil. kindleDeps is likewise only exercised by the worker process;
 // the insert-only path still accepts it (unused) so callers don't need two
-// signatures.
+// signatures. reelMode selects the reel-media ladder ceiling (off, thumbnail,
+// video) for the extract-places worker; reelExtractor is the optional
+// yt-dlp/ffmpeg extractor used to satisfy the video rung, and is nil when
+// deep media is unavailable (binaries not on PATH) or the ceiling doesn't
+// require it.
 func NewRiverClient(pool *pgxpool.Pool, p *enrich.Pipeline, feedService FeedRefresher, kindleDeps KindleDeps, geocoder geo.Geocoder, reelMode reelmedia.Mode, reelExtractor *reelmedia.Extractor, workersOn bool) (*river.Client[pgx.Tx], error) {
 	cfg := &river.Config{}
 	// scanWorker and enrichWorker are registered before the client exists

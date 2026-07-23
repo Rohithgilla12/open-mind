@@ -17,6 +17,15 @@ func TestModeFromEnv(t *testing.T) {
 	}
 }
 
+func TestModeString(t *testing.T) {
+	cases := map[Mode]string{ModeOff: "off", ModeThumbnail: "thumbnail", ModeVideo: "video"}
+	for mode, want := range cases {
+		if got := mode.String(); got != want {
+			t.Errorf("Mode(%d).String() = %q, want %q", mode, got, want)
+		}
+	}
+}
+
 // fakeRunner records args and writes the output files each stage expects.
 type fakeRunner struct{ calls [][]string }
 

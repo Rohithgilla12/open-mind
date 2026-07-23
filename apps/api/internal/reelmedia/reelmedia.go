@@ -25,6 +25,20 @@ const (
 	ModeVideo
 )
 
+// String renders Mode for logging.
+func (m Mode) String() string {
+	switch m {
+	case ModeOff:
+		return "off"
+	case ModeThumbnail:
+		return "thumbnail"
+	case ModeVideo:
+		return "video"
+	default:
+		return "unknown"
+	}
+}
+
 // ModeFromEnv reads REEL_MEDIA (off|thumbnail|video), defaulting to thumbnail
 // (preserving Phase 2 behaviour). Unknown values fall back to thumbnail.
 func ModeFromEnv() Mode {
@@ -88,7 +102,7 @@ func (e *Extractor) Frames(ctx context.Context, url string) (frames [][]byte, er
 	if _, err := e.run(ctx, e.ytDLP,
 		"--no-playlist", "--no-warnings", "--max-filesize", maxFileSize,
 		"--socket-timeout", "20", "-f", "mp4/best[ext=mp4]/best",
-		"-o", video, url,
+		"-o", video, "--", url,
 	); err != nil {
 		return nil, fmt.Errorf("yt-dlp: %w", err)
 	}

@@ -187,9 +187,10 @@ default) its thumbnail. Set `REEL_MEDIA` to control the vision ladder:
 | `thumbnail` (default) | Adds thumbnail vision (on-screen text). |
 | `video` | Adds a deep-media rung: when caption/thumbnail name no place, download the clip and read sampled frames. |
 
-`video` requires user-installed **`yt-dlp`** and **`ffmpeg`** on `PATH`; if either
-is missing the server logs a warning and behaves as `thumbnail`. These binaries
-are never bundled and never a `docker compose` requirement.
+`video` requires user-installed **`yt-dlp`**, **`ffmpeg`**, and **`ffprobe`**
+(ffprobe ships with ffmpeg) on `PATH`; if any is missing the server logs a
+warning and behaves as `thumbnail`. These binaries are never bundled and never
+a `docker compose` requirement.
 
 ## Importing
 
