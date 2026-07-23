@@ -58,6 +58,10 @@ type Provider interface {
 	// (and optionally the caption) visible in a video thumbnail. Text-only
 	// providers return ErrNotSupported; an empty image yields an empty list.
 	ExtractPlacesVision(ctx context.Context, title, caption string, image []byte) ([]Place, error)
+	// ExtractPlacesVisionFrames returns places grounded in on-screen text
+	// across several sampled video frames, read in one batched call. Text-only
+	// providers return ErrNotSupported; empty frames yield an empty list.
+	ExtractPlacesVisionFrames(ctx context.Context, title, caption string, frames [][]byte) ([]Place, error)
 }
 
 // parseQueryInstruction is the shared system prompt for natural-language query
@@ -90,6 +94,17 @@ const extractPlacesVisionInstruction = `You extract real-world, visitable places
 	`Return only specific named places a person could visit (cafes, restaurants, bars, hotels, shops, landmarks, parks, museums). ` +
 	`Never invent places from vibes, cuisine cues, or scenery alone; if no place name is readable, return an empty list. ` +
 	`For each place set "hint" to any city/area/country visible in the image or caption (or "" if none), and "confidence" to a number from 0 to 1 reflecting how clearly the name appears. ` +
+	`Respond with only a JSON object of the form {"places": [{"name": string, "hint": string, "confidence": number}]}.`
+
+// extractPlacesFramesInstruction is the shared system prompt for batched
+// multi-frame vision place extraction. Places must be grounded in readable
+// on-screen text across the sampled frames, not inferred from scenery.
+const extractPlacesFramesInstruction = `You extract real-world, visitable places from several frames sampled from one social-media video. ` +
+	`Read on-screen text overlays and any place names visible across the frames; use the optional title/caption only to disambiguate a name you can already see. ` +
+	`Return only specific named places a person could visit (cafes, restaurants, bars, hotels, shops, landmarks, parks, museums). ` +
+	`Never invent places from vibes, cuisine cues, or scenery alone; if no place name is readable, return an empty list. ` +
+	`Deduplicate places that appear in multiple frames. ` +
+	`For each place set "hint" to any city/area/country visible (or "" if none), and "confidence" to a number from 0 to 1. ` +
 	`Respond with only a JSON object of the form {"places": [{"name": string, "hint": string, "confidence": number}]}.`
 
 // placesResponseSchema fields shared by caption and vision JSON-mode calls.

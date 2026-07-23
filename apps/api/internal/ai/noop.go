@@ -30,3 +30,7 @@ func (*Noop) ExtractPlaces(context.Context, string, string) ([]Place, error) {
 func (*Noop) ExtractPlacesVision(context.Context, string, string, []byte) ([]Place, error) {
 	return nil, ErrNotSupported
 }
+
+func (*Noop) ExtractPlacesVisionFrames(context.Context, string, string, [][]byte) ([]Place, error) {
+	return nil, ErrNotSupported
+}

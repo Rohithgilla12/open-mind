@@ -226,6 +226,13 @@ func (*OpenAI) ExtractPlacesVision(context.Context, string, string, []byte) ([]P
 	return nil, ErrNotSupported
 }
 
+// ExtractPlacesVisionFrames is not implemented for OpenAI-compatible text
+// endpoints; multimodal support varies wildly across providers behind this
+// adapter.
+func (*OpenAI) ExtractPlacesVisionFrames(context.Context, string, string, [][]byte) ([]Place, error) {
+	return nil, ErrNotSupported
+}
+
 // doJSON performs a POST with a JSON body and decodes a JSON response,
 // classifying HTTP errors as RetryableError so the chain can fail over.
 func (o *OpenAI) doJSON(ctx context.Context, path string, reqBody, out any) error {

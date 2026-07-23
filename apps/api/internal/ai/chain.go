@@ -157,3 +157,12 @@ func (c *Chain) ExtractPlacesVision(ctx context.Context, title, caption string, 
 		return p.ExtractPlacesVision(ctx, title, caption, image)
 	})
 }
+
+// ExtractPlacesVisionFrames tries each provider in order until one returns
+// places from a batch of sampled video frames (Gemini implements; text-only
+// providers skip).
+func (c *Chain) ExtractPlacesVisionFrames(ctx context.Context, title, caption string, frames [][]byte) ([]Place, error) {
+	return runChain(ctx, c, "extractplacesvisionframes", func(p Provider) ([]Place, error) {
+		return p.ExtractPlacesVisionFrames(ctx, title, caption, frames)
+	})
+}

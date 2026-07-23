@@ -191,6 +191,37 @@ func (g *Gemini) ExtractPlacesVision(ctx context.Context, title, caption string,
 	return placesFromJSON(parsed), nil
 }
 
+// ExtractPlacesVisionFrames reads place names from several sampled video
+// frames via a single batched multimodal JSON-mode call (one image part per
+// frame, plus optional caption context).
+func (g *Gemini) ExtractPlacesVisionFrames(ctx context.Context, title, caption string, frames [][]byte) ([]Place, error) {
+	prompt := fmt.Sprintf("%s\n\nTitle: %s\nCaption: %s", extractPlacesFramesInstruction, truncate(title, 500), truncate(caption, 4000))
+	parts := []*genai.Part{genai.NewPartFromText(prompt)}
+	for _, f := range frames {
+		if len(f) == 0 {
+			continue
+		}
+		parts = append(parts, genai.NewPartFromBytes(f, httpDetectImageMIME(f)))
+	}
+	if len(parts) == 1 { // no usable frames
+		return nil, nil
+	}
+	cfg := &genai.GenerateContentConfig{
+		ResponseMIMEType: "application/json",
+		ResponseSchema:   placesResponseSchema(),
+	}
+	contents := []*genai.Content{genai.NewContentFromParts(parts, genai.RoleUser)}
+	resp, err := g.client.Models.GenerateContent(ctx, geminiGenModel, contents, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("gemini extractplacesvisionframes: %w", classifyGeminiErr(err))
+	}
+	var parsed placesJSON
+	if err := json.Unmarshal([]byte(resp.Text()), &parsed); err != nil {
+		return nil, fmt.Errorf("parsing gemini frames places: %w", err)
+	}
+	return placesFromJSON(parsed), nil
+}
+
 // classifyGeminiErr inspects a genai SDK error and wraps it as a
 // RetryableError when it represents a transient failure (429 or 5xx), so the
 // fallback chain knows to fail over to the next provider. genai.APIError

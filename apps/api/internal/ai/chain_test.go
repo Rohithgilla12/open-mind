@@ -52,6 +52,11 @@ func (s *stub) ExtractPlacesVision(context.Context, string, string, []byte) ([]P
 	return s.places, s.err
 }
 
+func (s *stub) ExtractPlacesVisionFrames(context.Context, string, string, [][]byte) ([]Place, error) {
+	s.calls++
+	return s.places, s.err
+}
+
 func TestChainFalloverOnRetryable(t *testing.T) {
 	p1 := &stub{name: "p1", err: &RetryableError{Status: 429}}
 	p2 := &stub{name: "p2", summary: "ok"}
@@ -165,6 +170,23 @@ func TestChainLimiterSaturationFallsOver(t *testing.T) {
 	}
 	if p1.calls != 1 {
 		t.Fatalf("p1.calls = %d, want 1 (second call must skip saturated provider)", p1.calls)
+	}
+}
+
+func TestChainExtractPlacesVisionFramesFallsOverToFake(t *testing.T) {
+	p1 := NewNoop()
+	p2 := NewFake()
+	c := NewChain(
+		ChainEntry{Name: "noop", Provider: p1},
+		ChainEntry{Name: "fake", Provider: p2},
+	)
+
+	got, err := c.ExtractPlacesVisionFrames(context.Background(), "t", "c", [][]byte{{0x1}})
+	if err != nil {
+		t.Fatalf("ExtractPlacesVisionFrames err = %v, want nil", err)
+	}
+	if len(got) == 0 {
+		t.Fatal("want fixture places from fake after noop skips, got none")
 	}
 }
 

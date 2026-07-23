@@ -67,3 +67,16 @@ func (*Fake) ExtractPlacesVision(_ context.Context, _, _ string, image []byte) (
 		{Name: "Vision Landmark", Hint: "Faketown", Confidence: 0.8},
 	}, nil
 }
+
+// ExtractPlacesVisionFrames returns a deterministic fixture when at least one
+// frame is present, mirroring ExtractPlacesVision's shape for the batched,
+// multi-frame call. No frames → no places (mirrors "no usable frames").
+func (*Fake) ExtractPlacesVisionFrames(_ context.Context, _, _ string, frames [][]byte) ([]Place, error) {
+	if len(frames) == 0 {
+		return nil, nil
+	}
+	return []Place{
+		{Name: "Frame Diner", Hint: "Faketown", Confidence: 0.8},
+		{Name: "Vision Landmark", Hint: "Faketown", Confidence: 0.7},
+	}, nil
+}
