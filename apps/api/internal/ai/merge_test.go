@@ -3,9 +3,9 @@ package ai
 import "testing"
 
 func TestMergePlaces(t *testing.T) {
-	loc := []Place{{Name: "Fabrica"}}                                       // default 0.98
+	loc := []Place{{Name: "Fabrica"}}                                      // default 0.98
 	caption := []Place{{Name: "Fabrica"}, {Name: "Copenhagen Coffee Lab"}} // default 0.85
-	vision := []Place{{Name: "Fabrica", Confidence: 0.9}}                   // explicit 0.9
+	vision := []Place{{Name: "Fabrica", Confidence: 0.9}}                  // explicit 0.9
 
 	got := MergePlaces(
 		PlaceGroup{Places: loc, Source: "location", DefaultConf: 0.98},
@@ -23,6 +23,21 @@ func TestMergePlaces(t *testing.T) {
 	// First-seen order preserved (location added Fabrica first).
 	if got[1].Name != "Copenhagen Coffee Lab" || got[1].Source != "caption" {
 		t.Errorf("second = %+v, want Copenhagen Coffee Lab/caption", got[1])
+	}
+}
+
+func TestMergePlaces_TieKeepsEarlierGroup(t *testing.T) {
+	got := MergePlaces(
+		PlaceGroup{Places: []Place{{Name: "Tie Cafe", Confidence: 0.8}}, Source: "caption", DefaultConf: 0.85},
+		PlaceGroup{Places: []Place{{Name: "Tie Cafe", Confidence: 0.8}}, Source: "vision", DefaultConf: 0.70},
+	)
+
+	if len(got) != 1 {
+		t.Fatalf("want 1 merged place, got %d: %+v", len(got), got)
+	}
+	// Equal confidence (0.8 == 0.8): earlier group (caption) wins the tie.
+	if got[0].Name != "Tie Cafe" || got[0].Source != "caption" {
+		t.Errorf("tie winner = %+v, want caption", got[0])
 	}
 }
 

@@ -157,8 +157,12 @@ type PlaceGroup struct {
 // (earlier group wins), so callers pass groups in precedence order. First-seen
 // name order is preserved in the result.
 func MergePlaces(groups ...PlaceGroup) []Placed {
-	byName := make(map[string]Placed)
-	order := make([]string, 0)
+	n := 0
+	for _, g := range groups {
+		n += len(g.Places)
+	}
+	byName := make(map[string]Placed, n)
+	order := make([]string, 0, n)
 	for _, g := range groups {
 		for _, p := range g.Places {
 			if p.Confidence == 0 {
