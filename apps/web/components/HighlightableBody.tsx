@@ -76,12 +76,14 @@ function renderParagraph(
   para: { text: string; start: number },
   anchored: Anchored[],
   onOpen: (quoteItemId: string) => void,
+  justSavedId: string | null,
 ): ReactNode[] {
   const local = anchored
     .map((h) => ({
       start: Math.max(0, h.range.start - para.start),
       end: Math.min(para.text.length, h.range.end - para.start),
       quoteItemId: h.quoteItemId,
+      id: h.id,
     }))
     .filter((h) => h.start < h.end)
     .sort((a, b) => a.start - b.start);
@@ -90,16 +92,19 @@ function renderParagraph(
 
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  local.forEach((h, i) => {
+  local.forEach((h) => {
     if (h.start < cursor) return; // skip overlapping highlight, first one wins
     if (h.start > cursor) nodes.push(para.text.slice(cursor, h.start));
     nodes.push(
+      // Keyed by highlight id, not array index: a highlight saved *before* an
+      // existing one shifts every later index, which would both reuse the
+      // wrong DOM node and land the just-saved fade on the wrong mark.
+      // Colour comes from .hl-mark so @starting-style can transition it.
       <mark
-        key={i}
+        key={h.id}
+        className={h.id === justSavedId ? "hl-mark hl-mark-new" : "hl-mark"}
         onClick={() => onOpen(h.quoteItemId)}
         style={{
-          background: color.noteSurface,
-          color: color.ink,
           cursor: "pointer",
           borderRadius: 2,
           padding: "0 1px",
@@ -123,6 +128,9 @@ export function HighlightableBody({ body, itemId }: { body: string; itemId: stri
   const [saveFailed, setSaveFailed] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  // Id of the highlight this session just saved — the only mark that fades its
+  // colour in. Marks from the initial fetch settle silently.
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,6 +224,7 @@ export function HighlightableBody({ body, itemId }: { body: string; itemId: stri
       }
       const data = (await res.json()) as CreateHighlightResponse;
       setHighlights((prev) => [...prev, data.highlight]);
+      setJustSavedId(data.highlight.id);
       setPending(null);
       window.getSelection()?.removeAllRanges();
     } catch (err) {
@@ -249,8 +258,13 @@ export function HighlightableBody({ body, itemId }: { body: string; itemId: stri
         </button>
       ) : null}
       {pending ? (
+        // Keyed by the selection range so each new selection remounts the
+        // button and re-plays the pop from its own origin; without the key
+        // React reuses the node and it would silently jump to the new spot.
         <button
+          key={`${pending.start}-${pending.end}`}
           type="button"
+          className="highlight-pop"
           onClick={saveHighlight}
           disabled={saving}
           style={{
@@ -286,7 +300,12 @@ export function HighlightableBody({ body, itemId }: { body: string; itemId: stri
             whiteSpace: "pre-wrap",
           }}
         >
-          {renderParagraph(para, anchored, (quoteItemId) => router.push(`/item/${quoteItemId}`))}
+          {renderParagraph(
+            para,
+            anchored,
+            (quoteItemId) => router.push(`/item/${quoteItemId}`),
+            justSavedId,
+          )}
         </p>
       ))}
     </div>

@@ -126,7 +126,9 @@ export function DriftFlow({ items, total }: { items: Item[]; total: number }) {
               gap: 26,
             }}
           >
-            <DriftCard item={current} />
+            {/* Keyed by item id so each Keep/Let-go swap inserts a fresh node —
+                that's what lets .drift-card's @starting-style entrance fire. */}
+            <DriftCard key={current.id} item={current} />
             {error ? (
               <p
                 aria-live="polite"
@@ -144,6 +146,7 @@ export function DriftFlow({ items, total }: { items: Item[]; total: number }) {
             <div style={{ display: "flex", gap: 12, width: "100%", maxWidth: 380 }}>
               <button
                 type="button"
+                className="drift-btn"
                 onClick={() => act(false)}
                 disabled={pending}
                 style={{
@@ -164,6 +167,7 @@ export function DriftFlow({ items, total }: { items: Item[]; total: number }) {
               </button>
               <button
                 type="button"
+                className="drift-btn"
                 onClick={() => act(true)}
                 disabled={pending}
                 style={{
@@ -385,9 +389,13 @@ function EmptyState({ onBack }: { onBack: () => void }) {
   );
 }
 
+// `drift-reveal` staggers the direct children in on mount (globals.css). Both
+// callers — Completion and EmptyState — are once-a-session moments, which is
+// the only tier where a stagger is worth its cost.
 function CenteredMessage({ children }: { children: React.ReactNode }) {
   return (
     <div
+      className="drift-reveal"
       style={{
         flex: 1,
         display: "flex",

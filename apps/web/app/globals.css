@@ -45,7 +45,11 @@ body{-webkit-font-smoothing:antialiased}
 /* Decorative keyboard-shortcut badge (⌘K) inside the search pill. */
 .kbd{font:600 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;color:#8A8578;background:rgba(28,26,22,.06);border:1px solid rgba(28,26,22,.09);padding:4px 6px;border-radius:5px;flex:none}
 
-.savebtn{border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 var(--font-instrument-sans),'Instrument Sans',sans-serif;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(27,63,209,.7)}
+.savebtn{border:none;background:#1B3FD1;color:#F4F0E6;font:600 13px/1 var(--font-instrument-sans),'Instrument Sans',sans-serif;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(27,63,209,.7);transition:transform .16s ease-out}
+
+/* Press feedback. Subtle by design: Save is used many times a day, so the
+   scale has to confirm the press without ever reading as a delay. */
+.savebtn:active:not(:disabled){transform:scale(.97)}
 
 .mind-col{column-count:3;column-gap:16px}
 
@@ -61,7 +65,11 @@ body{-webkit-font-smoothing:antialiased}
    direct flex child, byte-identical layout. Narrow screens: off-canvas
    drawer toggled by the floating hamburger. */
 .shell-hamburger{display:none;position:fixed;z-index:60;left:14px;bottom:calc(14px + env(safe-area-inset-bottom))}
-.shell-overlay{position:fixed;inset:0;background:rgba(28,26,22,.35);z-index:49}
+/* The scrim stays mounted so it can fade out as well as in, matching the
+   panel's .22s slide. pointer-events is what makes it inert when closed —
+   opacity:0 alone would still swallow clicks. */
+.shell-overlay{position:fixed;inset:0;background:rgba(28,26,22,.35);z-index:49;opacity:0;pointer-events:none;transition:opacity .22s ease}
+.shell-overlay-open{opacity:1;pointer-events:auto}
 .shell-aside{display:contents}
 @media (min-width:901px){.shell-overlay{display:none}}
 @media (max-width:900px){
@@ -70,7 +78,7 @@ body{-webkit-font-smoothing:antialiased}
   .shell-aside-open{transform:translateX(0)}
   .shell-aside aside{height:100%}
 }
-@media (prefers-reduced-motion:reduce){.shell-aside{transition:none}}
+@media (prefers-reduced-motion:reduce){.shell-aside,.shell-overlay{transition:none}}
 
 /* Stretched-link card: a transparent overlay anchor covers the whole card for
    navigation, while interactive children (colour dots) are raised above it. */
@@ -84,7 +92,76 @@ body{-webkit-font-smoothing:antialiased}
 
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 
-/* The floating Drift card. Motion is disabled under prefers-reduced-motion. */
-.drift-card{animation:floaty 5.5s ease-in-out infinite}
+/* The floating Drift card, plus its entrance on each Keep/Let-go swap. The
+   card is keyed by item id in DriftFlow, so every swap inserts a fresh node
+   and @starting-style animates it in with no JS and no blocking of the ←/→
+   keys. floaty is delayed past the entrance because animations beat
+   transitions in the cascade and would otherwise clobber the entering
+   transform; floaty's 0% keyframe is translateY(0), exactly where the
+   entrance lands, so the handoff is seamless. Motion is disabled under
+   prefers-reduced-motion; the opacity fade is kept (gentler, not zero). */
+.drift-card{animation:floaty 5.5s ease-in-out .24s infinite;transition:opacity .24s ease-out,transform .24s ease-out}
+
+@starting-style{.drift-card{opacity:0}}
+
+@media (prefers-reduced-motion:no-preference){
+  @starting-style{.drift-card{transform:translateY(10px) scale(.98)}}
+}
 
 @media (prefers-reduced-motion:reduce){.drift-card{animation:none}}
+
+/* Drift's completion and empty states — rare, high-emotion beats, and the one
+   place in the app that earns a staggered entrance. Children fade up 70ms
+   apart; under reduced motion they fade together with no offset. */
+.drift-reveal>*{transition:opacity .4s ease-out,transform .4s ease-out}
+.drift-reveal>:nth-child(2){transition-delay:.07s}
+.drift-reveal>:nth-child(3){transition-delay:.14s}
+.drift-reveal>:nth-child(4){transition-delay:.21s}
+
+@starting-style{.drift-reveal>*{opacity:0}}
+
+@media (prefers-reduced-motion:no-preference){
+  @starting-style{.drift-reveal>*{transform:translateY(8px)}}
+}
+
+/* `:nth-child(n)` matches every child but carries the same specificity as the
+   :nth-child delays above — `.drift-reveal>*` would lose to them on
+   specificity no matter how late it appears, leaving the stagger in place
+   under reduced motion. It also stays correct if a step is added or removed. */
+@media (prefers-reduced-motion:reduce){.drift-reveal>:nth-child(n){transition-delay:0s}}
+
+/* The two Drift verdict buttons. Same press recipe as .savebtn. */
+.drift-btn{transition:transform .16s ease-out}
+
+.drift-btn:active:not(:disabled){transform:scale(.97)}
+
+/* Highlight-save popover: grows from the selection it belongs to (it sits
+   just above the selection rect, hence the bottom-left origin). Keyed by
+   selection range in HighlightableBody, so each new selection re-pops. */
+.highlight-pop{transform-origin:bottom left;transition:opacity .15s ease-out,transform .15s ease-out}
+
+@starting-style{.highlight-pop{opacity:0}}
+
+@media (prefers-reduced-motion:no-preference){
+  @starting-style{.highlight-pop{transform:scale(.97)}}
+}
+
+/* Saved highlights. The colour lives here rather than inline so @starting-style
+   can win the cascade against it — an inline background would override the
+   starting value and kill the transition. Only the just-saved mark gets
+   .hl-mark-new, so highlights arriving from the initial fetch don't all flash. */
+.hl-mark{background:#FBF4D8;color:#1C1A16}
+
+.hl-mark-new{transition:background-color .3s ease-out}
+
+@starting-style{.hl-mark-new{background:transparent}}
+
+/* A tag chip inserted after the page has mounted. The post-mount gate is in
+   TagEditor: without it, every chip present at page load would animate in. */
+.tag-enter{transition:opacity .18s ease-out,transform .18s ease-out}
+
+@starting-style{.tag-enter{opacity:0}}
+
+@media (prefers-reduced-motion:no-preference){
+  @starting-style{.tag-enter{transform:scale(.95)}}
+}

@@ -39,13 +39,14 @@ export function ShellDrawer({ children }: { children: ReactNode }) {
       >
         {open ? "✕" : "☰"}
       </button>
-      {open ? (
-        <div
-          className="shell-overlay"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
-      ) : null}
+      {/* Always mounted: an unmounted scrim can't fade out, and React removes
+          the node before any exit transition could run. Closed state is inert
+          via pointer-events:none in globals.css. */}
+      <div
+        className={`shell-overlay${open ? " shell-overlay-open" : ""}`}
+        onClick={() => setOpen(false)}
+        aria-hidden
+      />
       <div className={`shell-aside${open ? " shell-aside-open" : ""}`}>{children}</div>
     </>
   );

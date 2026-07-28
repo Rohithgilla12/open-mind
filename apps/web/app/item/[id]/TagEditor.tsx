@@ -2,7 +2,7 @@
 
 import { tokens } from "@openmind/ui";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useState, useTransition, type CSSProperties } from "react";
 
 const { color, font } = tokens;
 
@@ -47,6 +47,12 @@ export function TagEditor({ itemId, userTags }: { itemId: string; userTags: stri
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // Chips only animate in once the page has settled, so the tags already on
+  // the item don't all pop on load — only ones the user adds. The class has to
+  // be present at insertion time for @starting-style to apply, which it is for
+  // every chip added after this flips.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   function save(next: string[]) {
     setError(null);
@@ -90,7 +96,7 @@ export function TagEditor({ itemId, userTags }: { itemId: string; userTags: stri
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9, alignItems: "center" }}>
         {userTags.map((t) => (
-          <span key={t} style={userChip}>
+          <span key={t} className={ready ? "tag-enter" : undefined} style={userChip}>
             {t}
             <button
               type="button"
