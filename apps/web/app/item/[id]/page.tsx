@@ -9,6 +9,7 @@ import { assetSrc } from "../../../lib/assets";
 import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
 import { relativeTime } from "../../../lib/relative-time";
+import { renderInlineMarkdown } from "../../../lib/text";
 import type { ItemDetail } from "../../../lib/types";
 import { KeepButton } from "../../../components/KeepButton";
 import { KindleButton } from "../../../components/KindleButton";
@@ -111,7 +112,7 @@ function Title({ children }: { children: ReactNode }) {
   );
 }
 
-function SummaryLead({ children }: { children: ReactNode }) {
+function SummaryLead({ children }: { children: string }) {
   return (
     <p
       className="serif"
@@ -123,7 +124,7 @@ function SummaryLead({ children }: { children: ReactNode }) {
         maxWidth: "62ch",
       }}
     >
-      {children}
+      {renderInlineMarkdown(children)}
     </p>
   );
 }

@@ -7,6 +7,7 @@ import { Palette } from "../../components/Palette";
 import { assetSrc } from "../../lib/assets";
 import { cardKind, typeGradient } from "../../lib/cards";
 import { derivedPalette } from "../../lib/palette";
+import { renderInlineMarkdown } from "../../lib/text";
 import type { Item } from "../../lib/types";
 
 const { color, font } = tokens;
@@ -309,7 +310,7 @@ function DriftCard({ item }: { item: Item }) {
               overflow: "hidden",
             }}
           >
-            {item.summary}
+            {renderInlineMarkdown(item.summary)}
           </p>
         ) : null}
         <div style={{ display: "flex", gap: 5, marginTop: 16 }}>

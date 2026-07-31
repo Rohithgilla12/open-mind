@@ -16,7 +16,7 @@ export default async function FeedPage() {
       />
       <div
         style={{
-          padding: "18px var(--gutter) 16px",
+          padding: "26px var(--gutter) 20px",
           borderBottom: `1px solid ${color.hairline}`,
           background: color.header,
         }}
@@ -29,7 +29,7 @@ export default async function FeedPage() {
         </h1>
         <div
           className="meta"
-          style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt, marginTop: 6 }}
+          style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt, marginTop: 8 }}
         >
           Reverse-chron river of everything your subscriptions brought in
         </div>
@@ -37,7 +37,7 @@ export default async function FeedPage() {
 
       <div style={{ position: "relative", flex: 1 }}>
         <div className="paper-texture" style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
-        <div style={{ position: "relative", padding: "22px var(--gutter) 40px" }}>
+        <div style={{ position: "relative", padding: "28px var(--gutter) 48px" }}>
           <FeedRiver />
         </div>
       </div>

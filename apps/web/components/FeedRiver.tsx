@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { domainOf } from "../lib/cards";
 import { relativeTime } from "../lib/relative-time";
+import { renderInlineMarkdown } from "../lib/text";
 import type { Feed, Item } from "../lib/types";
 
 const { color, font } = tokens;
@@ -51,14 +52,15 @@ function KeepToggle({ itemId, kept, onChange }: { itemId: string; kept: boolean;
           flex: "none",
           fontFamily: font.mono,
           fontSize: 11,
-          letterSpacing: ".03em",
+          letterSpacing: ".04em",
           color: kept ? color.green : color.inkFaintAlt,
-          background: kept ? "color-mix(in srgb, " + color.green + " 12%, transparent)" : "transparent",
+          background: kept ? "color-mix(in srgb, " + color.green + " 12%, transparent)" : color.cardSurface,
           border: `1px solid ${kept ? "color-mix(in srgb, " + color.green + " 34%, transparent)" : color.hairline}`,
-          borderRadius: 999,
-          padding: "5px 11px",
+          borderRadius: 8,
+          padding: "6px 12px",
           cursor: busy ? "default" : "pointer",
           opacity: busy ? 0.6 : 1,
+          transition: "border-color .15s ease, color .15s ease, background .15s ease",
         }}
       >
         {kept ? "Kept" : "Keep"}
@@ -70,30 +72,22 @@ function KeepToggle({ itemId, kept, onChange }: { itemId: string; kept: boolean;
 function Row({ item, feedTitle, onKeptChange }: { item: Item; feedTitle: string; onKeptChange: (kept: boolean) => void }) {
   const domain = domainOf(item.url);
   return (
-    <li
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 16,
-        padding: "16px 18px",
-        background: color.cardSurface,
-        border: `1px solid ${color.hairline}`,
-        borderRadius: 12,
-      }}
-    >
+    <li className="feed-row">
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="meta" style={{ color: color.terracotta }}>
+        <div className="meta" style={{ color: color.terracotta, lineHeight: 1.35 }}>
           {feedTitle}
         </div>
         <Link
           href={`/item/${item.id}`}
-          className="serif"
+          className="serif feed-row-title"
           style={{
             display: "block",
-            fontSize: 16,
+            fontSize: 17,
             fontWeight: 600,
+            lineHeight: 1.35,
+            letterSpacing: "-.01em",
             color: color.ink,
-            marginTop: 4,
+            marginTop: 8,
             textDecoration: "none",
           }}
         >
@@ -103,23 +97,23 @@ function Row({ item, feedTitle, onKeptChange }: { item: Item; feedTitle: string;
           <p
             style={{
               fontFamily: font.sans,
-              fontSize: 13,
-              lineHeight: 1.5,
+              fontSize: 13.5,
+              lineHeight: 1.55,
               color: color.inkMuted,
-              margin: "6px 0 0",
-              maxWidth: "72ch",
+              margin: "10px 0 0",
+              maxWidth: "68ch",
               overflow: "hidden",
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
             }}
           >
-            {item.summary}
+            {renderInlineMarkdown(item.summary)}
           </p>
         ) : null}
         <div
           className="meta"
-          style={{ marginTop: 8, textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt }}
+          style={{ marginTop: 14, textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt }}
         >
           {relativeTime(item.createdAt)}
           {domain ? ` · ${domain}` : ""}
@@ -231,16 +225,16 @@ export function FeedRiver() {
       <div
         style={{
           maxWidth: 560,
-          padding: "26px 22px",
+          padding: "32px 28px",
           background: color.cardSurface,
           border: `1.5px dashed ${color.hairline}`,
-          borderRadius: 12,
+          borderRadius: 11,
         }}
       >
-        <div className="serif" style={{ fontSize: 18, fontWeight: 600, color: color.ink, marginBottom: 8 }}>
+        <div className="serif" style={{ fontSize: 19, fontWeight: 600, color: color.ink, marginBottom: 10 }}>
           Nothing here yet
         </div>
-        <p style={{ fontFamily: font.sans, fontSize: 13.5, lineHeight: 1.55, color: color.inkMuted, margin: 0 }}>
+        <p style={{ fontFamily: font.sans, fontSize: 14, lineHeight: 1.6, color: color.inkMuted, margin: 0 }}>
           <Link href="/feeds" style={{ color: color.cobalt, textDecoration: "none" }}>
             Subscribe to something worth reading
           </Link>
@@ -250,20 +244,27 @@ export function FeedRiver() {
     );
   }
 
+  const activeChip = {
+    background: color.ink,
+    color: color.paper,
+    borderColor: color.ink,
+  } as const;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 760 }}>
       {chips.length > 0 ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div
+          className="feed-chips"
+          role="tablist"
+          aria-label="Filter by feed"
+        >
           <button
             type="button"
+            role="tab"
             onClick={() => setActiveFeedId(undefined)}
             className="chip"
-            aria-current={!activeFeedId ? "page" : undefined}
-            style={
-              !activeFeedId
-                ? { background: color.ink, color: color.paper, borderColor: color.ink }
-                : undefined
-            }
+            aria-selected={!activeFeedId}
+            style={!activeFeedId ? activeChip : undefined}
           >
             All
           </button>
@@ -273,10 +274,11 @@ export function FeedRiver() {
               <button
                 key={feed.id}
                 type="button"
+                role="tab"
                 onClick={() => setActiveFeedId(feed.id)}
                 className="chip"
-                aria-current={isActive ? "page" : undefined}
-                style={isActive ? { background: color.ink, color: color.paper, borderColor: color.ink } : undefined}
+                aria-selected={isActive}
+                style={isActive ? activeChip : undefined}
               >
                 {feed.title?.trim() || domainOf(feed.siteUrl || feed.url) || "Feed"}
               </button>
@@ -294,7 +296,16 @@ export function FeedRiver() {
           Nothing from this feed yet.
         </p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
           {items.map((item) => (
             <Row
               key={item.id}

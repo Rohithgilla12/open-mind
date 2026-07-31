@@ -4,6 +4,7 @@ import { assetSrc } from "../lib/assets";
 import { cardKind, domainOf, typeAccent, typeGradient, typeLabel } from "../lib/cards";
 import { derivedPalette } from "../lib/palette";
 import { unionTags } from "../lib/tags";
+import { renderInlineMarkdown } from "../lib/text";
 import type { Item } from "../lib/types";
 import { Palette } from "./Palette";
 
@@ -215,7 +216,7 @@ export function ItemCard({ item }: { item: Item }) {
             className="serif"
             style={{ fontSize: 20, lineHeight: 1.32, color: color.paper, fontStyle: "italic", fontWeight: 400, ...clamp(6) }}
           >
-            {text}
+            {renderInlineMarkdown(text)}
           </div>
           <div className="meta" style={{ color: color.inkFaintAlt, marginTop: 14 }}>
             {attribution ? `${attribution} — Quote` : "Quote"}
@@ -264,7 +265,7 @@ export function ItemCard({ item }: { item: Item }) {
             className="serif"
             style={{ fontSize: 15, lineHeight: 1.4, marginTop: 8, color: color.ink, ...clamp(8) }}
           >
-            {text}
+            {renderInlineMarkdown(text)}
           </div>
           <Tags tags={unionTags(item.tags, item.userTags)} />
           <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
@@ -303,7 +304,7 @@ export function ItemCard({ item }: { item: Item }) {
           </div>
           {text ? (
             <div style={{ fontFamily: font.sans, fontSize: 13.5, lineHeight: 1.5, marginTop: 10, color: color.ink, ...clamp(6) }}>
-              {text}
+              {renderInlineMarkdown(text)}
             </div>
           ) : null}
           <Footer dots={dots} meta={withDomain("Post")} viaFeed={!!item.feedId} />
@@ -353,7 +354,7 @@ export function ItemCard({ item }: { item: Item }) {
         </LeadImage>
         <div style={{ padding: "12px 14px" }}>
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
-          {item.summary ? <p style={specStyle}>{item.summary}</p> : null}
+          {item.summary ? <p style={specStyle}>{renderInlineMarkdown(item.summary)}</p> : null}
           <Footer dots={dots} meta={withDomain("Video")} viaFeed={!!item.feedId} />
           {pending ? <Enriching /> : null}
         </div>
@@ -371,7 +372,7 @@ export function ItemCard({ item }: { item: Item }) {
         )}
         <div style={{ padding: "13px 14px" }}>
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
-          {item.summary ? <p style={{ ...specStyle, ...clamp(2) }}>{item.summary}</p> : null}
+          {item.summary ? <p style={{ ...specStyle, ...clamp(2) }}>{renderInlineMarkdown(item.summary)}</p> : null}
           <Tags tags={unionTags(item.tags, item.userTags)} />
           <Footer dots={dots} meta={withDomain("Product")} viaFeed={!!item.feedId} />
           {pending ? <Enriching /> : null}
@@ -410,7 +411,7 @@ export function ItemCard({ item }: { item: Item }) {
           {item.title ? <h2 style={serifTitle(16)}>{item.title}</h2> : null}
           {item.summary ? (
             <div style={{ fontFamily: font.mono, fontSize: 12, lineHeight: 1.7, color: color.inkMuted, marginTop: 9, ...clamp(6) }}>
-              {item.summary}
+              {renderInlineMarkdown(item.summary)}
             </div>
           ) : null}
           <Footer dots={dots} meta={withDomain("Recipe")} viaFeed={!!item.feedId} />
@@ -430,7 +431,7 @@ export function ItemCard({ item }: { item: Item }) {
       )}
       <div style={{ padding: "13px 14px" }}>
         {item.title ? <h2 style={{ ...serifTitle(17), lineHeight: 1.2 }}>{item.title}</h2> : null}
-        {item.summary ? <p style={summaryStyle}>{item.summary}</p> : null}
+        {item.summary ? <p style={summaryStyle}>{renderInlineMarkdown(item.summary)}</p> : null}
         <Tags tags={unionTags(item.tags, item.userTags)} />
         <Footer dots={dots} meta={withDomain(typeLabel[kind])} viaFeed={!!item.feedId} />
         {pending ? <Enriching /> : null}
