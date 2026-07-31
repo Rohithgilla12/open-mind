@@ -75,5 +75,11 @@ export function middleware(req: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|api/auth|favicon.ico).*)"],
+  // Static files under public/ must bypass the cookie gate, or anonymous
+  // visitors to the public landing page get a /login redirect for every image
+  // it references. App routes never carry a file extension, so excluding
+  // extensioned paths is safe.
+  matcher: [
+    "/((?!_next|api/auth|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|txt|xml|webmanifest)$).*)",
+  ],
 };

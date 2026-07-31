@@ -30,6 +30,10 @@ ENV NODE_ENV=production
 # layout: server.js lives under apps/web, node_modules at the root.
 COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
+# Standalone output deliberately excludes public/, so it has to be copied
+# separately or every static asset 404s (the landing page's screenshots and
+# the logo mark live there).
+COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 USER node
 EXPOSE 3000
 ENV PORT=3000
