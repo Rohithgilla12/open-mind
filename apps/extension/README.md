@@ -53,14 +53,36 @@ server-side; this app only captures and displays.
 
 ## Settings walkthrough
 
+A fresh install has **no instance configured** — the popup sends you straight to
+the options page.
+
 1. Open the extension's **Settings** page (Chrome: right-click the toolbar icon
    → _Options_; or via `chrome://extensions` → _Details_ → _Extension options_).
-2. Enter your **Instance URL** (e.g. `https://openmind.example.com`).
-3. Paste your **access token**.
-4. Click **Validate** to confirm the token, then **Save settings**.
+2. Enter your **Instance URL** (e.g. `https://openmind.example.com`), or click
+   _use the hosted instance_ to opt into the maintainer-run one.
+3. Approve the permission prompt for that origin (see _Host permissions_ below).
+4. Paste your **access token**, or redeem a **connect code** from a signed-in
+   device.
+5. Click **Validate** to confirm the token, then **Save settings**.
 
 Once a valid token is saved, the popup and context menus will save to your
 instance.
+
+## Host permissions
+
+The extension declares **no** up-front host access. Instead it asks for the one
+origin you configure, at the moment you configure it:
+
+- MV3 (Chrome) declares `optional_host_permissions`; MV2 (Firefox) puts the same
+  patterns in `optional_permissions`. `wxt.config.ts` branches on
+  `manifestVersion`.
+- `lib/permissions.ts` narrows the saved instance URL to a single
+  `scheme://host/*` pattern and requests it.
+- Chrome only shows the prompt during a user gesture, so requests happen from
+  clicks on the **options page**. The popup and the background service worker
+  cannot prompt — the popup detects a missing grant and links to options; the
+  keyboard shortcut and context menus surface a failure badge.
+- Switching instances revokes the grant for the previous origin.
 
 ## Notes
 
@@ -70,7 +92,7 @@ instance.
   straight through to the Go API. Recent-saves needs an up-to-date web app —
   the `GET /api/items` proxy handler was added alongside this popup, so
   self-hosters must redeploy the web app to see the recent list populate.
-- Manifest requests broad `host_permissions` (`https://*/*`, `http://localhost/*`)
-  for now. Narrow-origin **optional** host permissions (requesting access per
-  instance origin at runtime) are deferred to a later task.
-- Icons under `public/icon/` are placeholder solid-cobalt (`#2438FF`) squares.
+- Icons under `public/icon/` are placeholder solid-cobalt (`#2438FF`) squares —
+  replace them before any store submission.
+- `pnpm --filter extension zip` (and `zip:firefox`) produce the store upload
+  archives in `.output/`.

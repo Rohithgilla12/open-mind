@@ -5,11 +5,18 @@ export interface Settings {
   token: string;
 }
 
-// Pre-fill the hosted Openmind instance so the extension points at it out of
-// the box — the user only needs to add a token. Self-hosters change the URL in
-// the extension's options page.
+/**
+ * The maintainer-run hosted instance. Offered as a one-click option on the
+ * options page but never applied automatically: a store-installed extension
+ * must not send a user's saves to a server they didn't choose.
+ */
+export const HOSTED_INSTANCE_URL = "https://openmind.gilla.fun";
+
+// Ship with no instance configured. The popup detects the empty state and
+// sends the user to the options page, where they either paste their own
+// self-hosted URL or opt into HOSTED_INSTANCE_URL explicitly.
 const DEFAULT_SETTINGS: Settings = {
-  instanceUrl: "https://openmind.gilla.fun",
+  instanceUrl: "",
   token: "",
 };
 

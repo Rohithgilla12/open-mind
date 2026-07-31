@@ -3,6 +3,7 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { browser } from "wxt/browser";
 import { tokens } from "@openmind/ui";
 import { getSettings } from "../../lib/storage";
+import { hasOriginAccess } from "../../lib/permissions";
 import { patchUserTags, recentItems, saveItem } from "../../lib/save";
 import type { Item } from "../../lib/save";
 
@@ -25,6 +26,7 @@ function host(url: string): string {
 export function Popup() {
   const [ready, setReady] = useState(false);
   const [configured, setConfigured] = useState(false);
+  const [needsAccess, setNeedsAccess] = useState(false);
   const [instanceUrl, setInstanceUrl] = useState("");
   const [tab, setTab] = useState<ActiveTab | null>(null);
 
@@ -56,9 +58,15 @@ export function Popup() {
         settings.instanceUrl.trim().length > 0;
       setConfigured(ok);
       setInstanceUrl(settings.instanceUrl.replace(/\/+$/, ""));
+
+      // Host access is optional and granted per origin from the options page.
+      // Without it every fetch fails as an opaque network error, so check up
+      // front and send the user somewhere that can show the prompt.
+      const granted = ok ? await hasOriginAccess(settings.instanceUrl) : false;
+      setNeedsAccess(ok && !granted);
       setReady(true);
 
-      if (!ok) {
+      if (!ok || !granted) {
         setRecentLoading(false);
         return;
       }
@@ -155,6 +163,21 @@ export function Popup() {
         <h1 style={styles.heading}>Set up Openmind</h1>
         <p style={styles.muted}>
           Add your instance URL and access token to start saving.
+        </p>
+        <button type="button" style={styles.primaryButton} onClick={openSettings}>
+          Open options
+        </button>
+      </div>
+    );
+  }
+
+  if (needsAccess) {
+    return (
+      <div style={styles.page}>
+        <h1 style={styles.heading}>Grant access</h1>
+        <p style={styles.muted}>
+          Openmind needs permission to reach {host(instanceUrl)}. Approve it on
+          the options page — Chrome can't show that prompt from this popup.
         </p>
         <button type="button" style={styles.primaryButton} onClick={openSettings}>
           Open options

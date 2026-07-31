@@ -1,12 +1,14 @@
 {
   "name": "extension",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
     "lint": "tsc --noEmit",
     "test": "echo \"no tests\"",
     "postinstall": "wxt prepare"

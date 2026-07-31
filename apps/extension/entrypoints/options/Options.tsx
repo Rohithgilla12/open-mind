@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { tokens } from "@openmind/ui";
-import { getSettings, setSettings } from "../../lib/storage";
+import {
+  HOSTED_INSTANCE_URL,
+  getSettings,
+  setSettings,
+} from "../../lib/storage";
 import { checkToken, claimDeviceCode } from "../../lib/save";
+import {
+  hasOriginAccess,
+  originPattern,
+  requestOriginAccess,
+  revokeOriginAccess,
+} from "../../lib/permissions";
 
 type ValidationState =
   | "idle"
   | "checking"
   | "valid"
   | "invalid"
-  | "unreachable";
+  | "unreachable"
+  | "denied"
+  | "bad-url";
 
 const VALIDATION_LABEL: Record<ValidationState, string> = {
   idle: "",
@@ -17,6 +29,8 @@ const VALIDATION_LABEL: Record<ValidationState, string> = {
   valid: "Token is valid",
   invalid: "Token rejected — check the value",
   unreachable: "Instance unreachable",
+  denied: "Access declined — Openmind can't reach that instance",
+  "bad-url": "Enter a full URL, e.g. https://openmind.example.com",
 };
 
 type ConnectState = "idle" | "invalid" | "rate-limited" | "unreachable";
@@ -37,24 +51,70 @@ export function Options() {
   const [deviceCode, setDeviceCode] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [connectState, setConnectState] = useState<ConnectState>("idle");
+  const [savedUrl, setSavedUrl] = useState("");
 
   useEffect(() => {
     void getSettings().then((s) => {
       setInstanceUrl(s.instanceUrl);
       setToken(s.token);
+      setSavedUrl(s.instanceUrl);
       setLoaded(true);
     });
   }, []);
 
-  async function handleSave() {
-    await setSettings({ instanceUrl: instanceUrl.trim(), token: token.trim() });
+  /**
+   * Ensure host access to `url` before any fetch against it. Must be reached
+   * from a click: Chrome only shows the permission prompt during a user
+   * gesture. Sets the matching validation state and returns false on failure.
+   */
+  async function ensureAccess(url: string): Promise<boolean> {
+    if (!originPattern(url)) {
+      setValidation("bad-url");
+      return false;
+    }
+    if (await hasOriginAccess(url)) return true;
+    if (await requestOriginAccess(url)) return true;
+    setValidation("denied");
+    return false;
+  }
+
+  /**
+   * Persist the pair and drop the host grant for the origin we just moved away
+   * from, so switching instances doesn't accumulate access to old servers.
+   */
+  async function persist(url: string, nextToken: string) {
+    await setSettings({ instanceUrl: url, token: nextToken });
+    if (savedUrl && originPattern(savedUrl) !== originPattern(url)) {
+      await revokeOriginAccess(savedUrl);
+    }
+    setSavedUrl(url);
+  }
+
+  function flashSaved() {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2000);
   }
 
+  async function handleSave() {
+    const url = instanceUrl.trim();
+    if (!(await ensureAccess(url))) return;
+    await persist(url, token.trim());
+    flashSaved();
+  }
+
+  async function handleUseHosted() {
+    setInstanceUrl(HOSTED_INSTANCE_URL);
+    setValidation("idle");
+    if (!(await ensureAccess(HOSTED_INSTANCE_URL))) return;
+    await persist(HOSTED_INSTANCE_URL, token.trim());
+    flashSaved();
+  }
+
   async function handleValidate() {
+    const url = instanceUrl.trim();
+    if (!(await ensureAccess(url))) return;
     // Persist first so checkToken reads the current inputs.
-    await setSettings({ instanceUrl: instanceUrl.trim(), token: token.trim() });
+    await persist(url, token.trim());
     setValidation("checking");
     const status = await checkToken();
     if (status === 200) {
@@ -74,6 +134,7 @@ export function Options() {
       setConnectState("invalid");
       return;
     }
+    if (!(await ensureAccess(url))) return;
     setConnecting(true);
     setConnectState("idle");
     const result = await claimDeviceCode(url, code, "Extension");
@@ -84,13 +145,12 @@ export function Options() {
       );
       return;
     }
-    await setSettings({ instanceUrl: url, token: result.key });
+    await persist(url, result.key);
     setInstanceUrl(url);
     setToken(result.key);
     setDeviceCode("");
     setValidation("idle");
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
+    flashSaved();
   }
 
   const validationColor =
@@ -125,6 +185,19 @@ export function Options() {
             }}
           />
         </label>
+
+        <p style={styles.hostedHint}>
+          Self-hosting your own Openmind? Paste its URL above. Otherwise you can{" "}
+          <button
+            type="button"
+            style={styles.linkButton}
+            onClick={() => void handleUseHosted()}
+          >
+            use the hosted instance
+          </button>{" "}
+          ({new URL(HOSTED_INSTANCE_URL).host}) — your saves are stored there,
+          so only opt in if you trust it.
+        </p>
 
         <label style={styles.label}>
           Token
@@ -311,5 +384,21 @@ const styles: Record<string, CSSProperties> = {
   disabled: {
     opacity: 0.6,
     cursor: "default",
+  },
+  hostedHint: {
+    margin: "-8px 0 20px",
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: tokens.color.inkMuted,
+  },
+  linkButton: {
+    border: "none",
+    background: "none",
+    padding: 0,
+    font: "inherit",
+    fontWeight: 500,
+    color: tokens.color.cobalt,
+    cursor: "pointer",
+    textDecoration: "underline",
   },
 };
