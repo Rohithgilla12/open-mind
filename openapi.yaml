@@ -552,6 +552,16 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DeviceLinkCreated" }
+  /account:
+    get:
+      operationId: getAccount
+      description: "Read-only facts about the calling account: who it is, and how much it holds. Separate from /settings, which is mutable preferences."
+      responses:
+        "200":
+          description: account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
   /settings:
     get:
       operationId: getSettings
@@ -841,6 +851,13 @@ components:
       properties:
         key: { type: string, description: "The full API key — shown exactly once." }
         name: { type: string }
+    Account:
+      type: object
+      required: [itemCount, assetBytes]
+      properties:
+        email: { type: string, description: "The account's e-mail. Empty in single-user token mode, which has no identity provider — callers must render a neutral label rather than inventing one." }
+        itemCount: { type: integer, format: int64, description: "Items the caller owns." }
+        assetBytes: { type: integer, format: int64, description: "Total bytes of uploaded assets. There is no quota — self-hosting is unbounded — so this is usage, not a fraction of a limit." }
     Settings:
       type: object
       properties:

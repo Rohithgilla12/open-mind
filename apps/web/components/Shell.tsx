@@ -3,6 +3,10 @@ import Link from "next/link";
 import { tokens } from "@openmind/ui";
 import { getLenses } from "../lib/lenses";
 import { lensDot } from "../lib/lens-format";
+import { formatBytes, getAccount } from "../lib/account";
+import { authMode } from "../lib/auth-mode";
+import { ClerkAccountRow } from "./ClerkAccountRow";
+import { TokenAccountRow } from "./TokenAccountRow";
 import { ShellDrawer } from "./ShellDrawer";
 
 const navBase = {
@@ -34,7 +38,9 @@ export async function Shell({
   activeFeed?: boolean;
   activePlaces?: boolean;
 }) {
-  const lenses = await getLenses();
+  // Both are independent and neither throws, so fetch them concurrently rather
+  // than making the sidebar wait on two sequential round trips.
+  const [lenses, account] = await Promise.all([getLenses(), getAccount()]);
   const mindActive = !activeLensId && !activeDesk && !activeDrift && !activeFeed && !activePlaces;
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -202,51 +208,27 @@ export async function Shell({
           <span style={{ fontSize: 15, width: 16 }}>+</span> New lens
         </Link>
 
-        {/* Account row */}
-        <div
-          style={{
-            marginTop: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: 8,
-            borderRadius: 11,
-            border: `1px solid ${tokens.color.hairline}`,
-            background: tokens.color.paper,
-          }}
-        >
+        {/* Account row. Clerk mode delegates the avatar and every account
+            action to Clerk's UserButton; token mode has no identity provider,
+            so it shows a neutral label plus a cookie sign-out. Neither invents
+            a name — the old hardcoded one shipped to every self-hoster. */}
+        {authMode === "clerk" ? <ClerkAccountRow /> : <TokenAccountRow />}
+
+        {/* Real usage, not a meter. A progress bar needs a denominator, and
+            self-hosting has no storage quota — the old fixed 34% bar against a
+            made-up 9 GB ceiling was showing every self-hoster invented numbers.
+            Counts come from GET /account; omitted entirely if it's unreachable
+            rather than falling back to placeholders. */}
+        {account && (
           <div
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: `linear-gradient(135deg,${tokens.color.cobalt},${tokens.color.green})`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: tokens.color.paper,
-              fontFamily: tokens.font.sans,
-              fontSize: 13,
-              fontWeight: 600,
-              lineHeight: 1,
-              flex: "none",
+              padding: "14px 10px 2px",
+              marginTop: 12,
+              borderTop: "1px solid rgba(28,26,22,.09)",
             }}
           >
-            R
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div
-              style={{
-                fontFamily: tokens.font.sans,
-                fontSize: 12.5,
-                fontWeight: 600,
-                lineHeight: 1.1,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              Rohith Gilla
+            <div className="meta" style={{ marginBottom: 7 }}>
+              Local · self-hosted
             </div>
             <div
               className="meta"
@@ -254,49 +236,14 @@ export async function Shell({
                 textTransform: "none",
                 letterSpacing: ".02em",
                 color: tokens.color.inkFaintAlt,
-                marginTop: 3,
               }}
             >
-              Owner · signed in
+              {account.itemCount.toLocaleString("en-GB")}
+              {account.itemCount === 1 ? " item" : " items"}
+              {account.assetBytes > 0 && ` · ${formatBytes(account.assetBytes)}`}
             </div>
           </div>
-        </div>
-
-        {/* Storage meter — static; local, self-hosted */}
-        <div
-          style={{
-            padding: "14px 10px 2px",
-            marginTop: 12,
-            borderTop: "1px solid rgba(28,26,22,.09)",
-          }}
-        >
-          <div className="meta" style={{ marginBottom: 7 }}>
-            Local · self-hosted
-          </div>
-          <div
-            style={{
-              height: 5,
-              borderRadius: 3,
-              background: "rgba(28,26,22,.1)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{ width: "34%", height: "100%", background: tokens.color.green }}
-            />
-          </div>
-          <div
-            className="meta"
-            style={{
-              marginTop: 6,
-              textTransform: "none",
-              letterSpacing: ".02em",
-              color: tokens.color.inkFaintAlt,
-            }}
-          >
-            3.1 GB / 9 GB archived
-          </div>
-        </div>
+        )}
       </aside>
       </ShellDrawer>
 

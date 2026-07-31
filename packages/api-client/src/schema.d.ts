@@ -504,6 +504,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only facts about the calling account: who it is, and how much it holds. Separate from /settings, which is mutable preferences. */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings": {
         parameters: {
             query?: never;
@@ -804,6 +821,20 @@ export interface components {
             /** @description The full API key — shown exactly once. */
             key: string;
             name: string;
+        };
+        Account: {
+            /** @description The account's e-mail. Empty in single-user token mode, which has no identity provider — callers must render a neutral label rather than inventing one. */
+            email?: string;
+            /**
+             * Format: int64
+             * @description Items the caller owns.
+             */
+            itemCount: number;
+            /**
+             * Format: int64
+             * @description Total bytes of uploaded assets. There is no quota — self-hosting is unbounded — so this is usage, not a fraction of a limit.
+             */
+            assetBytes: number;
         };
         Settings: {
             /**
@@ -2032,6 +2063,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceLinkCreated"];
+                };
+            };
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
                 };
             };
         };

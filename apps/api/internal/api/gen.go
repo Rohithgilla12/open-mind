@@ -138,6 +138,18 @@ const (
 	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
 )
 
+// Account defines model for Account.
+type Account struct {
+	// AssetBytes Total bytes of uploaded assets. There is no quota — self-hosting is unbounded — so this is usage, not a fraction of a limit.
+	AssetBytes int64 `json:"assetBytes"`
+
+	// Email The account's e-mail. Empty in single-user token mode, which has no identity provider — callers must render a neutral label rather than inventing one.
+	Email *string `json:"email,omitempty"`
+
+	// ItemCount Items the caller owns.
+	ItemCount int64 `json:"itemCount"`
+}
+
 // ApiKey defines model for ApiKey.
 type ApiKey struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -623,6 +635,9 @@ type PatchSettingsJSONRequestBody = PatchSettingsRequest
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /account)
+	GetAccount(w http.ResponseWriter, r *http.Request)
+
 	// (GET /api-keys)
 	ListApiKeys(w http.ResponseWriter, r *http.Request)
 
@@ -759,6 +774,11 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// (GET /account)
+func (_ Unimplemented) GetAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // (GET /api-keys)
 func (_ Unimplemented) ListApiKeys(w http.ResponseWriter, r *http.Request) {
@@ -995,6 +1015,26 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetAccount(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListApiKeys operation middleware
 func (siw *ServerInterfaceWrapper) ListApiKeys(w http.ResponseWriter, r *http.Request) {
@@ -2280,6 +2320,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/account", wrapper.GetAccount)
+	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api-keys", wrapper.ListApiKeys)
 	})

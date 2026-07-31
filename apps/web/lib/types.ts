@@ -42,6 +42,9 @@ export type DeviceLinkCreated =
 export type Settings =
   paths["/settings"]["get"]["responses"]["200"]["content"]["application/json"];
 
+export type Account =
+  paths["/account"]["get"]["responses"]["200"]["content"]["application/json"];
+
 export type PatchSettingsRequest =
   paths["/settings"]["patch"]["requestBody"]["content"]["application/json"];
 

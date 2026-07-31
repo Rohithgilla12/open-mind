@@ -39,3 +39,14 @@ SELECT * FROM users WHERE clerk_user_id = $1;
 
 -- name: CreateUserFromClerk :one
 INSERT INTO users (clerk_user_id, email) VALUES ($1, $2) RETURNING *;
+
+-- Read-only account facts for the sidebar: identity plus how much the account
+-- holds. Scalar subqueries keep it to a single round trip, and both are scoped
+-- to the same user row so a caller can never read another account's totals.
+-- name: GetAccount :one
+SELECT
+    u.email,
+    (SELECT count(*) FROM items i WHERE i.user_id = u.id)::bigint AS item_count,
+    (SELECT coalesce(sum(a.byte_size), 0) FROM assets a WHERE a.user_id = u.id)::bigint AS asset_bytes
+FROM users u
+WHERE u.id = $1;

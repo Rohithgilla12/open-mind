@@ -149,6 +149,31 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash []byte) (GetAPIKe
 	return i, err
 }
 
+const getAccount = `-- name: GetAccount :one
+SELECT
+    u.email,
+    (SELECT count(*) FROM items i WHERE i.user_id = u.id)::bigint AS item_count,
+    (SELECT coalesce(sum(a.byte_size), 0) FROM assets a WHERE a.user_id = u.id)::bigint AS asset_bytes
+FROM users u
+WHERE u.id = $1
+`
+
+type GetAccountRow struct {
+	Email      string
+	ItemCount  int64
+	AssetBytes int64
+}
+
+// Read-only account facts for the sidebar: identity plus how much the account
+// holds. Scalar subqueries keep it to a single round trip, and both are scoped
+// to the same user row so a caller can never read another account's totals.
+func (q *Queries) GetAccount(ctx context.Context, id uuid.UUID) (GetAccountRow, error) {
+	row := q.db.QueryRow(ctx, getAccount, id)
+	var i GetAccountRow
+	err := row.Scan(&i.Email, &i.ItemCount, &i.AssetBytes)
+	return i, err
+}
+
 const getUserByClerkID = `-- name: GetUserByClerkID :one
 SELECT id, created_at, clerk_user_id, email FROM users WHERE clerk_user_id = $1
 `
