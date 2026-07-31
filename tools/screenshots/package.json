@@ -1,0 +1,12 @@
+{
+  "name": "openmind-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Regenerates README and store screenshots from a throwaway seeded stack. Deliberately outside the pnpm workspace — install on demand.",
+  "scripts": {
+    "capture": "node capture.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.62.0"
+  }
+}

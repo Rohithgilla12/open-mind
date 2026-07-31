@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Openmind mark: three lines of text on a cobalt card, fading as they
+       recede — matches the sidebar wordmark mark in apps/web/components/Shell.tsx
+       (24px tile, radius 6, lines inset 6 at y 6/11/16, third line short). -->
+  <rect width="128" height="128" rx="30" fill="#1B3FD1"/>
+  <g fill="#F4F0E6">
+    <rect x="32" y="32" width="64" height="10" rx="1.5" opacity="1"/>
+    <rect x="32" y="59" width="64" height="10" rx="1.5" opacity=".6"/>
+    <rect x="32" y="86" width="46" height="10" rx="1.5" opacity=".4"/>
+  </g>
+</svg>

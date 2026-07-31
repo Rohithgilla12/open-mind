@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Pixel-tuned 16px variant: integer coordinates and 2px lines so the mark
+       stays crisp in the toolbar. Proportional scaling would give 1.33px lines
+       that blur across the pixel grid. -->
+  <rect width="16" height="16" rx="4" fill="#1B3FD1"/>
+  <g fill="#F4F0E6">
+    <rect x="3" y="3" width="10" height="2" opacity="1"/>
+    <rect x="3" y="7" width="10" height="2" opacity=".62"/>
+    <rect x="3" y="11" width="7" height="2" opacity=".45"/>
+  </g>
+</svg>

@@ -4,9 +4,35 @@
 > [GitHub Issues](../../issues) — file bugs and feature requests there.
 
 ## Now
-- (empty)
+- **Pre-scrub history still reachable on the now-public repo.** `refs/pull/1..6/head`
+  remain fetchable anonymously; unshallowed they expose 247 of the 298 pre-scrub
+  commits, so the squash is largely undone for anyone who fetches them. Verified
+  2026-07-31: **no credentials leaked** (gitleaks over all 247 commits found only
+  the documented `sk_test_placeholder` false positive; no key material ever
+  committed). Residual exposure is low-severity — deploy-box IP + default
+  username, and a personal e-mail in the old `/privacy` + `/terms` pages. Chase
+  the GitHub Support ticket filed 2026-07-15; no credential rotation needed.
+  Details in `.superpowers/launch-checklist.md` (local-only).
+- Chrome Web Store submission — code, icons, and screenshots all done (blank
+  default instance + opt-in hosted, optional per-origin host permissions,
+  manifest description, v1.0.0, real icons, six 1280×800 store screenshots).
+  **Two things left, both needing you:** set `CONTACT_EMAIL` in production so
+  the `/privacy` policy URL resolves with a working address, and register the
+  developer account (US$5). Also walk the first-run permission prompt by hand —
+  the capture harness bypasses it, so no automated run has exercised that flow.
+  Listing copy, permission justifications, and asset inventory in
+  `docs/20260731-chrome-web-store-listing.md`.
 
 ## Next
+- Apply the same opt-in-instance treatment to mobile (`apps/mobile/lib/clerk.ts`)
+  and dock (`apps/dock/src/lib/settings.ts`) before any App Store / release
+  build — both still hard-default to the maintainer's hosted instance.
+- **Extension UI falls back to system fonts.** `packages/ui` tokens reference
+  `var(--font-instrument-sans)` etc., which only the web app defines via
+  `next/font`; the extension defines nothing, so the popup and options page
+  render off-brand. Fix by self-hosting the faces in the extension (fontsource
+  + `@font-face`), never by fetching Google Fonts at runtime. Cosmetic, not a
+  store blocker — see the store listing doc.
 - (see Issues)
 
 ## Later

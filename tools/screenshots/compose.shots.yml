@@ -1,0 +1,24 @@
+# Throwaway stack for capturing README / store screenshots.
+# Isolated from the user's running instance: separate compose project name
+# (openmind-shots), so separate networks and volumes, and spare host ports.
+# Never point this at production data.
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:5455:5432"
+
+  api:
+    environment:
+      AI_PROVIDER: noop
+      OPENMIND_TOKEN: screenshotstoken
+      AUTH_MODE: token
+    ports: !override
+      - "127.0.0.1:8788:8080"
+
+  web:
+    environment:
+      API_URL: http://api:8080
+      NEXT_PUBLIC_AUTH_MODE: token
+      CONTACT_EMAIL: hello@example.com
+    ports: !override
+      - "127.0.0.1:3999:3000"
