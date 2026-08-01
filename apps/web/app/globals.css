@@ -90,44 +90,129 @@ body{-webkit-font-smoothing:antialiased}
 /* Faint horizontal-rule paper texture; overlay behind card content. */
 .paper-texture{background:repeating-linear-gradient(#00000000 0 31px,rgba(28,26,22,.028) 31px 32px)}
 
-/* Feed river — subscription filter chips scroll horizontally so a long
-   subscription list doesn't crowd the page into a three-row chip stack. */
+/* Feed river — subscription filter chips wrap rather than scroll. A hidden
+   horizontal scroller severed the last chip mid-word on macOS (overlay
+   scrollbars leave no visible affordance); the list is capped with a
+   "+N more" toggle instead so a long subscription list can't push the
+   river off the fold. */
 .feed-chips{
   display:flex;
   gap:8px;
-  flex-wrap:nowrap;
-  overflow-x:auto;
-  padding:2px 2px 10px;
-  margin:0 -2px;
-  scrollbar-width:thin;
-  scrollbar-color:rgba(28,26,22,.2) transparent;
-  -webkit-overflow-scrolling:touch;
+  flex-wrap:wrap;
+  align-items:center;
+  padding-bottom:4px;
 }
-.feed-chips::-webkit-scrollbar{height:6px}
-.feed-chips::-webkit-scrollbar-thumb{background:rgba(28,26,22,.18);border-radius:999px}
-.feed-chips .chip{flex:none;white-space:nowrap}
 
-/* Feed river rows — same soft paper card as The Mind, with quieter hover
-   lift so the reverse-chron list can breathe without feeling like a grid. */
+/* Feed river rows — no cards. The river is set as a ruled ledger page: rows
+   divided by hairlines that sit with the .paper-texture ruling rather than
+   floating boxed above it, hung off a terracotta margin rule. */
+.feed-river{
+  position:relative;
+  padding-left:29px;
+}
+/* The margin rule itself. Fainter than the page's 2px terracotta header rule
+   so the two read as one ledger, with the header still dominant. */
+.feed-river::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:2px;
+  bottom:6px;
+  width:1px;
+  background:linear-gradient(
+    180deg,
+    color-mix(in srgb,#C24A2E 34%,transparent),
+    color-mix(in srgb,#C24A2E 14%,transparent) 62%,
+    transparent
+  );
+}
 .feed-row{
+  padding:20px 0;
+  border-bottom:1px solid rgba(28,26,22,.09);
+}
+.feed-row:first-child{padding-top:4px}
+.feed-row:last-child{border-bottom:none;padding-bottom:4px}
+.feed-row-title{transition:color .15s ease}
+.feed-row:hover .feed-row-title{color:#1B3FD1}
+
+/* Footer line: metadata left, Keep right, both on the same baseline so the
+   action is anchored to the item it acts on. */
+.feed-row-foot{
   display:flex;
-  align-items:flex-start;
-  gap:20px;
-  padding:22px 24px;
-  background:#FCFBF6;
-  border:1px solid rgba(28,26,22,.11);
-  border-radius:11px;
-  box-shadow:0 1px 2px rgba(28,26,22,.05),0 10px 26px -20px rgba(28,26,22,.45);
-  transition:transform .18s ease,box-shadow .18s ease;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-top:12px;
 }
-.feed-row:hover{
-  transform:translateY(-2px);
-  box-shadow:0 2px 4px rgba(28,26,22,.06),0 20px 44px -20px rgba(28,26,22,.55);
+/* "14h ago · simonwillison.net · The Berkeley Artificial Intelligence Research
+   Blog" is a realistic worst case — truncate rather than let it shove Keep. */
+.feed-row-foot .meta{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
-.feed-row-title:hover{color:#1B3FD1}
+
+/* Keep stays quiet until the row is engaged — five equal-weight buttons
+   competed with five titles. A kept item keeps its marker permanently, and
+   touch devices (no hover) always show the control. */
+.feed-keep{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  flex:none;
+  font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#57534A;
+  background:none;
+  border:none;
+  padding:2px 0;
+  cursor:pointer;
+  opacity:0;
+  transition:opacity .15s ease,color .15s ease;
+}
+.feed-row:hover .feed-keep,
+.feed-row:focus-within .feed-keep,
+.feed-keep[aria-pressed="true"]{opacity:1}
+.feed-keep:hover{color:#1C1A16}
+/* Deep gold rather than the #E0B23A accent: the accent is a 3.8:1 fill colour,
+   fine for the dot but short of 4.5:1 as 10px text on paper. */
+.feed-keep[aria-pressed="true"]{color:#7F5E0F}
+.feed-keep:disabled{cursor:default;opacity:.55}
+.feed-keep::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  flex:none;
+  border:1px solid currentColor;
+  transition:background .15s ease;
+}
+.feed-keep[aria-pressed="true"]::before{background:#E0B23A;border-color:#E0B23A}
+@media (hover:none){
+  .feed-keep{opacity:1}
+}
+
+/* Emphasis inside a summary is texture, not hierarchy. Feed and AI summaries
+   routinely open with a bold restatement of the title; rendering that at full
+   contrast produced a second heading directly under the real one. */
+.feed-row-summary strong{font-weight:600;color:inherit}
+.feed-row-summary em{font-style:italic}
+
 @media (prefers-reduced-motion:reduce){
-  .feed-row{transition:none}
-  .feed-row:hover{transform:none}
+  .feed-row-title,.feed-keep{transition:none}
+}
+
+/* Narrow: the margin rule stays (it's the page's signature) but gives back
+   most of its indent, and the footer stacks so Keep never crowds the source. */
+@media (max-width:640px){
+  .feed-river{padding-left:16px}
+  .feed-row-foot{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:10px;
+  }
+  .feed-row-foot .meta{max-width:100%}
 }
 
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}

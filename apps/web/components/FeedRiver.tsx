@@ -10,6 +10,9 @@ import type { Feed, Item } from "../lib/types";
 
 const { color, font } = tokens;
 
+/** Feed chips shown before the "+N more" disclosure. */
+const CHIP_LIMIT = 8;
+
 /** Keep/Kept toggle for a single feed-river row. PATCHes `{kept}` through the items proxy. */
 function KeepToggle({ itemId, kept, onChange }: { itemId: string; kept: boolean; onChange: (kept: boolean) => void }) {
   const [busy, setBusy] = useState(false);
@@ -36,32 +39,22 @@ function KeepToggle({ itemId, kept, onChange }: { itemId: string; kept: boolean;
   }
 
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
       {error ? (
-        <span aria-live="polite" style={{ fontFamily: font.mono, fontSize: "0.68rem", color: color.danger }}>
+        <span
+          aria-live="polite"
+          style={{ fontFamily: font.mono, fontSize: 10, letterSpacing: ".04em", color: color.danger }}
+        >
           {error}
         </span>
       ) : null}
       <button
         type="button"
+        className="feed-keep"
         onClick={toggle}
         disabled={busy}
         aria-pressed={kept}
         aria-label={kept ? "Unkeep this item" : "Keep this item"}
-        style={{
-          flex: "none",
-          fontFamily: font.mono,
-          fontSize: 11,
-          letterSpacing: ".04em",
-          color: kept ? color.green : color.inkFaintAlt,
-          background: kept ? "color-mix(in srgb, " + color.green + " 12%, transparent)" : color.cardSurface,
-          border: `1px solid ${kept ? "color-mix(in srgb, " + color.green + " 34%, transparent)" : color.hairline}`,
-          borderRadius: 8,
-          padding: "6px 12px",
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.6 : 1,
-          transition: "border-color .15s ease, color .15s ease, background .15s ease",
-        }}
       >
         {kept ? "Kept" : "Keep"}
       </button>
@@ -71,55 +64,58 @@ function KeepToggle({ itemId, kept, onChange }: { itemId: string; kept: boolean;
 
 function Row({ item, feedTitle, onKeptChange }: { item: Item; feedTitle: string; onKeptChange: (kept: boolean) => void }) {
   const domain = domainOf(item.url);
+  // Source, time and domain all belong to the same secondary register — the
+  // source used to sit above the title in terracotta, which spent the page's
+  // one accent colour once per row.
+  const provenance = [relativeTime(item.createdAt), domain, feedTitle].filter(Boolean).join(" · ");
+
   return (
     <li className="feed-row">
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="meta" style={{ color: color.terracotta, lineHeight: 1.35 }}>
-          {feedTitle}
-        </div>
-        <Link
-          href={`/item/${item.id}`}
-          className="serif feed-row-title"
+      <Link
+        href={`/item/${item.id}`}
+        className="serif feed-row-title"
+        style={{
+          display: "block",
+          fontSize: 19,
+          fontWeight: 600,
+          lineHeight: 1.3,
+          letterSpacing: "-.015em",
+          color: color.ink,
+          textDecoration: "none",
+          textWrap: "pretty",
+          maxWidth: "42ch",
+        }}
+      >
+        {item.title || domain || item.url}
+      </Link>
+      {item.summary ? (
+        <p
+          className="feed-row-summary"
           style={{
-            display: "block",
-            fontSize: 17,
-            fontWeight: 600,
-            lineHeight: 1.35,
-            letterSpacing: "-.01em",
-            color: color.ink,
-            marginTop: 8,
-            textDecoration: "none",
+            fontFamily: font.sans,
+            fontSize: 13.5,
+            lineHeight: 1.6,
+            color: color.inkMuted,
+            margin: "10px 0 0",
+            maxWidth: "68ch",
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
           }}
         >
-          {item.title || domain || item.url}
-        </Link>
-        {item.summary ? (
-          <p
-            style={{
-              fontFamily: font.sans,
-              fontSize: 13.5,
-              lineHeight: 1.55,
-              color: color.inkMuted,
-              margin: "10px 0 0",
-              maxWidth: "68ch",
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-            }}
-          >
-            {renderInlineMarkdown(item.summary)}
-          </p>
-        ) : null}
-        <div
+          {renderInlineMarkdown(item.summary)}
+        </p>
+      ) : null}
+      <div className="feed-row-foot">
+        <span
           className="meta"
-          style={{ marginTop: 14, textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt }}
+          style={{ textTransform: "none", letterSpacing: ".05em", color: color.inkFaintAlt, minWidth: 0 }}
         >
-          {relativeTime(item.createdAt)}
-          {domain ? ` · ${domain}` : ""}
-        </div>
+          {provenance}
+        </span>
+        <KeepToggle itemId={item.id} kept={!!item.keptAt} onChange={onKeptChange} />
       </div>
-      <KeepToggle itemId={item.id} kept={!!item.keptAt} onChange={onKeptChange} />
     </li>
   );
 }
@@ -134,6 +130,7 @@ export function FeedRiver() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [feeds, setFeeds] = useState<Feed[] | null>(null);
   const [activeFeedId, setActiveFeedId] = useState<string | undefined>(undefined);
+  const [showAllChips, setShowAllChips] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
@@ -250,14 +247,17 @@ export function FeedRiver() {
     borderColor: color.ink,
   } as const;
 
+  // Chips wrap, so an unbounded subscription list would push the river below
+  // the fold. Show a first rank and disclose the rest on request; a chip that
+  // is currently active always stays visible so the filter can be cleared.
+  const activeIsHidden = !!activeFeedId && chips.findIndex((f) => f.id === activeFeedId) >= CHIP_LIMIT;
+  const visibleChips = showAllChips || activeIsHidden ? chips : chips.slice(0, CHIP_LIMIT);
+  const hiddenCount = chips.length - visibleChips.length;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 760 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 780 }}>
       {chips.length > 0 ? (
-        <div
-          className="feed-chips"
-          role="tablist"
-          aria-label="Filter by feed"
-        >
+        <div className="feed-chips" role="tablist" aria-label="Filter by feed">
           <button
             type="button"
             role="tab"
@@ -268,7 +268,7 @@ export function FeedRiver() {
           >
             All
           </button>
-          {chips.map((feed) => {
+          {visibleChips.map((feed) => {
             const isActive = feed.id === activeFeedId;
             return (
               <button
@@ -284,28 +284,36 @@ export function FeedRiver() {
               </button>
             );
           })}
+          {hiddenCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllChips(true)}
+              style={{
+                font: `500 10px/1 ${font.mono}`,
+                letterSpacing: ".06em",
+                color: color.inkMuted,
+                background: "none",
+                border: "none",
+                padding: "6px 4px",
+                cursor: "pointer",
+              }}
+            >
+              +{hiddenCount} more
+            </button>
+          ) : null}
         </div>
       ) : null}
 
       {items === null ? (
-        <p className="meta" style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt }}>
+        <p className="meta" style={{ textTransform: "none", letterSpacing: ".05em", color: color.inkFaintAlt }}>
           Loading…
         </p>
       ) : items.length === 0 ? (
-        <p className="meta" style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt }}>
+        <p className="meta" style={{ textTransform: "none", letterSpacing: ".05em", color: color.inkFaintAlt }}>
           Nothing from this feed yet.
         </p>
       ) : (
-        <ul
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-          }}
-        >
+        <ul className="feed-river" style={{ listStyle: "none", margin: 0 }}>
           {items.map((item) => (
             <Row
               key={item.id}

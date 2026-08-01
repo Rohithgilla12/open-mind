@@ -10,7 +10,7 @@
 // a publishable key is configured, so there's no ClerkProvider to violate the
 // Rules of Hooks against. Never log the Clerk token or the omk_ key.
 import type { EmailCodeFactor, SignInFirstFactor } from "@clerk/types";
-import { useAuth, useSignIn, useSSO } from "@clerk/clerk-expo";
+import { isClerkAPIResponseError, useAuth, useSignIn, useSSO } from "@clerk/clerk-expo";
 import * as AuthSession from "expo-auth-session";
 import { Link, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -43,6 +43,21 @@ const GENERIC_CONNECT_ERROR = "Couldn't finish sign-in — try again.";
 
 function isEmailCodeFactor(factor: SignInFirstFactor): factor is EmailCodeFactor {
   return factor.strategy === "email_code";
+}
+
+// Appends a short machine-readable cause to a user-facing message. Clerk
+// rejections carry an `errors[0].code` (e.g. "oauth_callback_invalid",
+// "identifier_already_signed_up") that names the failure precisely; without it
+// every distinct cause collapses into the same opaque sentence, which is
+// exactly what made this flow undiagnosable from a TestFlight build. The code
+// is safe to show — it never contains the token, the email, or the key.
+function withCause(message: string, err: unknown): string {
+  if (isClerkAPIResponseError(err)) {
+    const first = err.errors?.[0];
+    if (first?.code) return `${message} (${first.code})`;
+  }
+  if (err instanceof Error && err.message) return `${message} (${err.message})`;
+  return message;
 }
 
 export default function SignInScreen() {
@@ -118,7 +133,9 @@ function ClerkSignIn() {
     const res = await mintDeviceKey(defaultInstanceUrl, token, "Mobile");
     await signOut();
     if (!res.ok || !res.key) {
-      setError(GENERIC_CONNECT_ERROR);
+      // status 0 is a network failure; anything else is the API's verdict on
+      // the Clerk JWT (401 = not accepted, 404 = no such route on the host).
+      setError(`${GENERIC_CONNECT_ERROR} (mint ${res.status})`);
       setPending(null);
       return false;
     }
@@ -151,8 +168,8 @@ function ClerkSignIn() {
       }
       await result.setActive({ session: result.createdSessionId });
       await connectAfterClerk();
-    } catch {
-      setError("Google sign-in failed — try again.");
+    } catch (err) {
+      setError(withCause("Google sign-in failed — try again.", err));
       setPending(null);
     }
   }
