@@ -52,7 +52,7 @@
 - sqlc params on search queries: `LibraryOnly bool`, `Types []string` (nil = no type filter), `Domains []string` (nil = no domain filter)
 - New query `ListItemsMatching` for filter-only (no text/colour) paths
 
-- [ ] **Step 1: Write migration**
+- [x] **Step 1: Write migration**
 
 ```sql
 -- Extract lowercased host from a URL-ish string; strip leading www.
@@ -83,7 +83,7 @@ CREATE INDEX items_url_host_idx ON items (user_id, url_host)
 
 Generated column backfills existing rows automatically — no separate UPDATE.
 
-- [ ] **Step 2: Replace / extend `search.sql`**
+- [x] **Step 2: Replace / extend `search.sql`**
 
 Shared filter fragment (document in comments; paste into each query):
 
@@ -160,7 +160,7 @@ LIMIT sqlc.arg(limit_count);
 
 If sqlc rejects `narg` + `arg` naming, adjust to match existing `items.sql` narg style (`sqlc.narg(filter_feed_id)`). Prefer nullable slices: pass `nil` from Go when filter unused.
 
-- [ ] **Step 3: Generate**
+- [x] **Step 3: Generate**
 
 ```bash
 task generate
@@ -168,14 +168,14 @@ task generate
 
 Expected: `db.Item` gains `UrlHost`; search query params gain filter fields. Fix any sqlc name clashes before continuing.
 
-- [ ] **Step 4: Smoke-check host extraction** (optional psql against test DB after migrate):
+- [x] **Step 4: Smoke-check host extraction** (optional psql against test DB after migrate):
 
 ```sql
 SELECT items_url_host('https://www.x.com/foo'), items_url_host('https://mobile.twitter.com/a'), items_url_host('');
 -- expect: x.com | mobile.twitter.com | NULL
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/internal/store/migrations/0021_url_host.sql \
@@ -198,7 +198,7 @@ EOF
 
 **Interfaces → Produces:** generated Go `LensRule` with `Domains *[]string`, `Scope *LensRuleScope` (or string enum `library` | `all`).
 
-- [ ] **Step 1: Extend schema**
+- [x] **Step 1: Extend schema**
 
 Replace `LensRule` description/properties with:
 
@@ -231,9 +231,9 @@ Update `GET /lenses/{id}/items` description to say matches are library-scoped by
 
 Do **not** add `/search` query params in this task (Phase 2).
 
-- [ ] **Step 2: `task generate`**
+- [x] **Step 2: `task generate`**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add openapi.yaml apps/api/internal/api/gen.go packages/api-client/
@@ -279,7 +279,7 @@ func (q Query) HasMatchSignal() bool            // text|color|types|domains
 func (q Query) LibraryOnly() bool               // Scope != ScopeAll
 ```
 
-- [ ] **Step 1: Write failing tests** in `query_test.go`
+- [x] **Step 1: Write failing tests** in `query_test.go`
 
 ```go
 func TestNormalizeDomain(t *testing.T) {
@@ -309,19 +309,19 @@ func TestNormalizeDomainsDedupe(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL** (undefined)
+- [x] **Step 2: Run tests — expect FAIL** (undefined)
 
 ```bash
 cd apps/api && go test ./internal/search/ -run TestNormalize -count=1
 ```
 
-- [ ] **Step 3: Implement `query.go`**
+- [x] **Step 3: Implement `query.go`**
 
 Use `net/url.Parse` after ensuring a scheme (`https://` prefix if missing `://`). Take `Hostname()`, `strings.ToLower`, trim `www.` prefix. Reject empty host or hosts containing spaces.
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/internal/search/query.go apps/api/internal/search/query_test.go
@@ -363,7 +363,7 @@ func Run(ctx ..., q, color string, types []string, limit int) ([]Result, error) 
 }
 ```
 
-- [ ] **Step 1: Write failing DB tests** in `search_test.go`
+- [x] **Step 1: Write failing DB tests** in `search_test.go`
 
 `TestDomainFilterMatchesHostAndSubdomain` — create items with URLs `https://x.com/a`, `https://mobile.twitter.com/b`, `https://example.com/c` (use CreateItem + set card_type); `RunQuery` with `Domains:["x.com"]` → only first; `Domains:["twitter.com"]` → second (subdomain); both domains → first two.
 
@@ -371,13 +371,13 @@ func Run(ctx ..., q, color string, types []string, limit int) ([]Result, error) 
 
 `TestFilterOnlyDomainsUsesListPath` — domains only, no text/color → results unscored / newest; still respects library scope.
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 cd apps/api && go test ./internal/search/ -run 'TestDomain|TestLibraryScope|TestFilterOnly' -count=1
 ```
 
-- [ ] **Step 3: Implement `RunQuery`**
+- [x] **Step 3: Implement `RunQuery`**
 
 Logic sketch:
 
@@ -410,7 +410,7 @@ func RunQuery(...) ([]Result, error) {
 
 Delete `ListItemsAll` usage from `RunLensRule`. Update `RunLensRule` comment: Lenses default to library scope.
 
-- [ ] **Step 4: Fix call sites**
+- [x] **Step 4: Fix call sites**
 
 `lenses.go` `runLensRule`: build `search.Query` from `normalisedRule`, `Scope: search.ScopeLibrary` unless rule says `all`.
 
@@ -418,7 +418,7 @@ Delete `ListItemsAll` usage from `RunLensRule`. Update `RunLensRule` comment: Le
 
 `SearchItems`: continue calling `Run` / `RunQuery` with `ScopeAll`.
 
-- [ ] **Step 5: Run full search + lens packages**
+- [x] **Step 5: Run full search + lens packages**
 
 ```bash
 cd apps/api && go test ./internal/search/ ./internal/api/ -count=1 -p 1
@@ -426,7 +426,7 @@ cd apps/api && go test ./internal/search/ ./internal/api/ -count=1 -p 1
 
 Expect `TestLensTypesOnlyIncludesUnkeptFeedItem` to FAIL until Task 5 flips it — that red test is expected; do not skip. Task 5 flips the assertion.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/internal/search/ apps/api/internal/api/lenses.go \
@@ -460,7 +460,7 @@ type normalisedRule struct {
 }
 ```
 
-- [ ] **Step 1: Extend `TestParseRule`**
+- [x] **Step 1: Extend `TestParseRule`**
 
 Add cases:
 - `domains only` → ok
@@ -470,7 +470,7 @@ Add cases:
 - `domains-only` satisfies HasMatchSignal (empty q/color/types ok)
 - empty still rejected
 
-- [ ] **Step 2: Implement parse/marshal**
+- [x] **Step 2: Implement parse/marshal**
 
 ```go
 // parseRule: normalise domains via search.NormalizeDomains; if any raw domain
@@ -495,19 +495,19 @@ if q.Scope == "" {
 return search.RunLensRule(ctx, s.store, s.provider, uid, q)
 ```
 
-- [ ] **Step 3: Flip integration test**
+- [x] **Step 3: Flip integration test**
 
 Rename to `TestLensTypesOnlyExcludesUnkeptFeedItem`. Assert unkept feed item is **absent** from `GET /lenses/{id}/items`. Keep assertion that `GET /items` also excludes it. Add sibling `TestLensScopeAllIncludesUnkeptFeedItem` posting `{"rule":{"types":["article"],"scope":"all"}}` and asserting present.
 
-- [ ] **Step 4: Add `TestLensDomainFilter`** — create Mind items on x.com + example.com; lens `domains:["x.com"]`; only x.com returned.
+- [x] **Step 4: Add `TestLensDomainFilter`** — create Mind items on x.com + example.com; lens `domains:["x.com"]`; only x.com returned.
 
-- [ ] **Step 5: Run**
+- [x] **Step 5: Run**
 
 ```bash
 cd apps/api && go test ./internal/api/ -run Lens -count=1
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/internal/api/lenses.go apps/api/internal/api/lenses_internal_test.go \
@@ -531,7 +531,7 @@ EOF
 
 **Interfaces:** POST body `rule: { q?, color?, types?, domains? }` — omit scope (server defaults library).
 
-- [ ] **Step 1: Form state**
+- [x] **Step 1: Form state**
 
 Add `domains` string state (comma-separated input is fine for v1), seeded from `initialDomains?: string[]` joined by `, `.
 
@@ -541,7 +541,7 @@ Helper copy:
 
 > Add a query, a colour, a domain, or at least one card type — a lens needs something to match.
 
-- [ ] **Step 2: Submit**
+- [x] **Step 2: Submit**
 
 ```ts
 const domainList = domains
@@ -553,28 +553,28 @@ if (domainList.length) rule.domains = domainList;
 
 Server normalises/validates; show API error string on 400.
 
-- [ ] **Step 3: UI block** (place after Query, before Colour)
+- [x] **Step 3: UI block** (place after Query, before Colour)
 
 Label `DOMAINS`, placeholder `x.com, twitter.com`, mono hint under field: `Host only — subdomains match`.
 
-- [ ] **Step 4: `lens/new/page.tsx`**
+- [x] **Step 4: `lens/new/page.tsx`**
 
 ```ts
 searchParams: Promise<{ q?: string; color?: string; types?: string; domains?: string }>
 // initialDomains = domains?.split(",").filter(Boolean) ?? []
 ```
 
-- [ ] **Step 5: Update walkthrough doc**
+- [x] **Step 5: Update walkthrough doc**
 
 Replace “Don’t type x.com into the Query field” with: use Domains `x.com, twitter.com` (and optional Post type). Update reference JSON example to include domains. Scene 4 can stay types-only as an alternate demo.
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 ```bash
 pnpm --filter web exec tsc --noEmit
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/components/LensForm.tsx apps/web/app/lens/new/page.tsx \
@@ -590,7 +590,7 @@ EOF
 
 ### Task 7: Phase 1 verification checklist
 
-- [ ] **Step 1: Migrate + API tests**
+- [x] **Step 1: Migrate + API tests**
 
 ```bash
 export DATABASE_URL=postgres://openmind:openmind@localhost:5433/openmind
@@ -600,14 +600,14 @@ cd apps/api && go test ./internal/search/ ./internal/api/ ./internal/jobs/ -coun
 
 Expected: PASS (including flipped Lens feed test + domain tests).
 
-- [ ] **Step 2: Manual smoke** (dev stack up)
+- [x] **Step 2: Manual smoke** (dev stack up)
 
 1. Save `https://x.com/some/status/1` and an article URL; wait for enrich (or noop classify still sets tweet for x.com).
 2. New Lens → Domains `x.com` → Save → only X URL appears.
 3. Subscribe a feed, leave item unkept with type article; Lens types `article` → unkept feed item absent.
 4. API: `POST /lenses` with `"scope":"all"` → unkept feed item appears.
 
-- [ ] **Step 3: Note Phase 2 follow-ups** in PR description (not code): `/search?types&domains&scope`, ParseQuery domains, FilterStrip Post/Recipe, Save-as-lens seeds domains, retire client `?type=` filter.
+- [x] **Step 3: Note Phase 2 follow-ups** in PR description (not code): `/search?types&domains&scope`, ParseQuery domains, FilterStrip Post/Recipe, Save-as-lens seeds domains, retire client `?type=` filter.
 
 ---
 
