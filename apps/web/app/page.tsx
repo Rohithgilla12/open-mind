@@ -1,6 +1,5 @@
 import { tokens } from "@openmind/ui";
 import { apiFetch } from "../lib/api";
-import { cardKind } from "../lib/cards";
 import type { Item, SearchResponse, UnderstoodQuery } from "../lib/types";
 import { Grid } from "../components/Grid";
 import { QuickAdd } from "../components/QuickAdd";
@@ -27,15 +26,27 @@ interface SearchOutcome {
 }
 
 // Runs a search. When q is present we set parse=true so the AI provider can
-// split it into text + colour + type filters (it degrades to a plain text
-// search under the noop provider). An explicit colour filter fuses in too.
-async function getSearch(q?: string, color?: string): Promise<SearchOutcome> {
+// split it into text + colour + type + domain filters (it degrades to a plain
+// text search under the noop provider). Explicit type/colour/domain filters
+// fuse in too and are applied server-side.
+async function getSearch(opts: {
+  q?: string;
+  color?: string;
+  type?: string;
+  domains?: string;
+}): Promise<SearchOutcome> {
   const params = new URLSearchParams();
-  if (q) {
-    params.set("q", q);
+  if (opts.q) {
+    params.set("q", opts.q);
     params.set("parse", "true");
   }
-  if (color) params.set("color", color);
+  if (opts.color) params.set("color", opts.color);
+  if (opts.type && opts.type !== "all") params.set("types", opts.type);
+  if (opts.domains) {
+    for (const d of opts.domains.split(",").map((s) => s.trim()).filter(Boolean)) {
+      params.append("domains", d);
+    }
+  }
   try {
     const res = await apiFetch(`/search?${params.toString()}`);
     if (!res.ok) return { items: [] };
@@ -70,17 +81,15 @@ function FeedDivider({ count }: { count: number }) {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; color?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; color?: string; domains?: string }>;
 }) {
-  const { q, type, color } = await searchParams;
+  const { q, type, color, domains } = await searchParams;
   const active = type ?? "all";
-  const searching = Boolean(q || color);
+  const searching = Boolean(q || color || (type && type !== "all") || domains);
 
-  const { items: fetched, understood } = searching
-    ? await getSearch(q, color)
+  const { items, understood } = searching
+    ? await getSearch({ q, color, type, domains })
     : { items: await getRecents(), understood: undefined };
-  const items =
-    active === "all" ? fetched : fetched.filter((i) => cardKind(i.cardType) === active);
   // Search spans the feed river, but the library always leads: results from
   // the API arrive library-first, and unkept feed matches render below a
   // divider. Recents (/items) never include unkept feed items, so the divider
@@ -91,8 +100,14 @@ export default async function Page({
   return (
     <Shell>
       <Topbar count={items.length} q={q} />
-      <FilterStrip active={active} q={q} color={color} />
-      <SearchContext q={q} understood={understood} colorParam={color} />
+      <FilterStrip active={active} q={q} color={color} domains={domains} />
+      <SearchContext
+        q={q}
+        understood={understood}
+        colorParam={color}
+        typeParam={type}
+        domainsParam={domains}
+      />
 
       <div style={{ position: "relative", flex: 1 }}>
         <div

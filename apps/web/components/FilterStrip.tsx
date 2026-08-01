@@ -4,6 +4,7 @@ import { tokens } from "@openmind/ui";
 const { color } = tokens;
 
 // Chip → cardType. "all" carries no `type` param (shows everything).
+// The page maps `type` → API `types` and filters server-side.
 const FILTERS: readonly { label: string; type: string }[] = [
   { label: "All", type: "all" },
   { label: "Articles", type: "article" },
@@ -11,22 +12,27 @@ const FILTERS: readonly { label: string; type: string }[] = [
   { label: "Quotes", type: "quote" },
   { label: "Products", type: "product" },
   { label: "Video", type: "video" },
+  { label: "Posts", type: "tweet" },
+  { label: "Recipes", type: "recipe" },
   { label: "Notes", type: "note" },
   { label: "Books", type: "book" },
 ];
 
 /**
  * Type filter strip. Chips are links to `?type=<cardType>` (preserving any
- * active `q`); the page filters items server-side. The active chip is ink-filled.
+ * active q / colour / domains); the page forwards filters to the API.
+ * The active chip is ink-filled.
  */
 export function FilterStrip({
   active = "all",
   q,
   color: colorParam,
+  domains,
 }: {
   active?: string;
   q?: string;
   color?: string;
+  domains?: string;
 }) {
   return (
     <div
@@ -45,6 +51,7 @@ export function FilterStrip({
         const params = new URLSearchParams();
         if (q) params.set("q", q);
         if (colorParam) params.set("color", colorParam);
+        if (domains) params.set("domains", domains);
         if (f.type !== "all") params.set("type", f.type);
         const qs = params.toString();
         return (

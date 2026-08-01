@@ -7,11 +7,16 @@ import { ColourHint } from "./ColourHint";
 
 const { color, font } = tokens;
 
-/** Build a home href carrying q (+ optional colour), dropping empties. */
-function href(q: string | undefined, colorTerm?: string): string {
+/** Build a home href carrying q (+ optional colour / type / domains), dropping empties. */
+function href(
+  q: string | undefined,
+  opts?: { color?: string; type?: string; domains?: string },
+): string {
   const p = new URLSearchParams();
   if (q) p.set("q", q);
-  if (colorTerm) p.set("color", colorTerm);
+  if (opts?.color) p.set("color", opts.color);
+  if (opts?.type && opts.type !== "all") p.set("type", opts.type);
+  if (opts?.domains) p.set("domains", opts.domains);
   const qs = p.toString();
   return qs ? `/?${qs}` : "/";
 }
@@ -51,40 +56,54 @@ function ColorChip({ term, onClear }: { term: string; onClear?: string }) {
 
 /**
  * Adaptive strip beneath the type filters. When a search was interpreted
- * (parse=true) or a colour filter is active, it echoes what was actually
- * searched — the refined text, the colour swatch, and any card-type filters —
- * so the machine's reading of a fuzzy query is visible ("understood as"). It
- * always offers the brand colour swatches on the right as one-tap colour search.
+ * (parse=true) or a colour / type / domain filter is active, it echoes what
+ * was actually searched — the refined text, the colour swatch, card-type
+ * filters, and domains — so the machine's reading of a fuzzy query is visible
+ * ("understood as"). It always offers the brand colour swatches on the right
+ * as one-tap colour search.
  */
 export function SearchContext({
   q,
   understood,
   colorParam,
+  typeParam,
+  domainsParam,
 }: {
   q?: string;
   understood?: UnderstoodQuery;
   colorParam?: string;
+  typeParam?: string;
+  domainsParam?: string;
 }) {
   const colorTerm = understood?.color || colorParam || undefined;
   const types = understood?.types ?? [];
+  const domains =
+    understood?.domains?.length
+      ? understood.domains
+      : domainsParam
+        ? domainsParam.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
   // Only surface the text portion when the parse refined it (differs from the
   // raw query); under the noop provider text === q and the echo is redundant.
   const refinedText =
     understood?.text && understood.text.trim() && understood.text.trim() !== (q ?? "").trim()
       ? understood.text.trim()
       : undefined;
-  const hasEcho = Boolean(colorTerm || types.length || refinedText);
+  const hasEcho = Boolean(colorTerm || types.length || domains.length || refinedText);
   const activeColor = colorParam?.toLowerCase();
 
   // "Save as lens" seeds the new-lens form with the effective search: the text
-  // actually searched (understood split, or the raw query), the colour, and any
-  // type filters. Shown whenever there is a rule worth saving.
+  // actually searched (understood split, or the raw query), the colour, type
+  // filters, and domains. Shown whenever there is a rule worth saving.
   const lensQuery: Record<string, string> = {};
   const qForLens = (understood?.text ?? q ?? "").trim();
   if (qForLens) lensQuery.q = qForLens;
   if (colorTerm) lensQuery.color = colorTerm;
   if (types.length) lensQuery.types = types.join(",");
+  if (domains.length) lensQuery.domains = domains.join(",");
   const canSave = Object.keys(lensQuery).length > 0;
+
+  const preserve = { type: typeParam, domains: domainsParam };
 
   return (
     <div
@@ -115,11 +134,16 @@ export function SearchContext({
             </span>
           )}
           {colorTerm && (
-            <ColorChip term={colorTerm} onClear={colorParam ? href(q) : undefined} />
+            <ColorChip term={colorTerm} onClear={colorParam ? href(q, preserve) : undefined} />
           )}
           {types.map((t) => (
             <span key={t} className="chip" style={{ cursor: "default" }}>
               {typeLabel[cardKind(t)]}
+            </span>
+          ))}
+          {domains.map((d) => (
+            <span key={d} className="chip" style={{ cursor: "default" }}>
+              {d}
             </span>
           ))}
         </div>
@@ -145,7 +169,7 @@ export function SearchContext({
           return (
             <Link
               key={name}
-              href={href(q, name)}
+              href={href(q, { ...preserve, color: name })}
               title={name}
               aria-label={`Search ${name}`}
               aria-current={isActive ? "true" : undefined}

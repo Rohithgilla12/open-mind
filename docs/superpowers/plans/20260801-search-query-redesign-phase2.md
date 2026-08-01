@@ -78,11 +78,11 @@ Example: `"posts from x.com about shoes"` → text≈shoes, domains=["x.com"], t
 
 URL params stay `?type=` (singular) for FilterStrip UX; map to API `types=tweet`. Optional `?domains=x.com,twitter.com` for future/manual.
 
-- [ ] **Step 1:** Wire getSearch to pass types/domains; remove `fetched.filter(cardKind)`
-- [ ] **Step 2:** FilterStrip Post + Recipe; keep `type` in links with q/color/domains
-- [ ] **Step 3:** SearchContext domains echo + save-as-lens
-- [ ] **Step 4:** `pnpm --filter web exec tsc --noEmit`
-- [ ] **Step 5:** Commit `feat(web): server-side search filters and domain-aware Save as lens`
+- [x] **Step 1:** Wire getSearch to pass types/domains; remove `fetched.filter(cardKind)`
+- [x] **Step 2:** FilterStrip Post + Recipe; keep `type` in links with q/color/domains
+- [x] **Step 3:** SearchContext domains echo + save-as-lens
+- [x] **Step 4:** `pnpm --filter web exec tsc --noEmit`
+- [x] **Step 5:** Commit `feat(web): server-side search filters and domain-aware Save as lens`
 
 ---
 
