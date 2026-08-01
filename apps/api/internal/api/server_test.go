@@ -472,8 +472,14 @@ func TestSearchItemsReturnsEmptyArray(t *testing.T) {
 // card type and palette, so search/parse tests have real rows to match.
 func seedEnriched(t *testing.T, s *store.Store, title, body, cardType string, palette []string) db.Item {
 	t.Helper()
+	return seedEnrichedURL(t, s, "https://example.com/"+title, title, body, cardType, palette)
+}
+
+// seedEnrichedURL is seedEnriched with an explicit URL (for domain-filter tests).
+func seedEnrichedURL(t *testing.T, s *store.Store, rawURL, title, body, cardType string, palette []string) db.Item {
+	t.Helper()
 	ctx := context.Background()
-	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://example.com/" + title, Body: ""})
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: rawURL, Body: ""})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
 	}
@@ -532,11 +538,161 @@ func TestSearchItemsParseSplitsQuery(t *testing.T) {
 	if out.Understood.Types == nil || len(*out.Understood.Types) != 1 || (*out.Understood.Types)[0] != "book" {
 		t.Errorf("understood.types = %v, want [book]", out.Understood.Types)
 	}
+	if out.Understood.Domains != nil {
+		t.Errorf("understood.domains = %v, want nil", out.Understood.Domains)
+	}
 
 	if len(out.Results) != 1 {
 		t.Fatalf("results = %d, want 1 (type filter drops the article)", len(out.Results))
 	}
 	if out.Results[0].Item.Id.String() != book.ID.String() {
 		t.Errorf("result = %v, want book %v", out.Results[0].Item.Id, book.ID)
+	}
+}
+
+func TestSearchItemsExplicitTypes(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	book := seedEnriched(t, s, "bread book", "a book about baking bread", "book", nil)
+	seedEnriched(t, s, "bread article", "an article about baking bread", "article", nil)
+
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search?types=book&q=" + url.QueryEscape("bread"))
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out.Results) != 1 {
+		t.Fatalf("results = %d, want 1", len(out.Results))
+	}
+	if out.Results[0].Item.Id.String() != book.ID.String() {
+		t.Errorf("result = %v, want book %v", out.Results[0].Item.Id, book.ID)
+	}
+	if out.Understood != nil {
+		t.Errorf("understood = %+v, want nil without parse", out.Understood)
+	}
+}
+
+func TestSearchItemsExplicitDomains(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	xcom := seedEnrichedURL(t, s, "https://x.com/shoes", "x shoes", "shoes on x", "tweet", nil)
+	seedEnrichedURL(t, s, "https://example.com/shoes", "ex shoes", "shoes elsewhere", "article", nil)
+
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search?domains=x.com")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out.Results) != 1 {
+		t.Fatalf("results = %d, want 1", len(out.Results))
+	}
+	if out.Results[0].Item.Id.String() != xcom.ID.String() {
+		t.Errorf("result = %v, want x.com item %v", out.Results[0].Item.Id, xcom.ID)
+	}
+}
+
+func TestSearchItemsExplicitWinsOverParse(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	seedEnriched(t, s, "bread book", "a book about baking bread", "book", nil)
+	article := seedEnriched(t, s, "bread article", "an article about baking bread", "article", nil)
+
+	// Parse would filter to book; explicit types=article must win.
+	prov := parseProvider{Noop: ai.NewNoop(), parsed: ai.ParsedQuery{Text: "bread", Types: []string{"book"}}}
+	srv := httptest.NewServer(newSrvWithProvider(t, s, rc, "", prov))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search?q=" + url.QueryEscape("bread book") + "&types=article&parse=true")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Understood == nil || out.Understood.Types == nil || len(*out.Understood.Types) != 1 || (*out.Understood.Types)[0] != "article" {
+		t.Errorf("understood.types = %v, want [article]", out.Understood)
+	}
+	if len(out.Results) != 1 {
+		t.Fatalf("results = %d, want 1", len(out.Results))
+	}
+	if out.Results[0].Item.Id.String() != article.ID.String() {
+		t.Errorf("result = %v, want article %v", out.Results[0].Item.Id, article.ID)
+	}
+}
+
+func TestSearchItemsParseDomains(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	seedEnrichedURL(t, s, "https://x.com/a", "x post", "a post", "tweet", nil)
+
+	prov := parseProvider{Noop: ai.NewNoop(), parsed: ai.ParsedQuery{Text: "shoes", Domains: []string{"x.com"}}}
+	srv := httptest.NewServer(newSrvWithProvider(t, s, rc, "", prov))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search?q=" + url.QueryEscape("posts from x.com about shoes") + "&parse=true")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var out api.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Understood == nil {
+		t.Fatal("understood = nil, want populated")
+	}
+	if out.Understood.Domains == nil || len(*out.Understood.Domains) != 1 || (*out.Understood.Domains)[0] != "x.com" {
+		t.Errorf("understood.domains = %v, want [x.com]", out.Understood.Domains)
+	}
+	if out.Understood.Text == nil || *out.Understood.Text != "shoes" {
+		t.Errorf("understood.text = %v, want shoes", out.Understood.Text)
+	}
+}
+
+func TestSearchItemsRequiresMatchSignal(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/search")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Error != "q, color, types, or domains is required" {
+		t.Errorf("error = %q, want match-signal message", body.Error)
 	}
 }

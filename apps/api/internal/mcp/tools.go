@@ -100,7 +100,7 @@ func registerTools(s *mcp.Server, b Backend, uidFor func(context.Context) uuid.U
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "search_items",
-		Description: "Search the Openmind library with hybrid full-text + semantic search. Provide a natural-language query and/or a colour (name or hex). By default the query is parsed into text/colour/type filters (falls back to plain search when no AI is configured).",
+		Description: "Search the Openmind library with hybrid full-text + semantic search. Provide a natural-language query and/or a colour (name or hex). By default the query is parsed into text/colour/type/domain filters (falls back to plain search when no AI is configured).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOut, error) {
 		q := strings.TrimSpace(in.Query)
 		color := strings.TrimSpace(in.Color)

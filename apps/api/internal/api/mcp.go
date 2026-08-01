@@ -44,22 +44,25 @@ func (b mcpBackend) Save(ctx context.Context, uid uuid.UUID, url, note string) (
 func (b mcpBackend) Search(ctx context.Context, uid uuid.UUID, q, color string, parse bool) (appmcp.SearchOutcome, error) {
 	s := b.s
 	text := q
-	var types []string
+	var types, domains []string
 	var understood string
 	if parse && q != "" {
 		if parsed, err := s.provider.ParseQuery(ctx, q); err == nil {
 			text = parsed.Text
 			types = parsed.Types
+			domains = parsed.Domains
 			if color == "" && parsed.Color != "" && search.ValidColor(parsed.Color) {
 				color = parsed.Color
 			}
-			if text == "" && color == "" {
+			if text == "" && color == "" && len(types) == 0 && len(domains) == 0 {
 				text = q
 			}
-			understood = understoodString(text, color, types)
+			understood = understoodString(text, color, types, domains)
 		}
 	}
-	results, err := search.Run(ctx, s.store, s.provider, uid, text, color, types, defaultListLimit)
+	results, err := search.RunQuery(ctx, s.store, s.provider, uid, search.Query{
+		Text: text, Color: color, Types: types, Domains: domains, Scope: search.ScopeAll,
+	}, defaultListLimit)
 	if err != nil {
 		return appmcp.SearchOutcome{}, err
 	}
@@ -256,7 +259,7 @@ func relatedRowToDBItem(row db.RelatedByEmbeddingRow) db.Item {
 
 // understoodString renders the parsed-query echo as a short human line for the
 // MCP tool result (the REST layer uses buildUnderstood for its JSON shape).
-func understoodString(text, color string, types []string) string {
+func understoodString(text, color string, types, domains []string) string {
 	var parts []string
 	if text != "" {
 		parts = append(parts, "text "+text)
@@ -266,6 +269,9 @@ func understoodString(text, color string, types []string) string {
 	}
 	if len(types) > 0 {
 		parts = append(parts, "types "+strings.Join(types, ","))
+	}
+	if len(domains) > 0 {
+		parts = append(parts, "domains "+strings.Join(domains, ","))
 	}
 	return strings.Join(parts, " · ")
 }

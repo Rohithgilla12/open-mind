@@ -162,24 +162,43 @@ func TestOpenAI_ParseQuery(t *testing.T) {
 	var gotReq chatRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
-		// The model may echo an unknown card type ("poster"); it must be dropped.
-		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"{\"text\":\"bread\",\"color\":\"blue\",\"types\":[\"book\",\"poster\"]}"}}]}`)
+		// Unknown card type and noisy domain must be sanitised.
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"{\"text\":\"shoes\",\"color\":\"\",\"types\":[\"tweet\",\"poster\"],\"domains\":[\"https://www.x.com/a\",\"x.com\",\"not a host\"]}"}}]}`)
 	}))
 	defer srv.Close()
 
 	p := newTestOpenAI(t, srv, "m", "")
-	out, err := p.ParseQuery(context.Background(), "blue book about bread")
+	out, err := p.ParseQuery(context.Background(), "posts from x.com about shoes")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Text != "bread" || out.Color != "blue" {
-		t.Fatalf("ParseQuery = %+v, want text=bread color=blue", out)
+	if out.Text != "shoes" || out.Color != "" {
+		t.Fatalf("ParseQuery = %+v, want text=shoes color=", out)
 	}
-	if len(out.Types) != 1 || out.Types[0] != "book" {
-		t.Fatalf("Types = %v, want [book] (unknown types dropped)", out.Types)
+	if len(out.Types) != 1 || out.Types[0] != "tweet" {
+		t.Fatalf("Types = %v, want [tweet] (unknown types dropped)", out.Types)
+	}
+	if len(out.Domains) != 1 || out.Domains[0] != "x.com" {
+		t.Fatalf("Domains = %v, want [x.com] (normalised + deduped)", out.Domains)
 	}
 	if gotReq.ResponseFormat == nil || gotReq.ResponseFormat.Type != "json_object" {
 		t.Fatalf("request response_format = %+v, want json_object", gotReq.ResponseFormat)
+	}
+}
+
+func TestSanitiseDomains(t *testing.T) {
+	got := sanitiseDomains([]string{"x.com", "https://www.x.com/a", "twitter.com", "", "not a host", "  "})
+	want := []string{"x.com", "twitter.com"}
+	if len(got) != len(want) {
+		t.Fatalf("sanitiseDomains = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("sanitiseDomains[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if sanitiseDomains(nil) != nil {
+		t.Errorf("sanitiseDomains(nil) = %v, want nil", sanitiseDomains(nil))
 	}
 }
 

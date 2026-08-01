@@ -91,16 +91,18 @@ func (g *Gemini) Embed(ctx context.Context, text string) ([]float32, error) {
 }
 
 // ParseQuery interprets a natural-language query, splitting it into a text
-// portion, an optional colour, and card-type filters via a JSON-mode call.
+// portion, an optional colour, card-type filters, and domain filters via a
+// JSON-mode call.
 func (g *Gemini) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) {
 	cfg := &genai.GenerateContentConfig{
 		ResponseMIMEType: "application/json",
 		ResponseSchema: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
-				"text":  {Type: genai.TypeString},
-				"color": {Type: genai.TypeString},
-				"types": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
+				"text":    {Type: genai.TypeString},
+				"color":   {Type: genai.TypeString},
+				"types":   {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
+				"domains": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
 			},
 		},
 	}
@@ -110,17 +112,19 @@ func (g *Gemini) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) 
 		return ParsedQuery{}, fmt.Errorf("gemini parsequery: %w", classifyGeminiErr(err))
 	}
 	var parsed struct {
-		Text  string   `json:"text"`
-		Color string   `json:"color"`
-		Types []string `json:"types"`
+		Text    string   `json:"text"`
+		Color   string   `json:"color"`
+		Types   []string `json:"types"`
+		Domains []string `json:"domains"`
 	}
 	if err := json.Unmarshal([]byte(resp.Text()), &parsed); err != nil {
 		return ParsedQuery{}, fmt.Errorf("parsing gemini query: %w", err)
 	}
 	return ParsedQuery{
-		Text:  strings.TrimSpace(parsed.Text),
-		Color: strings.TrimSpace(parsed.Color),
-		Types: sanitiseTypes(parsed.Types),
+		Text:    strings.TrimSpace(parsed.Text),
+		Color:   strings.TrimSpace(parsed.Color),
+		Types:   sanitiseTypes(parsed.Types),
+		Domains: sanitiseDomains(parsed.Domains),
 	}, nil
 }
 

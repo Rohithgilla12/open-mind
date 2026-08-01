@@ -61,10 +61,10 @@ Prompt update — four parts JSON:
 `{"text","color","types","domains"}`  
 Example: `"posts from x.com about shoes"` → text≈shoes, domains=["x.com"], types may include tweet.
 
-- [ ] **Step 1:** Failing tests for explicit `types`/`domains`, parse domains, explicit wins over parse
-- [ ] **Step 2:** Implement AI + handler
-- [ ] **Step 3:** `go test ./internal/ai/ ./internal/api/ -run 'Search|Parse' -count=1`
-- [ ] **Step 4:** Commit `feat(search): structured /search params and ParseQuery domains`
+- [x] **Step 1:** Failing tests for explicit `types`/`domains`, parse domains, explicit wins over parse
+- [x] **Step 2:** Implement AI + handler
+- [x] **Step 3:** `go test ./internal/ai/ ./internal/api/ -run 'Search|Parse' -count=1`
+- [x] **Step 4:** Commit `feat(search): structured /search params and ParseQuery domains`
 
 ---
 

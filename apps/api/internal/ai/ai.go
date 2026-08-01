@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -20,13 +21,14 @@ type Enrichment struct {
 
 // ParsedQuery is the structured interpretation of a natural-language search
 // query: the free-text portion to run text/vector search over, an optional
-// colour term (name or hex), and any card-type filters the user asked for.
+// colour term (name or hex), card-type filters, and URL-host domain filters.
 // Providers that cannot interpret queries (e.g. noop) return {Text: q}, which
 // keeps search fully functional without an AI backend.
 type ParsedQuery struct {
-	Text  string
-	Color string
-	Types []string
+	Text    string
+	Color   string
+	Types   []string
+	Domains []string // normalised bare hosts
 }
 
 // Place is a real-world location extracted from saved content (e.g. a cafe
@@ -68,11 +70,13 @@ type Provider interface {
 // parsing. It is used verbatim by every provider that can interpret queries so
 // their behaviour stays consistent.
 const parseQueryInstruction = `You interpret a natural-language search over a personal knowledge library. ` +
-	`Split the query into three parts: "text" (the descriptive words to search for, with any colour word or item-type word removed), ` +
-	`"color" (a single colour name or #RRGGBB hex string if the user mentions a colour, otherwise ""), and ` +
-	`"types" (a subset of [article, product, book, recipe, video, tweet, image, note, quote] the user is asking for, otherwise []). ` +
-	`Respond with only a JSON object of the form {"text": string, "color": string, "types": [string]}. ` +
-	`Example: "blue book about bread" -> {"text":"bread","color":"blue","types":["book"]}.`
+	`Split the query into four parts: "text" (the descriptive words to search for, with any colour word, item-type word, or site/host word removed), ` +
+	`"color" (a single colour name or #RRGGBB hex string if the user mentions a colour, otherwise ""), ` +
+	`"types" (a subset of [article, product, book, recipe, video, tweet, image, note, quote] the user is asking for, otherwise []), and ` +
+	`"domains" (bare URL hosts the user names, e.g. x.com or github.com — never invent hosts; otherwise []). ` +
+	`Respond with only a JSON object of the form {"text": string, "color": string, "types": [string], "domains": [string]}. ` +
+	`Example: "blue book about bread" -> {"text":"bread","color":"blue","types":["book"],"domains":[]}. ` +
+	`Example: "posts from x.com about shoes" -> {"text":"shoes","color":"","types":["tweet"],"domains":["x.com"]}.`
 
 // extractPlacesInstruction is the shared system prompt for place extraction.
 // It is used verbatim by every provider that can extract places so their
@@ -223,6 +227,57 @@ func sanitiseTypes(in []string) []string {
 			seen[t] = true
 			out = append(out, t)
 		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// sanitiseDomain extracts a lowercase host from a URL-ish string (mirrors
+// search.NormalizeDomain without importing search, which would cycle).
+func sanitiseDomain(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.Contains(raw, " ") {
+		return "", false
+	}
+	toParse := raw
+	if !strings.Contains(raw, "://") {
+		toParse = "https://" + raw
+	}
+	u, err := url.Parse(toParse)
+	if err != nil {
+		return "", false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || strings.Contains(host, " ") {
+		return "", false
+	}
+	host = strings.TrimPrefix(host, "www.")
+	if host == "" {
+		return "", false
+	}
+	return host, true
+}
+
+// sanitiseDomains normalises each entry, skips invalids, and dedupes
+// order-preserving (first-seen wins), returning nil when nothing remains.
+func sanitiseDomains(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, r := range in {
+		host, ok := sanitiseDomain(r)
+		if !ok {
+			continue
+		}
+		if _, dup := seen[host]; dup {
+			continue
+		}
+		seen[host] = struct{}{}
+		out = append(out, host)
 	}
 	if len(out) == 0 {
 		return nil

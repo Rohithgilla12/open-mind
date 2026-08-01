@@ -20,7 +20,7 @@ func TestNoopProvider(t *testing.T) {
 	if _, err := p.Embed(ctx, "x"); !errors.Is(err, ai.ErrNotSupported) {
 		t.Errorf("Embed err = %v, want ErrNotSupported", err)
 	}
-	if q, err := p.ParseQuery(ctx, "red poster"); err != nil || q.Text != "red poster" || q.Color != "" || len(q.Types) != 0 {
+	if q, err := p.ParseQuery(ctx, "red poster"); err != nil || q.Text != "red poster" || q.Color != "" || len(q.Types) != 0 || len(q.Domains) != 0 {
 		t.Errorf("ParseQuery = (%+v, %v), want text-only passthrough", q, err)
 	}
 	if _, err := p.ExtractPlaces(ctx, "t", "c"); !errors.Is(err, ai.ErrNotSupported) {

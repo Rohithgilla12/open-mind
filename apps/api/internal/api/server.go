@@ -298,16 +298,35 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 	if params.Color != nil {
 		color = strings.TrimSpace(*params.Color)
 	}
-	if q == "" && color == "" {
-		writeError(w, http.StatusBadRequest, "q or color is required")
-		return
+
+	var types []string
+	if params.Types != nil {
+		for _, t := range *params.Types {
+			ts := strings.TrimSpace(string(t))
+			if !validCardType(ts) {
+				writeError(w, http.StatusBadRequest, "unknown card type")
+				return
+			}
+			types = append(types, ts)
+		}
 	}
+
+	var domains []string
+	if params.Domains != nil {
+		domains = search.NormalizeDomains(*params.Domains)
+	}
+
+	scope := search.ScopeAll
+	if params.Scope != nil && *params.Scope == SearchItemsParamsScopeLibrary {
+		scope = search.ScopeLibrary
+	}
+
 	ctx := r.Context()
 
-	// text/color/types are the signals actually searched. Without parsing they
-	// are the raw params; with parse=true the AI provider splits q into them.
+	// text/color/types/domains are the signals actually searched. Without
+	// parsing they are the explicit params; with parse=true the AI provider
+	// fills gaps (explicit always wins).
 	text := q
-	var types []string
 	var understood *UnderstoodQuery
 	if params.Parse != nil && *params.Parse && q != "" {
 		parsed, err := s.provider.ParseQuery(ctx, q)
@@ -317,22 +336,33 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 			slog.Warn("query parse failed; searching raw query", "err", err)
 		} else {
 			text = strings.TrimSpace(parsed.Text)
-			types = parsed.Types
-			// A parsed colour applies only when the caller gave none explicitly,
-			// and only if it's a colour search can actually use.
 			if color == "" && parsed.Color != "" && search.ValidColor(parsed.Color) {
 				color = parsed.Color
 			}
+			if len(types) == 0 {
+				types = parsed.Types
+			}
+			if len(domains) == 0 {
+				domains = parsed.Domains
+			}
 			// Never search nothing: if parsing stripped everything, fall back to
 			// the raw query as free text.
-			if text == "" && color == "" {
+			if text == "" && color == "" && len(types) == 0 && len(domains) == 0 {
 				text = q
 			}
-			understood = buildUnderstood(text, color, types)
+			understood = buildUnderstood(text, color, types, domains)
 		}
 	}
 
-	results, err := search.Run(ctx, s.store, s.provider, userID(ctx), text, color, types, defaultListLimit)
+	query := search.Query{
+		Text: text, Color: color, Types: types, Domains: domains, Scope: scope,
+	}
+	if !query.HasMatchSignal() {
+		writeError(w, http.StatusBadRequest, "q, color, types, or domains is required")
+		return
+	}
+
+	results, err := search.RunQuery(ctx, s.store, s.provider, userID(ctx), query, defaultListLimit)
 	if errors.Is(err, search.ErrBadColor) {
 		writeError(w, http.StatusBadRequest, "invalid color")
 		return
@@ -351,7 +381,7 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 
 // buildUnderstood assembles the UnderstoodQuery echoed back to clients, omitting
 // empty fields so the response only carries what was actually searched.
-func buildUnderstood(text, color string, types []string) *UnderstoodQuery {
+func buildUnderstood(text, color string, types, domains []string) *UnderstoodQuery {
 	u := &UnderstoodQuery{}
 	if text != "" {
 		u.Text = &text
@@ -365,6 +395,11 @@ func buildUnderstood(text, color string, types []string) *UnderstoodQuery {
 			ts = append(ts, UnderstoodQueryTypes(t))
 		}
 		u.Types = &ts
+	}
+	if len(domains) > 0 {
+		ds := make([]string, len(domains))
+		copy(ds, domains)
+		u.Domains = &ds
 	}
 	return u
 }

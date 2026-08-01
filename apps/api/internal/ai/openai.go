@@ -160,8 +160,8 @@ func (o *OpenAI) Embed(ctx context.Context, text string) ([]float32, error) {
 }
 
 // ParseQuery interprets a natural-language query, splitting it into a text
-// portion, an optional colour, and card-type filters via chat/completions JSON
-// mode.
+// portion, an optional colour, card-type filters, and domain filters via
+// chat/completions JSON mode.
 func (o *OpenAI) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) {
 	req := chatRequest{
 		Model:          o.model,
@@ -180,17 +180,19 @@ func (o *OpenAI) ParseQuery(ctx context.Context, q string) (ParsedQuery, error) 
 		return ParsedQuery{}, fmt.Errorf("openai parsequery: empty response")
 	}
 	var parsed struct {
-		Text  string   `json:"text"`
-		Color string   `json:"color"`
-		Types []string `json:"types"`
+		Text    string   `json:"text"`
+		Color   string   `json:"color"`
+		Types   []string `json:"types"`
+		Domains []string `json:"domains"`
 	}
 	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &parsed); err != nil {
 		return ParsedQuery{}, fmt.Errorf("parsing openai query: %w", err)
 	}
 	return ParsedQuery{
-		Text:  strings.TrimSpace(parsed.Text),
-		Color: strings.TrimSpace(parsed.Color),
-		Types: sanitiseTypes(parsed.Types),
+		Text:    strings.TrimSpace(parsed.Text),
+		Color:   strings.TrimSpace(parsed.Color),
+		Types:   sanitiseTypes(parsed.Types),
+		Domains: sanitiseDomains(parsed.Domains),
 	}, nil
 }
 
