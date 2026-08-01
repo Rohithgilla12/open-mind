@@ -67,9 +67,13 @@
   no self-service recovery — needs server-side reaper or explicit "claim this
   device" flow.
 - Place removal follow-ups: no removal affordance on the aggregate `/places`
-  map page (web or mobile) — only item detail; and a removed place is a plain
-  row delete, so if we ever add a re-enrich/re-extract trigger it will resurrect
-  the row (would need a per-item suppression list the job filters against)
+  map page (web or mobile) — only item detail. A removed place is a plain row
+  delete, so a future re-enrich/re-extract trigger may re-derive it (extraction
+  is non-deterministic, so not reliably the same row) — would need a per-item
+  suppression list the job filters against. Neither client's optimistic-removal
+  path is unit-tested: `apps/web` vitest is node-only over `lib/`, and mobile
+  jest only matches `.ts`, so component tests would need a new stack
+  (jsdom + testing-library) — maintainer call, not a defect
 - Places map follow-ups: note OSM tile runtime dep in self-hosting docs;
   clustering polish — keyboard-accessible web cluster markers (currently
   pointer-only), and (optional) truer mobile zoom mapping using viewport width
@@ -88,14 +92,17 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
-- Remove an extracted place — `DELETE /items/{id}/places/{placeId}` (204, 404
-  on unknown/cross-tenant) so a hallucinated venue or a brand name read off a
-  reel can be dropped. Web item rail gained a per-place `×` (optimistic, the
-  section's divider moved into the client component so removing the last one
-  takes the rule with it); mobile item detail gained a `×` with a destructive
-  confirm, optimistic cache patch, and rollback on failure. Deletion is a plain
-  row delete — re-running `extract_places` for the item would re-derive it, but
-  nothing re-enqueues that today (2026-08-01)
+- Remove an extracted place — `DELETE /items/{id}/places/{placeId}` (204; 404
+  for an unknown/cross-tenant item, an unknown place, or a place on a different
+  item) so a hallucinated venue or a brand name read off a reel can be dropped.
+  Web item rail gained a per-place `×`; the leading hairline became a shared
+  `Rule` component the client section renders itself, so removing the last place
+  takes the rule with it. Mobile gained a `×` with a destructive confirm and a
+  single-row optimistic patch (not a list snapshot — that resurrected
+  concurrently-removed places). Both clients treat only 204 as success: a 404 is
+  as likely to be a missing proxy route or an instance predating the endpoint as
+  it is an already-deleted place. Caveat on re-derivation in Later
+  (2026-08-01)
 - Direct Raindrop.io import (tweet request) — `POST /import/raindrop` takes a
   Raindrop API test token, pulls the account's one-shot CSV export server-side
   (token used for that single request, never stored/logged), and funnels it

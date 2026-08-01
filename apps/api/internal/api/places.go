@@ -61,15 +61,18 @@ func (s *Server) GetItemPlaces(w http.ResponseWriter, r *http.Request, id openap
 
 // DeleteItemPlace drops one extracted place from an item — the user's escape
 // hatch when the model invents a venue or reads a brand name off a reel as
-// somewhere you can visit. A delete that affects no rows (unknown place,
-// wrong item, or cross-tenant) returns 404.
+// somewhere you can visit. An unknown or cross-tenant item 404s on the
+// ownership check; a delete that then affects no rows (unknown place, or a
+// place hanging off a different item of yours) 404s too. The delete stays
+// scoped by user_id regardless, so the ownership check is defence in depth
+// rather than the only guard.
 func (s *Server) DeleteItemPlace(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, placeId openapi_types.UUID) {
 	ctx := r.Context()
 	uid := userID(ctx)
 
 	owned, err := s.ownsItem(ctx, uid, id)
 	if err != nil {
-		slog.Error("checking item ownership", "err", err)
+		slog.Error("checking item ownership", "item_id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "could not delete place")
 		return
 	}
@@ -80,7 +83,7 @@ func (s *Server) DeleteItemPlace(w http.ResponseWriter, r *http.Request, id open
 
 	rows, err := s.store.Queries.DeleteItemPlace(ctx, db.DeleteItemPlaceParams{UserID: uid, ItemID: id, ID: placeId})
 	if err != nil {
-		slog.Error("deleting item place", "err", err)
+		slog.Error("deleting item place", "item_id", id, "place_id", placeId, "err", err)
 		writeError(w, http.StatusInternalServerError, "could not delete place")
 		return
 	}

@@ -63,3 +63,8 @@ export type RelatedItem =
 // One element of GET /places, straight from the OpenAPI contract.
 export type MapPlace =
   paths["/places"]["get"]["responses"]["200"]["content"]["application/json"][number];
+
+// One element of GET /items/{id}/places — the same shape without the item
+// context MapPlace carries.
+export type Place =
+  paths["/items/{id}/places"]["get"]["responses"]["200"]["content"]["application/json"][number];

@@ -2,19 +2,11 @@
 
 import { tokens } from "@openmind/ui";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
+import { Rule } from "../../../components/Rule";
+import type { Place } from "../../../lib/types";
 
 const { color, font } = tokens;
-
-export type Place = {
-  id: string;
-  name: string;
-  hint: string;
-  address: string;
-  lat?: number;
-  lng?: number;
-  source: string;
-};
 
 const removeBtn: CSSProperties = {
   display: "inline-flex",
@@ -45,22 +37,15 @@ function mapsUrl(p: Place): string {
 /**
  * Extracted places for one item, each removable. Extraction is a guess — a
  * reel caption's brand name or a model's invention lands here alongside the
- * real venues — so every row gets an escape hatch. Removal is optimistic:
- * the row goes immediately and only comes back if the server rejects it.
+ * real venues — so every row gets an escape hatch. Removal is optimistic: the
+ * row goes immediately and only comes back if the delete actually failed.
  *
- * The rail's leading divider is rendered here rather than by the parent so
- * removing the last place takes the rule with it, instead of leaving a stray
- * hairline until the server re-render lands.
+ * This renders its own leading Rule rather than letting the parent place one,
+ * because whether any place survives is client-side state the server component
+ * can't see — removing the last one has to take the rule with it instead of
+ * leaving a stray hairline.
  */
-export function PlacesSection({
-  itemId,
-  places,
-  divider,
-}: {
-  itemId: string;
-  places: Place[];
-  divider: ReactNode;
-}) {
+export function PlacesSection({ itemId, places }: { itemId: string; places: Place[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [removed, setRemoved] = useState<string[]>([]);
@@ -75,11 +60,14 @@ export function PlacesSection({
     startTransition(async () => {
       try {
         const res = await fetch(`/api/items/${itemId}/places/${place.id}`, { method: "DELETE" });
-        // 404 means it is already gone server-side — the row staying hidden is
-        // the right outcome, so only a real failure restores it.
-        if (!res.ok && res.status !== 404) {
+        // Only the API's own 204 counts. A 404 here is as likely to be Next
+        // failing to match this route as it is the place being already gone,
+        // and silently "succeeding" on an unreachable proxy would hide the row
+        // until a hard reload brought it back.
+        if (res.status !== 204) {
           setRemoved((prev) => prev.filter((id) => id !== place.id));
           setError(`Could not remove ${place.name}. Please try again.`);
+          console.error("place DELETE failed", { itemId, placeId: place.id, status: res.status });
           return;
         }
         router.refresh();
@@ -92,7 +80,7 @@ export function PlacesSection({
 
   return (
     <>
-      {divider}
+      <Rule />
       <div className="meta" style={{ color: color.inkFaintAlt }}>
         Places
       </div>

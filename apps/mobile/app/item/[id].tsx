@@ -53,6 +53,28 @@ function hostOf(url?: string): string {
   }
 }
 
+/**
+ * Title + body for a failed place removal. "Try again" is the wrong advice for
+ * most of these, so each cause gets its own line — 404 in particular almost
+ * always means the instance predates the endpoint rather than anything the
+ * user can retry away.
+ */
+function removePlaceError(status: number): [string, string] {
+  switch (status) {
+    case 0:
+      return ["Couldn't reach your instance", "Check your connection and try again."];
+    case 401:
+      return ["Signed out", "Re-link this device in Settings."];
+    case 404:
+      return [
+        "Couldn't remove",
+        "Your instance may be running a version that doesn't support removing places yet.",
+      ];
+    default:
+      return ["Couldn't remove", "Please try again."];
+  }
+}
+
 /** Palette dots — same signature detail as ItemCard. Max 5, 9px, hairline ring. */
 function PaletteDots({ dots }: { dots: string[] }) {
   if (dots.length === 0) return null;
@@ -138,17 +160,24 @@ export default function ItemScreen() {
           onPress: () => {
             void (async () => {
               const key = queryKeys.itemPlaces(itemId);
-              const previous = queryClient.getQueryData<Place[]>(key);
               queryClient.setQueryData<Place[]>(key, (prev) =>
                 prev?.filter((p) => p.id !== place.id),
               );
               const res = await deleteItemPlace(itemId, place.id);
               if (!res.ok) {
-                queryClient.setQueryData<Place[]>(key, previous);
-                Alert.alert("Couldn't remove", "Please try again.");
+                // Re-insert just this row. Restoring a whole pre-removal
+                // snapshot would resurrect a *different* place that a
+                // concurrent removal had already deleted for real.
+                queryClient.setQueryData<Place[]>(key, (prev) =>
+                  prev && !prev.some((p) => p.id === place.id) ? [...prev, place] : prev,
+                );
+                Alert.alert(...removePlaceError(res.status));
                 return;
               }
-              // The map screen aggregates places across items, so it goes stale too.
+              // Only the map screen needs a refetch — it aggregates places
+              // across items, so it has gone stale. This item's own list is
+              // already correct from the patch above; invalidating it too would
+              // just buy a redundant round trip.
               void queryClient.invalidateQueries({ queryKey: queryKeys.places });
             })();
           },
@@ -269,7 +298,11 @@ function PlacesSection({ places, onRemove }: { places: Place[]; onRemove: (p: Pl
   return (
     <View style={styles.placesSection}>
       {first ? (
+        // initialRegion is only read at mount, so the map must remount when the
+        // anchor place changes — otherwise removing the first pinned place
+        // leaves the view centred on a venue that is no longer there.
         <MapView
+          key={first.id}
           style={styles.placesMap}
           initialRegion={{
             latitude: first.lat,

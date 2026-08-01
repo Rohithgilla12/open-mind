@@ -4,18 +4,19 @@ import { notFound } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import { Palette } from "../../../components/Palette";
 import { RailLinks } from "../../../components/RailLinks";
+import { Rule } from "../../../components/Rule";
 import { apiFetch } from "../../../lib/api";
 import { assetSrc } from "../../../lib/assets";
 import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
 import { relativeTime } from "../../../lib/relative-time";
 import { renderInlineMarkdown } from "../../../lib/text";
-import type { ItemDetail } from "../../../lib/types";
+import type { ItemDetail, Place } from "../../../lib/types";
 import { KeepButton } from "../../../components/KeepButton";
 import { KindleButton } from "../../../components/KindleButton";
 import { PinButton } from "../../../components/PinButton";
 import { DeleteButton } from "./DeleteButton";
-import { PlacesSection, type Place } from "./PlacesSection";
+import { PlacesSection } from "./PlacesSection";
 import { TagEditor } from "./TagEditor";
 
 const { color, font } = tokens;
@@ -193,7 +194,7 @@ function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
     item.palette && item.palette.length > 0
       ? item.palette
       : derivedPalette(`${item.title ?? ""} ${tags.join(" ")}`.trim() || item.cardType || "item");
-  const divider = <div style={{ height: 1, background: color.hairline, margin: "18px 0" }} />;
+  const divider = <Rule />;
   return (
     <aside
       style={{
@@ -258,7 +259,7 @@ function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
           </div>
         </>
       ) : null}
-      <PlacesSection itemId={item.id} places={places} divider={divider} />
+      <PlacesSection itemId={item.id} places={places} />
       {divider}
       <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
       {divider}

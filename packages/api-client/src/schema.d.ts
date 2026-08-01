@@ -136,7 +136,7 @@ export interface paths {
         post?: never;
         /**
          * Remove an extracted place
-         * @description Drops one place the pipeline extracted from this item — the escape hatch for a model that hallucinated a venue or picked up a brand name that isn't somewhere you can go. Removal is immediate and permanent; re-running extraction for the item would re-derive it.
+         * @description Drops one place the pipeline extracted from this item — the escape hatch for a model that hallucinated a venue or picked up a brand name that isn't somewhere you can go. Takes effect immediately and cannot be undone through the API. The place can only come back if extraction runs again for this item, which nothing triggers today; extraction is also non-deterministic, so a re-run would not necessarily reproduce it.
          */
         delete: operations["deleteItemPlace"];
         options?: never;

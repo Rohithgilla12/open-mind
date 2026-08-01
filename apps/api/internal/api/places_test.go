@@ -101,7 +101,12 @@ func TestDeleteItemPlace(t *testing.T) {
 		return id
 	}
 
-	del := func(t *testing.T, itemID, placeID string) int {
+	// The error string is asserted alongside the status because both 404
+	// branches are the same status: "item not found" comes from the ownership
+	// check, "place not found" from the delete matching no rows. Without the
+	// body, a test cannot tell which guard fired — and a refactor that removed
+	// one of them would still pass.
+	del := func(t *testing.T, itemID, placeID string) (int, string) {
 		t.Helper()
 		req, err := http.NewRequest(http.MethodDelete, srv.URL+"/items/"+itemID+"/places/"+placeID, nil)
 		if err != nil {
@@ -112,7 +117,16 @@ func TestDeleteItemPlace(t *testing.T) {
 			t.Fatalf("delete place: %v", err)
 		}
 		defer resp.Body.Close()
-		return resp.StatusCode
+		if resp.StatusCode == http.StatusNoContent {
+			return resp.StatusCode, ""
+		}
+		var body struct {
+			Error string `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode error body: %v", err)
+		}
+		return resp.StatusCode, body.Error
 	}
 
 	remaining := func(t *testing.T) []string {
@@ -131,8 +145,10 @@ func TestDeleteItemPlace(t *testing.T) {
 	keep := seed(t, api.DevUserID, item.ID, "Fabrica")
 	drop := seed(t, api.DevUserID, item.ID, "Hallucinated Cafe")
 
+	// These subtests share `keep`/`drop` and run in order: "deleting again"
+	// only means anything because the subtest before it removed `drop`.
 	t.Run("removes only the named place", func(t *testing.T) {
-		if status := del(t, item.ID.String(), drop.String()); status != http.StatusNoContent {
+		if status, _ := del(t, item.ID.String(), drop.String()); status != http.StatusNoContent {
 			t.Fatalf("status=%d, want 204", status)
 		}
 		names := remaining(t)
@@ -142,14 +158,16 @@ func TestDeleteItemPlace(t *testing.T) {
 	})
 
 	t.Run("deleting again is 404", func(t *testing.T) {
-		if status := del(t, item.ID.String(), drop.String()); status != http.StatusNotFound {
-			t.Errorf("status=%d, want 404", status)
+		status, msg := del(t, item.ID.String(), drop.String())
+		if status != http.StatusNotFound || msg != "place not found" {
+			t.Errorf("status=%d msg=%q, want 404 %q", status, msg, "place not found")
 		}
 	})
 
-	t.Run("unknown item is 404", func(t *testing.T) {
-		if status := del(t, uuid.NewString(), keep.String()); status != http.StatusNotFound {
-			t.Errorf("status=%d, want 404", status)
+	t.Run("unknown item is 404 at the ownership check", func(t *testing.T) {
+		status, msg := del(t, uuid.NewString(), keep.String())
+		if status != http.StatusNotFound || msg != "item not found" {
+			t.Errorf("status=%d msg=%q, want 404 %q", status, msg, "item not found")
 		}
 	})
 
@@ -158,15 +176,18 @@ func TestDeleteItemPlace(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create other item: %v", err)
 		}
-		if status := del(t, other.ID.String(), keep.String()); status != http.StatusNotFound {
-			t.Errorf("status=%d, want 404", status)
+		// The caller owns both items, so this gets past ownsItem and is the
+		// item_id predicate in the DELETE doing the work.
+		status, msg := del(t, other.ID.String(), keep.String())
+		if status != http.StatusNotFound || msg != "place not found" {
+			t.Errorf("status=%d msg=%q, want 404 %q", status, msg, "place not found")
 		}
 		if names := remaining(t); len(names) != 1 {
 			t.Errorf("remaining places = %v, want the place untouched", names)
 		}
 	})
 
-	t.Run("another user's place is 404 and survives", func(t *testing.T) {
+	t.Run("another user's item is 404 at the ownership check", func(t *testing.T) {
 		otherUser := uuid.MustParse("00000000-0000-0000-0000-0000000000fe")
 		if err := s.Queries.EnsureUser(ctx, otherUser); err != nil {
 			t.Fatalf("ensure other user: %v", err)
@@ -177,15 +198,42 @@ func TestDeleteItemPlace(t *testing.T) {
 		}
 		theirs := seed(t, otherUser, otherItem.ID, "Secret Spot")
 
-		if status := del(t, otherItem.ID.String(), theirs.String()); status != http.StatusNotFound {
-			t.Errorf("status=%d, want 404", status)
+		status, msg := del(t, otherItem.ID.String(), theirs.String())
+		if status != http.StatusNotFound || msg != "item not found" {
+			t.Errorf("status=%d msg=%q, want 404 %q", status, msg, "item not found")
 		}
 		rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: otherUser, ItemID: otherItem.ID})
 		if err != nil {
 			t.Fatalf("list other user's places: %v", err)
 		}
 		if len(rows) != 1 {
-			t.Errorf("cross-tenant delete removed %d rows, want the place untouched", 1-len(rows))
+			t.Errorf("other tenant has %d places, want 1 (their row must survive)", len(rows))
+		}
+	})
+
+	// The subtest above stops at ownsItem, so it never reaches the DELETE and
+	// says nothing about the query's own user_id predicate. This one seeds a
+	// row owned by another tenant but hanging off an item the caller owns —
+	// the only arrangement that gets past ownsItem and leaves `user_id = $1`
+	// in the DELETE as the sole thing standing between the caller and someone
+	// else's row. Drop that predicate and this test fails; the others don't.
+	t.Run("delete is scoped by user_id, not just item_id", func(t *testing.T) {
+		otherUser := uuid.MustParse("00000000-0000-0000-0000-0000000000fd")
+		if err := s.Queries.EnsureUser(ctx, otherUser); err != nil {
+			t.Fatalf("ensure other user: %v", err)
+		}
+		misscoped := seed(t, otherUser, item.ID, "Someone Else's Row")
+
+		status, msg := del(t, item.ID.String(), misscoped.String())
+		if status != http.StatusNotFound || msg != "place not found" {
+			t.Errorf("status=%d msg=%q, want 404 %q", status, msg, "place not found")
+		}
+		var alive bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM item_places WHERE id = $1)`, misscoped).Scan(&alive); err != nil {
+			t.Fatalf("checking row survival: %v", err)
+		}
+		if !alive {
+			t.Error("delete crossed tenants: another user's row was removed")
 		}
 	})
 }
