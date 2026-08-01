@@ -5,7 +5,7 @@
 // Keeping content as data — rather than buried in JSX — is what makes the page
 // cheap to maintain, and lets us unit-test it without a DOM.
 
-export const LAST_UPDATED = "2026-07-17";
+export const LAST_UPDATED = "2026-08-01";
 
 export type Principle = { title: string; body: string };
 export type PipelineStage = { name: string; note: string };
@@ -64,6 +64,10 @@ export const stack: StackRow[] = [
   { layer: "Extraction", choice: "readability · trafilatura · domdistiller", why: "Layered fallbacks for clean article text." },
   { layer: "PDF", choice: "go-pdfium + wazero", why: "PDFium compiled to WASM — no C toolchain at build time." },
   { layer: "AI", choice: "Gemini · OpenAI-compatible · noop", why: "Ordered fallback chain behind one adapter interface." },
+  { layer: "Auth", choice: "Clerk or bearer device keys", why: "AUTH_MODE picks one; token mode keeps self-hosting free of any third party." },
+  { layer: "Notifications", choice: "Postgres outbox · Expo push · e-mail", why: "At-least-once delivery with no broker; every channel is opt-in." },
+  { layer: "Geocoding", choice: "Google Places or Nominatim (optional)", why: "Turns places named in a video into map pins; unset means places store by name only." },
+  { layer: "Reel media", choice: "yt-dlp + ffmpeg (opt-in build)", why: "Samples video frames for on-screen place names; off unless the image is built with it." },
   { layer: "Agents", choice: "MCP (go-sdk)", why: "Openmind exposes an MCP server so assistants can read your library." },
   { layer: "Web", choice: "Next.js 15 · React 19", why: "App Router; warm design tokens from @openmind/ui." },
   { layer: "Tasks", choice: "Taskfile", why: "dev, generate, test, lint, migrate — codegen no-ops when inputs are unchanged." },
