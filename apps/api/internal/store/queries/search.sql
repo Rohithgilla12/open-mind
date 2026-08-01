@@ -24,7 +24,7 @@ WHERE user_id = $1
       SELECT 1
       FROM unnest(sqlc.narg(filter_domains)::text[]) AS d(domain)
       WHERE url_host = d.domain
-         OR url_host LIKE d.domain || '.%'
+         OR url_host LIKE '%.' || d.domain
     )
   )
 ORDER BY rank DESC
@@ -51,7 +51,7 @@ WHERE e.user_id = $1
       SELECT 1
       FROM unnest(sqlc.narg(filter_domains)::text[]) AS d(domain)
       WHERE i.url_host = d.domain
-         OR i.url_host LIKE d.domain || '.%'
+         OR i.url_host LIKE '%.' || d.domain
     )
   )
 ORDER BY e.embedding <=> $2 LIMIT $3;
@@ -77,7 +77,7 @@ WHERE user_id = $1
       SELECT 1
       FROM unnest(sqlc.narg(filter_domains)::text[]) AS d(domain)
       WHERE url_host = d.domain
-         OR url_host LIKE d.domain || '.%'
+         OR url_host LIKE '%.' || d.domain
     )
   );
 
@@ -104,7 +104,7 @@ WHERE user_id = sqlc.arg(user_id)
       SELECT 1
       FROM unnest(sqlc.narg(filter_domains)::text[]) AS d(domain)
       WHERE url_host = d.domain
-         OR url_host LIKE d.domain || '.%'
+         OR url_host LIKE '%.' || d.domain
     )
   )
 ORDER BY created_at DESC

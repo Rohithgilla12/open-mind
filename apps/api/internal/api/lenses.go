@@ -293,9 +293,16 @@ func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi
 
 // runLensRule executes a canonical rule via the shared search.RunLensRule
 // seam (also used by the send-to-Kindle Lens digest job), so both paths see
-// identical matches.
+// identical matches. Domains/scope on normalisedRule land in Task 5; until
+// then every Lens run defaults to library scope.
 func (s *Server) runLensRule(ctx context.Context, uid uuid.UUID, rule normalisedRule) ([]search.Result, error) {
-	return search.RunLensRule(ctx, s.store, s.provider, uid, rule.q, rule.color, rule.types)
+	q := search.Query{
+		Text:  rule.q,
+		Color: rule.color,
+		Types: rule.types,
+		Scope: search.ScopeLibrary,
+	}
+	return search.RunLensRule(ctx, s.store, s.provider, uid, q)
 }
 
 // decodeStoredRule reads a persisted jsonb rule into its canonical form. Stored

@@ -337,19 +337,21 @@ func (w *SendKindleWorker) sendItemIDsDigest(ctx context.Context, uid, lensID uu
 	return w.send(ctx, uid, doc, fmt.Sprintf("openmind-%s.epub", shortID(lens.ID)))
 }
 
-// kindleLensRule decodes the subset of a stored LensRule this worker needs
-// (q, color; types is decoded separately as it doesn't need pointer
-// semantics). It mirrors the api package's LensRule JSON shape without
-// importing internal/api (which would create an import cycle).
+// kindleLensRule decodes the subset of a stored LensRule this worker needs.
+// It mirrors the api package's LensRule JSON shape without importing
+// internal/api (which would create an import cycle).
 type kindleLensRule struct {
-	Q     *string  `json:"q"`
-	Color *string  `json:"color"`
-	Types []string `json:"types"`
+	Q       *string  `json:"q"`
+	Color   *string  `json:"color"`
+	Types   []string `json:"types"`
+	Domains []string `json:"domains"`
+	Scope   string   `json:"scope"`
 }
 
 // lensItems runs lens's stored rule and returns the matching items. It is
 // shared by the full-rule digest path (sendLensDigest) and the digest-scan
 // job (ScanDigestsWorker), so both agree on exactly what a Lens matches.
+// Empty scope defaults to library inside RunLensRule.
 func lensItems(ctx context.Context, s *store.Store, p ai.Provider, uid uuid.UUID, lens db.Lense) ([]db.Item, error) {
 	var rule kindleLensRule
 	if len(lens.Rule) > 0 {
@@ -357,15 +359,22 @@ func lensItems(ctx context.Context, s *store.Store, p ai.Provider, uid uuid.UUID
 			return nil, fmt.Errorf("decoding lens rule: %w", err)
 		}
 	}
-	var q, color string
+	var text, color string
 	if rule.Q != nil {
-		q = *rule.Q
+		text = *rule.Q
 	}
 	if rule.Color != nil {
 		color = *rule.Color
 	}
 
-	results, err := search.RunLensRule(ctx, s, p, uid, q, color, rule.Types)
+	q := search.Query{
+		Text:    text,
+		Color:   color,
+		Types:   rule.Types,
+		Domains: search.NormalizeDomains(rule.Domains),
+		Scope:   search.Scope(rule.Scope),
+	}
+	results, err := search.RunLensRule(ctx, s, p, uid, q)
 	if err != nil && !errors.Is(err, search.ErrBadColor) {
 		return nil, fmt.Errorf("running lens rule: %w", err)
 	}

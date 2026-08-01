@@ -404,3 +404,188 @@ func TestHybridTenantIsolation(t *testing.T) {
 		t.Errorf("cross-tenant results = %d, want 0", len(results))
 	}
 }
+
+// seedURLItem creates an item with a specific URL and card type (no embedding).
+func seedURLItem(t *testing.T, s *store.Store, userID uuid.UUID, rawURL, title, cardType string) db.Item {
+	t.Helper()
+	ctx := context.Background()
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: rawURL, Body: ""})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: item.ID, Title: title, Body: title, CardType: cardType,
+	}); err != nil {
+		t.Fatalf("update extraction: %v", err)
+	}
+	got, err := s.Queries.GetItem(ctx, db.GetItemParams{UserID: userID, ID: item.ID})
+	if err != nil {
+		t.Fatalf("get item: %v", err)
+	}
+	return got
+}
+
+func resultIDs(results []search.Result) []uuid.UUID {
+	ids := make([]uuid.UUID, len(results))
+	for i, r := range results {
+		ids[i] = r.Item.ID
+	}
+	return ids
+}
+
+func containsID(results []search.Result, id uuid.UUID) bool {
+	for _, r := range results {
+		if r.Item.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDomainFilterMatchesHostAndSubdomain(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	np := ai.NewNoop()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+
+	xcom := seedURLItem(t, s, userID, "https://x.com/a", "x post", "tweet")
+	mobileTwitter := seedURLItem(t, s, userID, "https://mobile.twitter.com/b", "mobile tweet", "tweet")
+	seedURLItem(t, s, userID, "https://example.com/c", "other", "article")
+
+	onlyX, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Domains: []string{"x.com"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("domains x.com: %v", err)
+	}
+	if len(onlyX) != 1 || onlyX[0].Item.ID != xcom.ID {
+		t.Fatalf("domains x.com = %v, want [%v]", resultIDs(onlyX), xcom.ID)
+	}
+
+	onlyTwitter, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Domains: []string{"twitter.com"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("domains twitter.com: %v", err)
+	}
+	if len(onlyTwitter) != 1 || onlyTwitter[0].Item.ID != mobileTwitter.ID {
+		t.Fatalf("domains twitter.com = %v, want [%v]", resultIDs(onlyTwitter), mobileTwitter.ID)
+	}
+
+	both, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Domains: []string{"x.com", "twitter.com"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("domains both: %v", err)
+	}
+	if len(both) != 2 || !containsID(both, xcom.ID) || !containsID(both, mobileTwitter.ID) {
+		t.Fatalf("domains both = %v, want [%v %v]", resultIDs(both), xcom.ID, mobileTwitter.ID)
+	}
+}
+
+func TestLibraryScopeExcludesUnkeptFeed(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	np := ai.NewNoop()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+
+	saved := seedTypedItem(t, s, np, userID, "library article", "a saved library article about bread", "article")
+
+	feed, err := s.Queries.CreateFeed(ctx, db.CreateFeedParams{UserID: userID, Url: "https://example.com/feed.xml", Title: "feed"})
+	if err != nil {
+		t.Fatalf("create feed: %v", err)
+	}
+	river, err := s.Queries.CreateFeedItem(ctx, db.CreateFeedItemParams{
+		UserID: userID, Url: "https://example.com/unkept-article", FeedID: pgtype.UUID{Bytes: feed.ID, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create feed item: %v", err)
+	}
+	if err := s.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
+		UserID: userID, ID: river.ID, Title: "unkept feed article", Body: "feed article about bread", CardType: "article",
+	}); err != nil {
+		t.Fatalf("update extraction: %v", err)
+	}
+
+	libOnly, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Types: []string{"article"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("library scope: %v", err)
+	}
+	if !containsID(libOnly, saved.ID) {
+		t.Fatalf("library scope missing saved item; got %v", resultIDs(libOnly))
+	}
+	if containsID(libOnly, river.ID) {
+		t.Fatalf("library scope included unkept feed item %v", river.ID)
+	}
+
+	all, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Types: []string{"article"}, Scope: search.ScopeAll,
+	}, 10)
+	if err != nil {
+		t.Fatalf("scope all: %v", err)
+	}
+	if !containsID(all, saved.ID) || !containsID(all, river.ID) {
+		t.Fatalf("scope all = %v, want both %v and %v", resultIDs(all), saved.ID, river.ID)
+	}
+}
+
+func TestFilterOnlyDomainsUsesListPath(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	np := ai.NewNoop()
+	userID := uuid.New()
+	if err := s.Queries.EnsureUser(ctx, userID); err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+
+	older := seedURLItem(t, s, userID, "https://x.com/older", "older", "tweet")
+	newer := seedURLItem(t, s, userID, "https://x.com/newer", "newer", "tweet")
+	seedURLItem(t, s, userID, "https://example.com/other", "other", "article")
+
+	results, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Domains: []string{"x.com"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("domains-only: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("domains-only results = %d, want 2", len(results))
+	}
+	// ListItemsMatching is newest-first; scores stay zero (no rank signal).
+	if results[0].Item.ID != newer.ID || results[1].Item.ID != older.ID {
+		t.Fatalf("order = [%v %v], want newer %v before older %v",
+			results[0].Item.ID, results[1].Item.ID, newer.ID, older.ID)
+	}
+	if results[0].Score != 0 || results[1].Score != 0 {
+		t.Errorf("filter-only scores = [%v %v], want unscored 0", results[0].Score, results[1].Score)
+	}
+
+	// Library scope still excludes unkept feed items on the list path.
+	feed, err := s.Queries.CreateFeed(ctx, db.CreateFeedParams{UserID: userID, Url: "https://x.com/feed.xml", Title: "x feed"})
+	if err != nil {
+		t.Fatalf("create feed: %v", err)
+	}
+	river, err := s.Queries.CreateFeedItem(ctx, db.CreateFeedItemParams{
+		UserID: userID, Url: "https://x.com/unkept", FeedID: pgtype.UUID{Bytes: feed.ID, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create feed item: %v", err)
+	}
+	lib, err := search.RunQuery(ctx, s, np, userID, search.Query{
+		Domains: []string{"x.com"}, Scope: search.ScopeLibrary,
+	}, 10)
+	if err != nil {
+		t.Fatalf("domains library: %v", err)
+	}
+	if containsID(lib, river.ID) {
+		t.Fatalf("library domains included unkept feed item %v", river.ID)
+	}
+}

@@ -30,13 +30,9 @@ type Result struct {
 // ranks still nudge the total.
 const rrfK = 60
 
-// ruleResultLimit and ruleListCap mirror the API package's defaultListLimit
-// and maxListLimit: the number of ranked results a Lens rule returns and the
-// number of recent items scanned for a types-only rule.
-const (
-	ruleResultLimit = 50
-	ruleListCap     = 200
-)
+// ruleResultLimit is the number of ranked results a Lens rule returns
+// (mirrors the API package's defaultListLimit).
+const ruleResultLimit = 50
 
 // Hybrid runs FTS and (when available) vector search for the user's query,
 // fuses the two rankings with RRF (k=60), and returns up to limit results
@@ -48,32 +44,59 @@ func Hybrid(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID
 	return Run(ctx, s, p, userID, q, "", nil, limit)
 }
 
-// Run fuses up to three ranked signals with RRF and returns up to limit results
-// ordered by descending fused score, scoped to userID:
-//   - full-text search over q (when q is non-empty),
-//   - pgvector similarity over q's embedding (when q is non-empty and the
-//     provider can embed), and
-//   - palette colour proximity to color (when color is non-empty).
-//
-// Results are partitioned library-first: items in the user's library (saved
-// directly, or kept from a feed) always rank ahead of unkept feed-river
-// matches, which trail the list. Within each partition ordering is by
-// descending fused score. Feed matches stay included — Lenses deliberately
-// span the river — but they never displace a library match, and the limit is
-// applied after the partition so library matches win the available slots.
-//
-// When types is non-empty the fused results are narrowed to items of those card
-// types before the limit is applied, so ranking is computed over all matches
-// and only then filtered.
-//
-// At least one of q or color should be non-empty; with both empty it returns no
-// results. An unrecognised color yields ErrBadColor before any query runs.
+// Run is the home /search entrypoint: free-text and/or colour with an optional
+// types filter, spanning the full river (scope=all). Prefer RunQuery for new
+// callers that need domains or library scope.
 func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, types []string, limit int) ([]Result, error) {
+	return RunQuery(ctx, s, p, userID, Query{
+		Text: q, Color: color, Types: types, Scope: ScopeAll,
+	}, limit)
+}
+
+// RunQuery executes q. Caller must set Scope (Lens: library; /search: all).
+// Returns ErrBadColor for invalid colour; empty results if HasMatchSignal is false.
+//
+// Soft rank signals (Text, Color) fuse via RRF. Hard filters (Types, Domains,
+// library scope) are applied in SQL before ranking. When Text and Color are
+// both empty, results come from ListItemsMatching (newest first, unscored).
+//
+// With ScopeAll, results are partitioned library-first: Mind items always
+// rank ahead of unkept feed-river matches. Within each partition ordering is
+// by descending fused score. The limit is applied after the partition so
+// library matches win the available slots.
+func RunQuery(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q Query, limit int) ([]Result, error) {
+	if !q.HasMatchSignal() {
+		return nil, nil
+	}
+
+	libraryOnly := q.LibraryOnly()
+	filterTypes := stringsOrNil(q.Types)
+	filterDomains := stringsOrNil(q.Domains)
+
+	// Filter-only path: types and/or domains, no text/colour rank signal.
+	if q.Text == "" && q.Color == "" {
+		rows, err := s.Queries.ListItemsMatching(ctx, db.ListItemsMatchingParams{
+			UserID:        userID,
+			LibraryOnly:   libraryOnly,
+			FilterTypes:   filterTypes,
+			FilterDomains: filterDomains,
+			LimitCount:    int32(limit),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list matching: %w", err)
+		}
+		results := make([]Result, 0, len(rows))
+		for _, it := range rows {
+			results = append(results, Result{Item: it})
+		}
+		return results, nil
+	}
+
 	// Resolve the colour up front so a bad term fails fast, before any query.
 	var target rgb
 	var haveColor bool
-	if color != "" {
-		c, ok := parseColor(color)
+	if q.Color != "" {
+		c, ok := parseColor(q.Color)
 		if !ok {
 			return nil, ErrBadColor
 		}
@@ -83,8 +106,15 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 	scores := map[uuid.UUID]float64{}
 	items := map[uuid.UUID]db.Item{}
 
-	if q != "" {
-		fts, err := s.Queries.SearchFTS(ctx, db.SearchFTSParams{UserID: userID, WebsearchToTsquery: q, Limit: int32(limit * 2)})
+	if q.Text != "" {
+		fts, err := s.Queries.SearchFTS(ctx, db.SearchFTSParams{
+			UserID:             userID,
+			WebsearchToTsquery: q.Text,
+			Limit:              int32(limit * 2),
+			LibraryOnly:        libraryOnly,
+			FilterTypes:        filterTypes,
+			FilterDomains:      filterDomains,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("fts search: %w", err)
 		}
@@ -93,8 +123,15 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 			items[row.ID] = ftsRowToItem(row)
 		}
 
-		if vec, err := p.Embed(ctx, q); err == nil {
-			vres, err := s.Queries.SearchVector(ctx, db.SearchVectorParams{UserID: userID, Embedding: pgvector.NewVector(vec), Limit: int32(limit * 2)})
+		if vec, err := p.Embed(ctx, q.Text); err == nil {
+			vres, err := s.Queries.SearchVector(ctx, db.SearchVectorParams{
+				UserID:        userID,
+				Embedding:     pgvector.NewVector(vec),
+				Limit:         int32(limit * 2),
+				LibraryOnly:   libraryOnly,
+				FilterTypes:   filterTypes,
+				FilterDomains: filterDomains,
+			})
 			if err != nil {
 				// Degrade to FTS-only results rather than failing the request,
 				// mirroring the embed-failure fallback below.
@@ -111,7 +148,12 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 	}
 
 	if haveColor {
-		palette, err := s.Queries.ListItemsWithPalette(ctx, userID)
+		palette, err := s.Queries.ListItemsWithPalette(ctx, db.ListItemsWithPaletteParams{
+			UserID:        userID,
+			LibraryOnly:   libraryOnly,
+			FilterTypes:   filterTypes,
+			FilterDomains: filterDomains,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("palette search: %w", err)
 		}
@@ -129,13 +171,15 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 	for id := range scores {
 		ids = append(ids, id)
 	}
-	// Library items first, then descending fused score, with a deterministic
-	// tiebreak (newest first, then ID) so equal-scored results order stably
-	// across requests.
+	// Library items first (meaningful under ScopeAll), then descending fused
+	// score, with a deterministic tiebreak (newest first, then ID) so
+	// equal-scored results order stably across requests.
 	sort.SliceStable(ids, func(i, j int) bool {
-		li, lj := inLibrary(items[ids[i]]), inLibrary(items[ids[j]])
-		if li != lj {
-			return li
+		if q.Scope == ScopeAll {
+			li, lj := inLibrary(items[ids[i]]), inLibrary(items[ids[j]])
+			if li != lj {
+				return li
+			}
 		}
 		si, sj := scores[ids[i]], scores[ids[j]]
 		if si != sj {
@@ -147,19 +191,6 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 		}
 		return ids[i].String() > ids[j].String()
 	})
-	if len(types) > 0 {
-		allowed := make(map[string]bool, len(types))
-		for _, t := range types {
-			allowed[t] = true
-		}
-		filtered := make([]uuid.UUID, 0, len(ids))
-		for _, id := range ids {
-			if allowed[items[id].CardType] {
-				filtered = append(filtered, id)
-			}
-		}
-		ids = filtered
-	}
 	if len(ids) > limit {
 		ids = ids[:limit]
 	}
@@ -170,43 +201,28 @@ func Run(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q
 	return results, nil
 }
 
-// RunLensRule executes a canonical Lens rule (q, colour, and/or card types)
-// and returns up to ruleResultLimit matches. With a text or colour signal it
-// delegates to Run, the same hybrid engine backing /search. A types-only rule
-// has no ranking signal, so it falls back to the caller's most recent items,
-// filtered to the allowed types. Shared by GetLensItems and the
-// send-to-Kindle Lens digest job so both see identical matches.
-func RunLensRule(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q, color string, types []string) ([]Result, error) {
-	if q != "" || color != "" {
-		return Run(ctx, s, p, userID, q, color, types, ruleResultLimit)
+// RunLensRule executes a Lens Query and returns up to ruleResultLimit matches.
+// Empty Scope defaults to ScopeLibrary (Mind only). Shared by GetLensItems and
+// the send-to-Kindle Lens digest job so both see identical matches.
+func RunLensRule(ctx context.Context, s *store.Store, p ai.Provider, userID uuid.UUID, q Query) ([]Result, error) {
+	if q.Scope == "" {
+		q.Scope = ScopeLibrary
 	}
-	// ListItemsAll (not ListItems): lens rules deliberately span the feed
-	// river, so a types-only rule includes unkept feed items just like the
-	// text/colour path above (which runs through search and sees everything).
-	items, err := s.Queries.ListItemsAll(ctx, db.ListItemsAllParams{UserID: userID, Limit: ruleListCap})
-	if err != nil {
-		return nil, err
+	return RunQuery(ctx, s, p, userID, q, ruleResultLimit)
+}
+
+// stringsOrNil returns nil when s is empty so sqlc narg skips the filter.
+func stringsOrNil(s []string) []string {
+	if len(s) == 0 {
+		return nil
 	}
-	allowed := map[string]bool{}
-	for _, t := range types {
-		allowed[t] = true
-	}
-	results := make([]Result, 0, ruleResultLimit)
-	for _, it := range items {
-		if !allowed[it.CardType] {
-			continue
-		}
-		results = append(results, Result{Item: it})
-		if len(results) >= ruleResultLimit {
-			break
-		}
-	}
-	return results, nil
+	return s
 }
 
 // inLibrary reports whether an item belongs to the user's library (the Mind):
 // anything saved directly, plus feed items the user explicitly kept. Unkept
-// feed-river items are still searchable but rank after every library match.
+// feed-river items are still searchable under ScopeAll but rank after every
+// library match.
 func inLibrary(it db.Item) bool {
 	return !it.FeedID.Valid || it.KeptAt.Valid
 }
@@ -220,6 +236,7 @@ func ftsRowToItem(r db.SearchFTSRow) db.Item {
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		PinnedAt: r.PinnedAt, LastDriftedAt: r.LastDriftedAt,
 		FeedID: r.FeedID, KeptAt: r.KeptAt,
+		TaggedLocation: r.TaggedLocation, UrlHost: r.UrlHost,
 		// PageCount is left as its zero value (invalid pgtype.Int4), so search
 		// results always render pageCount as null even for PDF items.
 	}
@@ -234,6 +251,7 @@ func vecRowToItem(r db.SearchVectorRow) db.Item {
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		PinnedAt: r.PinnedAt, LastDriftedAt: r.LastDriftedAt,
 		FeedID: r.FeedID, KeptAt: r.KeptAt,
+		TaggedLocation: r.TaggedLocation, UrlHost: r.UrlHost,
 		// PageCount is left as its zero value (invalid pgtype.Int4), so search
 		// results always render pageCount as null even for PDF items.
 	}
