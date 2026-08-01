@@ -1,8 +1,9 @@
 // Package importer parses bookmark/read-later export files into a flat list of
 // links the API can turn into saved items. It recognises the Netscape bookmark
 // HTML format (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports
-// (Pocket's current export, Raindrop), a plain newline-delimited URL list, and
-// Omnivore export zips (metadata_*.json pages; labels become tags).
+// (Pocket's current export, Raindrop — a folder/collection column becomes a
+// tag), a plain newline-delimited URL list, and Omnivore export zips
+// (metadata_*.json pages; labels become tags).
 //
 // It only extracts candidate links; URL validation, de-duplication, and item
 // creation are the caller's job. No network, no AI — parsing is pure.
@@ -156,8 +157,11 @@ func looksCSV(data []byte) bool {
 	return bytes.Contains(bytes.ToLower(line), []byte("url"))
 }
 
-// parseCSV reads a CSV export, locating the URL column (and an optional title
-// column) by header name. Rows without a URL cell are skipped.
+// parseCSV reads a CSV export, locating the URL column (and optional title,
+// tags, and folder columns) by header name. Rows without a URL cell are
+// skipped. A folder cell (Raindrop's collection) is appended to the row's tags
+// so the user's organisation survives the import — except "Unsorted",
+// Raindrop's default bucket, which would just be noise on most rows.
 func parseCSV(data []byte) []Link {
 	r := csv.NewReader(bytes.NewReader(data))
 	r.FieldsPerRecord = -1 // exports are ragged; don't enforce column counts.
@@ -165,7 +169,7 @@ func parseCSV(data []byte) []Link {
 	if err != nil {
 		return nil
 	}
-	urlCol, titleCol, tagsCol := -1, -1, -1
+	urlCol, titleCol, tagsCol, folderCol := -1, -1, -1, -1
 	for i, h := range header {
 		switch strings.ToLower(strings.TrimSpace(h)) {
 		case "url", "uri", "link":
@@ -179,6 +183,10 @@ func parseCSV(data []byte) []Link {
 		case "tags":
 			if tagsCol == -1 {
 				tagsCol = i
+			}
+		case "folder":
+			if folderCol == -1 {
+				folderCol = i
 			}
 		}
 	}
@@ -208,6 +216,13 @@ func parseCSV(data []byte) []Link {
 		var tags []string
 		if tagsCol >= 0 && tagsCol < len(rec) {
 			tags = splitTags(rec[tagsCol])
+		}
+		if folderCol >= 0 && folderCol < len(rec) {
+			// The whole cell is one tag: folder names may contain spaces, and a
+			// nested path ("Dev/Go") is more useful intact than split.
+			if folder := strings.TrimSpace(rec[folderCol]); folder != "" && !strings.EqualFold(folder, "unsorted") {
+				tags = append(tags, folder)
+			}
 		}
 		out = append(out, Link{URL: url, Title: title, Tags: tags})
 	}

@@ -97,9 +97,9 @@ func TestParseCSVDetectedByContent(t *testing.T) {
 	if got := urls(links); len(got) != 1 || got[0] != "https://example.com/z" {
 		t.Fatalf("urls = %v", got)
 	}
-	// No tags column → nil.
-	if links[0].Tags != nil {
-		t.Errorf("tags = %v, want nil", links[0].Tags)
+	// No tags column, but the folder cell still becomes a tag.
+	if got := links[0].Tags; !reflect.DeepEqual(got, []string{"inbox"}) {
+		t.Errorf("tags = %v, want [inbox]", got)
 	}
 }
 
@@ -226,5 +226,34 @@ func TestParseOmnivoreZipOversizeEntrySkipped(t *testing.T) {
 	}
 	if got := urls(links); len(got) != 1 || got[0] != "https://example.com/small" {
 		t.Fatalf("urls = %v", got)
+	}
+}
+
+func TestParseCSVRaindropFolderBecomesTag(t *testing.T) {
+	// Raindrop's full CSV export: the folder (collection) cell joins the row's
+	// tags so the user's organisation survives the import. "Unsorted" —
+	// Raindrop's default bucket — is dropped as noise, and a folder cell is
+	// kept whole (never split on spaces or slashes).
+	data := []byte("id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite\n" +
+		"1,Go blog,,,https://example.com/go,Dev/Go,\"go, reading\",2024-01-01T00:00:00Z,,,false\n" +
+		"2,Recipe,,,https://example.com/pie,Home Cooking,,2024-01-02T00:00:00Z,,,false\n" +
+		"3,Random,,,https://example.com/misc,Unsorted,,2024-01-03T00:00:00Z,,,false\n")
+	links, err := Parse("raindrop-export.csv", data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(links) != 3 {
+		t.Fatalf("links = %d, want 3", len(links))
+	}
+	if got := links[0].Tags; !reflect.DeepEqual(got, []string{"go", "reading", "Dev/Go"}) {
+		t.Errorf("tags[0] = %v, want [go reading Dev/Go]", got)
+	}
+	// Folder alone (no tags cell) still lands, as one tag with its space intact.
+	if got := links[1].Tags; !reflect.DeepEqual(got, []string{"Home Cooking"}) {
+		t.Errorf("tags[1] = %v, want [Home Cooking]", got)
+	}
+	// The default "Unsorted" bucket is not a real collection choice → no tag.
+	if links[2].Tags != nil {
+		t.Errorf("tags[2] = %v, want nil", links[2].Tags)
 	}
 }
