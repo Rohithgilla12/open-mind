@@ -124,6 +124,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/items/{id}/places/{placeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an extracted place
+         * @description Drops one place the pipeline extracted from this item — the escape hatch for a model that hallucinated a venue or picked up a brand name that isn't somewhere you can go. Removal is immediate and permanent; re-running extraction for the item would re-derive it.
+         */
+        delete: operations["deleteItemPlace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/places": {
         parameters: {
             query?: never;
@@ -1235,6 +1255,34 @@ export interface operations {
                 };
             };
             /** @description unknown item */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteItemPlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                placeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description unknown item or place */
             404: {
                 headers: {
                     [name: string]: unknown;

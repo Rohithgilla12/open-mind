@@ -80,6 +80,116 @@ func TestGetItemPlaces(t *testing.T) {
 	})
 }
 
+func TestDeleteItemPlace(t *testing.T) {
+	s, rc, pool := testDeps(t)
+	ctx := context.Background()
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	defer srv.Close()
+
+	item, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://www.instagram.com/reel/del/"})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+
+	seed := func(t *testing.T, userID, itemID uuid.UUID, name string) uuid.UUID {
+		t.Helper()
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `INSERT INTO item_places (user_id, item_id, name, hint, source)
+			VALUES ($1, $2, $3, 'Lisbon', 'caption') RETURNING id`, userID, itemID, name).Scan(&id); err != nil {
+			t.Fatalf("seeding place %q: %v", name, err)
+		}
+		return id
+	}
+
+	del := func(t *testing.T, itemID, placeID string) int {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodDelete, srv.URL+"/items/"+itemID+"/places/"+placeID, nil)
+		if err != nil {
+			t.Fatalf("build request: %v", err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("delete place: %v", err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	remaining := func(t *testing.T) []string {
+		t.Helper()
+		rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: api.DevUserID, ItemID: item.ID})
+		if err != nil {
+			t.Fatalf("list places: %v", err)
+		}
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			names = append(names, r.Name)
+		}
+		return names
+	}
+
+	keep := seed(t, api.DevUserID, item.ID, "Fabrica")
+	drop := seed(t, api.DevUserID, item.ID, "Hallucinated Cafe")
+
+	t.Run("removes only the named place", func(t *testing.T) {
+		if status := del(t, item.ID.String(), drop.String()); status != http.StatusNoContent {
+			t.Fatalf("status=%d, want 204", status)
+		}
+		names := remaining(t)
+		if len(names) != 1 || names[0] != "Fabrica" {
+			t.Errorf("remaining places = %v, want [Fabrica]", names)
+		}
+	})
+
+	t.Run("deleting again is 404", func(t *testing.T) {
+		if status := del(t, item.ID.String(), drop.String()); status != http.StatusNotFound {
+			t.Errorf("status=%d, want 404", status)
+		}
+	})
+
+	t.Run("unknown item is 404", func(t *testing.T) {
+		if status := del(t, uuid.NewString(), keep.String()); status != http.StatusNotFound {
+			t.Errorf("status=%d, want 404", status)
+		}
+	})
+
+	t.Run("place belonging to another item is 404", func(t *testing.T) {
+		other, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://www.instagram.com/reel/del2/"})
+		if err != nil {
+			t.Fatalf("create other item: %v", err)
+		}
+		if status := del(t, other.ID.String(), keep.String()); status != http.StatusNotFound {
+			t.Errorf("status=%d, want 404", status)
+		}
+		if names := remaining(t); len(names) != 1 {
+			t.Errorf("remaining places = %v, want the place untouched", names)
+		}
+	})
+
+	t.Run("another user's place is 404 and survives", func(t *testing.T) {
+		otherUser := uuid.MustParse("00000000-0000-0000-0000-0000000000fe")
+		if err := s.Queries.EnsureUser(ctx, otherUser); err != nil {
+			t.Fatalf("ensure other user: %v", err)
+		}
+		otherItem, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: otherUser, Url: "https://www.instagram.com/reel/theirs/"})
+		if err != nil {
+			t.Fatalf("create other user's item: %v", err)
+		}
+		theirs := seed(t, otherUser, otherItem.ID, "Secret Spot")
+
+		if status := del(t, otherItem.ID.String(), theirs.String()); status != http.StatusNotFound {
+			t.Errorf("status=%d, want 404", status)
+		}
+		rows, err := s.Queries.ListItemPlaces(ctx, db.ListItemPlacesParams{UserID: otherUser, ItemID: otherItem.ID})
+		if err != nil {
+			t.Fatalf("list other user's places: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Errorf("cross-tenant delete removed %d rows, want the place untouched", 1-len(rows))
+		}
+	})
+}
+
 func TestListPlaces(t *testing.T) {
 	s, rc, pool := testDeps(t)
 	ctx := context.Background()

@@ -522,6 +522,29 @@ export async function getItemPlaces(
 }
 
 /**
+ * Drop one extracted place via DELETE {instanceUrl}/api/items/{id}/places/{placeId}.
+ * The server returns 204; a 404 means it was already gone, which the caller
+ * treats as success since the desired end state is the same.
+ */
+export async function deleteItemPlace(
+  id: string,
+  placeId: string,
+  override?: Settings,
+): Promise<{ ok: boolean; status: number }> {
+  const settings = await resolveSettings(override);
+  if (!settings) return { ok: false, status: 0 };
+  try {
+    const res = await fetch(`${settings.instanceUrl}/api/items/${id}/places/${placeId}`, {
+      method: "DELETE",
+      headers: authHeaders(settings.token),
+    });
+    return { ok: res.status === 204 || res.status === 404, status: res.status };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
+/**
  * All of the user's places via GET {instanceUrl}/api/places.
  */
 export async function listPlaces(

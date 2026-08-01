@@ -15,11 +15,10 @@ import { KeepButton } from "../../../components/KeepButton";
 import { KindleButton } from "../../../components/KindleButton";
 import { PinButton } from "../../../components/PinButton";
 import { DeleteButton } from "./DeleteButton";
+import { PlacesSection, type Place } from "./PlacesSection";
 import { TagEditor } from "./TagEditor";
 
 const { color, font } = tokens;
-
-type Place = { id: string; name: string; hint: string; address: string; lat?: number; lng?: number; source: string };
 
 const backLink: CSSProperties = {
   fontFamily: font.mono,
@@ -259,36 +258,7 @@ function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
           </div>
         </>
       ) : null}
-      {places.length > 0 ? (
-        <>
-          {divider}
-          <div className="meta" style={{ color: color.inkFaintAlt }}>Places</div>
-          {places.map((p) => (
-            <div key={p.id} style={{ marginTop: 9 }}>
-              <div style={{ fontFamily: font.sans, fontSize: 13, fontWeight: 600, color: color.ink }}>
-                {p.name}
-              </div>
-              {p.address ? (
-                <div style={{ fontFamily: font.sans, fontSize: 12, lineHeight: 1.4, color: color.inkMuted, marginTop: 2 }}>
-                  {p.address}
-                </div>
-              ) : null}
-              <a
-                href={
-                  p.lat != null && p.lng != null
-                    ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`
-                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.hint}`.trim())}`
-                }
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontFamily: font.mono, fontSize: 11, color: color.cobalt, textDecoration: "none" }}
-              >
-                Open in maps ↗
-              </a>
-            </div>
-          ))}
-        </>
-      ) : null}
+      <PlacesSection itemId={item.id} places={places} divider={divider} />
       {divider}
       <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
       {divider}

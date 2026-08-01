@@ -66,6 +66,10 @@
   owned by the previous account, causing next account's registration to 409 with
   no self-service recovery — needs server-side reaper or explicit "claim this
   device" flow.
+- Place removal follow-ups: no removal affordance on the aggregate `/places`
+  map page (web or mobile) — only item detail; and a removed place is a plain
+  row delete, so if we ever add a re-enrich/re-extract trigger it will resurrect
+  the row (would need a per-item suppression list the job filters against)
 - Places map follow-ups: note OSM tile runtime dep in self-hosting docs;
   clustering polish — keyboard-accessible web cluster markers (currently
   pointer-only), and (optional) truer mobile zoom mapping using viewport width
@@ -84,6 +88,14 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Remove an extracted place — `DELETE /items/{id}/places/{placeId}` (204, 404
+  on unknown/cross-tenant) so a hallucinated venue or a brand name read off a
+  reel can be dropped. Web item rail gained a per-place `×` (optimistic, the
+  section's divider moved into the client component so removing the last one
+  takes the rule with it); mobile item detail gained a `×` with a destructive
+  confirm, optimistic cache patch, and rollback on failure. Deletion is a plain
+  row delete — re-running `extract_places` for the item would re-derive it, but
+  nothing re-enqueues that today (2026-08-01)
 - Direct Raindrop.io import (tweet request) — `POST /import/raindrop` takes a
   Raindrop API test token, pulls the account's one-shot CSV export server-side
   (token used for that single request, never stored/logged), and funnels it

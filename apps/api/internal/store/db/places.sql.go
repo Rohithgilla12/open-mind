@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteItemPlace = `-- name: DeleteItemPlace :execrows
+DELETE FROM item_places WHERE user_id = $1 AND item_id = $2 AND id = $3
+`
+
+type DeleteItemPlaceParams struct {
+	UserID uuid.UUID
+	ItemID uuid.UUID
+	ID     uuid.UUID
+}
+
+func (q *Queries) DeleteItemPlace(ctx context.Context, arg DeleteItemPlaceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteItemPlace, arg.UserID, arg.ItemID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteItemPlaces = `-- name: DeleteItemPlaces :exec
 DELETE FROM item_places WHERE user_id = $1 AND item_id = $2
 `

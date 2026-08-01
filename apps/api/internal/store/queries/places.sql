@@ -1,6 +1,9 @@
 -- name: DeleteItemPlaces :exec
 DELETE FROM item_places WHERE user_id = $1 AND item_id = $2;
 
+-- name: DeleteItemPlace :execrows
+DELETE FROM item_places WHERE user_id = $1 AND item_id = $2 AND id = $3;
+
 -- name: InsertItemPlace :exec
 INSERT INTO item_places (user_id, item_id, name, hint, address, lat, lng, source)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);

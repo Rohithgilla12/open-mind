@@ -2,7 +2,7 @@
 // a web session (the API is reached with the device key, and "Open original"
 // goes to the public source URL). Mirrors the web reader's shape: kicker,
 // serif title, summary lead, archived body, tags.
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
@@ -23,7 +23,15 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
-import { ApiError, getItem, getItemPlaces, sendItemToKindle, type ItemDetail, type Place } from "@/lib/api";
+import {
+  ApiError,
+  deleteItemPlace,
+  getItem,
+  getItemPlaces,
+  sendItemToKindle,
+  type ItemDetail,
+  type Place,
+} from "@/lib/api";
 import { cardKind } from "@/lib/cards";
 import { leadImageSource } from "@/lib/lead-image";
 import { useDeleteItem, useKeepItem, usePinItem } from "@/lib/mutations";
@@ -61,6 +69,7 @@ export default function ItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { settings } = useSettingsContext();
+  const queryClient = useQueryClient();
   const pinItem = usePinItem();
   const keepItem = useKeepItem();
   const deleteItemFn = useDeleteItem();
@@ -118,6 +127,36 @@ export default function ItemScreen() {
       router.back();
     });
   }, [item, deleteItemFn, router]);
+
+  const onRemovePlace = useCallback(
+    (place: Place) => {
+      Alert.alert(`Remove "${place.name}"?`, "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              const key = queryKeys.itemPlaces(itemId);
+              const previous = queryClient.getQueryData<Place[]>(key);
+              queryClient.setQueryData<Place[]>(key, (prev) =>
+                prev?.filter((p) => p.id !== place.id),
+              );
+              const res = await deleteItemPlace(itemId, place.id);
+              if (!res.ok) {
+                queryClient.setQueryData<Place[]>(key, previous);
+                Alert.alert("Couldn't remove", "Please try again.");
+                return;
+              }
+              // The map screen aggregates places across items, so it goes stale too.
+              void queryClient.invalidateQueries({ queryKey: queryKeys.places });
+            })();
+          },
+        },
+      ]);
+    },
+    [itemId, queryClient],
+  );
 
   const onCopyLink = useCallback(() => {
     if (!item?.url) return;
@@ -198,6 +237,7 @@ export default function ItemScreen() {
         item={item}
         settings={settings}
         places={placesQuery.data ?? []}
+        onRemovePlace={onRemovePlace}
         onCopyLink={onCopyLink}
         onShare={onShare}
         onKindle={onKindle}
@@ -212,7 +252,13 @@ function googleMapsSearchUrl(p: Place): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-function PlacesSection({ places }: { places: Place[] }) {
+/**
+ * Extracted places, each removable. Extraction is a guess — a brand name read
+ * off a reel, or a venue the model invented — so every row carries an escape
+ * hatch. The row itself opens maps; the × removes it after a confirm, since a
+ * mis-tap here would silently drop a real place.
+ */
+function PlacesSection({ places, onRemove }: { places: Place[]; onRemove: (p: Place) => void }) {
   if (places.length === 0) return null;
   const pinned = places.filter(
     (p): p is Place & { lat: number; lng: number } =>
@@ -255,14 +301,24 @@ function PlacesSection({ places }: { places: Place[] }) {
           }
         };
         return (
-          <Pressable
-            key={p.id}
-            style={({ pressed }) => [styles.placeRow, pressed && styles.placeRowPressed]}
-            onPress={onPress}
-          >
-            <Text style={styles.placeName}>{p.name}</Text>
-            {p.address ? <Text style={styles.placeAddress}>{p.address}</Text> : null}
-          </Pressable>
+          <View key={p.id} style={styles.placeRowWrap}>
+            <Pressable
+              style={({ pressed }) => [styles.placeRow, styles.placeRowBody, pressed && styles.placeRowPressed]}
+              onPress={onPress}
+            >
+              <Text style={styles.placeName}>{p.name}</Text>
+              {p.address ? <Text style={styles.placeAddress}>{p.address}</Text> : null}
+            </Pressable>
+            <Pressable
+              onPress={() => onRemove(p)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove place ${p.name}`}
+              style={({ pressed }) => [styles.placeRemove, pressed && styles.placeRowPressed]}
+            >
+              <Text style={styles.placeRemoveGlyph}>×</Text>
+            </Pressable>
+          </View>
         );
       })}
     </View>
@@ -275,6 +331,7 @@ function Body({
   item,
   settings,
   places,
+  onRemovePlace,
   onCopyLink,
   onShare,
   onKindle,
@@ -285,6 +342,7 @@ function Body({
   item?: ItemDetail;
   settings: Settings | null;
   places: Place[];
+  onRemovePlace: (p: Place) => void;
   onCopyLink: () => void;
   onShare: () => void;
   onKindle: () => void;
@@ -333,7 +391,7 @@ function Body({
           <SecondaryActions onCopyLink={onCopyLink} onShare={onShare} onKindle={onKindle} kindleBusy={kindleBusy} />
         ) : null}
         {tags.length > 0 ? <TagsRow tags={tags} /> : null}
-        <PlacesSection places={places} />
+        <PlacesSection places={places} onRemove={onRemovePlace} />
       </ScrollView>
     );
   }
@@ -363,7 +421,7 @@ function Body({
         <SecondaryActions onCopyLink={onCopyLink} onShare={onShare} onKindle={onKindle} kindleBusy={kindleBusy} />
       ) : null}
       {tags.length > 0 ? <TagsRow tags={tags} /> : null}
-      <PlacesSection places={places} />
+      <PlacesSection places={places} onRemove={onRemovePlace} />
       {paragraphs.length > 0 ? (
         <View style={styles.bodyBlock}>
           {paragraphs.map((p, i) => (
@@ -527,6 +585,15 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
+  placeRowWrap: { flexDirection: "row", alignItems: "stretch", gap: spacing.sm },
+  placeRowBody: { flex: 1 },
+  placeRemove: {
+    width: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  placeRemoveGlyph: { fontFamily: fonts.sans, fontSize: 20, lineHeight: 22, color: colors.inkFaint },
   placeRowPressed: { opacity: 0.7 },
   placeName: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.ink },
   placeAddress: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkMuted, marginTop: 2 },

@@ -158,6 +158,17 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Place" }
         "404": { description: unknown item }
+  /items/{id}/places/{placeId}:
+    delete:
+      operationId: deleteItemPlace
+      summary: Remove an extracted place
+      description: "Drops one place the pipeline extracted from this item — the escape hatch for a model that hallucinated a venue or picked up a brand name that isn't somewhere you can go. Removal is immediate and permanent; re-running extraction for the item would re-derive it."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: placeId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Removed }
+        "404": { description: unknown item or place }
   /places:
     get:
       operationId: listPlaces

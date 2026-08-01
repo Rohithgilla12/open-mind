@@ -739,6 +739,9 @@ type ServerInterface interface {
 	// Places extracted from this item
 	// (GET /items/{id}/places)
 	GetItemPlaces(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Remove an extracted place
+	// (DELETE /items/{id}/places/{placeId})
+	DeleteItemPlace(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, placeId openapi_types.UUID)
 
 	// (GET /items/{id}/related)
 	GetRelatedItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -949,6 +952,12 @@ func (_ Unimplemented) DeleteItemLink(w http.ResponseWriter, r *http.Request, id
 // Places extracted from this item
 // (GET /items/{id}/places)
 func (_ Unimplemented) GetItemPlaces(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove an extracted place
+// (DELETE /items/{id}/places/{placeId})
+func (_ Unimplemented) DeleteItemPlace(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, placeId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1869,6 +1878,46 @@ func (siw *ServerInterfaceWrapper) GetItemPlaces(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteItemPlace operation middleware
+func (siw *ServerInterfaceWrapper) DeleteItemPlace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "placeId" -------------
+	var placeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "placeId", chi.URLParam(r, "placeId"), &placeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "placeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteItemPlace(w, r, id, placeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRelatedItems operation middleware
 func (siw *ServerInterfaceWrapper) GetRelatedItems(w http.ResponseWriter, r *http.Request) {
 
@@ -2452,6 +2501,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items/{id}/places", wrapper.GetItemPlaces)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/items/{id}/places/{placeId}", wrapper.DeleteItemPlace)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items/{id}/related", wrapper.GetRelatedItems)
