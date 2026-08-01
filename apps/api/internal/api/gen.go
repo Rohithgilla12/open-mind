@@ -563,6 +563,12 @@ type ImportItemsMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// ImportRaindropJSONBody defines parameters for ImportRaindrop.
+type ImportRaindropJSONBody struct {
+	// Token Raindrop.io API test token — create an app under Settings → Integrations, then copy its test token.
+	Token string `json:"token"`
+}
+
 // ListItemsParams defines parameters for ListItems.
 type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -604,6 +610,9 @@ type CreateFeedJSONRequestBody = CreateFeedRequest
 
 // ImportItemsMultipartRequestBody defines body for ImportItems for multipart/form-data ContentType.
 type ImportItemsMultipartRequestBody ImportItemsMultipartBody
+
+// ImportRaindropJSONRequestBody defines body for ImportRaindrop for application/json ContentType.
+type ImportRaindropJSONRequestBody ImportRaindropJSONBody
 
 // CreateItemJSONRequestBody defines body for CreateItem for application/json ContentType.
 type CreateItemJSONRequestBody = CreateItemRequest
@@ -691,6 +700,9 @@ type ServerInterface interface {
 
 	// (POST /import)
 	ImportItems(w http.ResponseWriter, r *http.Request)
+
+	// (POST /import/raindrop)
+	ImportRaindrop(w http.ResponseWriter, r *http.Request)
 
 	// (GET /items)
 	ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams)
@@ -867,6 +879,11 @@ func (_ Unimplemented) DeleteHighlight(w http.ResponseWriter, r *http.Request, i
 
 // (POST /import)
 func (_ Unimplemented) ImportItems(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /import/raindrop)
+func (_ Unimplemented) ImportRaindrop(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1451,6 +1468,26 @@ func (siw *ServerInterfaceWrapper) ImportItems(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ImportItems(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportRaindrop operation middleware
+func (siw *ServerInterfaceWrapper) ImportRaindrop(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportRaindrop(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2376,6 +2413,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/import", wrapper.ImportItems)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/import/raindrop", wrapper.ImportRaindrop)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/items", wrapper.ListItems)

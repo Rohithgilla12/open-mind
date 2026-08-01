@@ -281,7 +281,7 @@ paths:
   /import:
     post:
       operationId: importItems
-      description: "Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe."
+      description: "Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop — a Raindrop 'folder' column becomes a tag), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe."
       requestBody:
         required: true
         content:
@@ -299,6 +299,30 @@ paths:
               schema: { $ref: "#/components/schemas/ImportResult" }
         "400": { description: bad request / unparseable file }
         "413": { description: payload too large }
+  /import/raindrop:
+    post:
+      operationId: importRaindrop
+      description: "Import bookmarks directly from Raindrop.io. The server uses the supplied API test token for a single export request against the Raindrop API (the token is never stored or logged), turning every bookmark into a pending item enriched asynchronously. Raindrop tags are preserved as user tags and each bookmark's collection becomes a tag too ('Unsorted' excepted). URLs already saved are skipped, so re-running is safe."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: "Raindrop.io API test token — create an app under Settings → Integrations, then copy its test token."
+      responses:
+        "200":
+          description: import summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportResult" }
+        "400": { description: missing token, or Raindrop.io rejected it }
+        "413": { description: Raindrop export exceeds the size limit }
+        "502": { description: Raindrop.io was unreachable or returned an error }
   /lenses:
     get:
       operationId: listLenses

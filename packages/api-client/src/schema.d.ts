@@ -254,8 +254,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe. */
+        /** @description Bulk-import saved items from an export file (multipart field 'file'). Recognises Netscape bookmark HTML (browsers, Pocket, Raindrop, Pinboard, Instapaper), CSV exports with a URL column (Pocket, Raindrop — a Raindrop 'folder' column becomes a tag), and a plain newline-delimited URL list. Each new URL becomes a pending item and is enriched asynchronously; URLs already saved are skipped, so re-importing is safe. */
         post: operations["importItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import/raindrop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Import bookmarks directly from Raindrop.io. The server uses the supplied API test token for a single export request against the Raindrop API (the token is never stored or logged), turning every bookmark into a pending item enriched asynchronously. Raindrop tags are preserved as user tags and each bookmark's collection becomes a tag too ('Unsorted' excepted). URLs already saved are skipped, so re-running is safe. */
+        post: operations["importRaindrop"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1522,6 +1539,54 @@ export interface operations {
             };
             /** @description payload too large */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    importRaindrop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Raindrop.io API test token — create an app under Settings → Integrations, then copy its test token. */
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description import summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description missing token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Raindrop export exceeds the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Raindrop.io was unreachable or returned an error */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

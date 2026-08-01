@@ -1,10 +1,14 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/rohithgilla12/openmind/api/internal/importer"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
@@ -62,15 +66,25 @@ func (s *Server) ImportItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-	uid := userID(ctx)
-
-	// Existing URLs → skip set, so re-importing the same file is a no-op.
-	existingURLs, err := s.store.Queries.ListItemURLs(ctx, uid)
+	result, err := s.importLinks(r.Context(), userID(r.Context()), links)
 	if err != nil {
-		slog.Error("listing item urls for import", "err", err)
+		slog.Error("importing links", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not import")
 		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+// importLinks creates a pending item (plus any preserved tags) per new, valid,
+// not-already-saved link and queues enrichment for each — the shared tail of
+// every bulk-import path (file upload, Raindrop.io). URLs already in the
+// library, or repeated in the input, are skipped, so re-running is idempotent.
+func (s *Server) importLinks(ctx context.Context, uid uuid.UUID, links []importer.Link) (ImportResult, error) {
+	// Existing URLs → skip set, so re-importing the same source is a no-op.
+	existingURLs, err := s.store.Queries.ListItemURLs(ctx, uid)
+	if err != nil {
+		return ImportResult{}, fmt.Errorf("listing item urls for import: %w", err)
 	}
 	seen := make(map[string]bool, len(existingURLs)+len(links))
 	for _, u := range existingURLs {
@@ -117,5 +131,5 @@ func (s *Server) ImportItems(w http.ResponseWriter, r *http.Request) {
 		result.Imported++
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	return result, nil
 }
