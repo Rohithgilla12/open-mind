@@ -45,20 +45,20 @@ Do it in one take with a real save if you can.
 - **Don't say "tweet" in the narration.** The chip and the lens meta line both read **Post**
   (`apps/web/lib/cards.ts:86` maps card type `tweet` → label `Post`). Only the internal type is
   `tweet`; nothing user-facing says it, and neither should the VO.
-- **Don't type `x.com` into the Query field.** The full-text index covers title, summary, tags, body,
-  and your own tags — not the URL. It won't match, and on camera it'll look broken. The `Post` type
-  chip *is* the x.com filter.
-- **Don't claim "every tweet ever".** A types-only rule has no ranking signal, so it reads your most
-  recent items (200 scanned) and returns up to 50. Say "everything you've saved" over a modest
-  library and it's true; don't put a number on screen.
-- Don't linger on a Lens that also spans unkept feed items unless you're ready to explain the feed
-  river — Lens views deliberately include it.
+- **Use Domains for x.com, not Query.** Put `x.com, twitter.com` in the Domains field (hosts only —
+  subdomains match). Optionally add the **Post** type chip. Don't type `x.com` into Query — the
+  full-text index covers title, summary, tags, and body, not the URL.
+- **Don't claim "every tweet ever".** A domains/types-only rule has no ranking signal, so it reads
+  your most recent items (200 scanned) and returns up to 50. Say "everything you've saved" over a
+  modest library and it's true; don't put a number on screen.
+- Don't linger on unkept feed items unless you're ready to explain the feed river — Lens views
+  default to library scope (kept Mind only).
 
 ## Reference — the rule being built
 
 ```json
 POST /lenses
-{ "name": "Posts from X", "rule": { "types": ["tweet"] }, "digestSchedule": "0 8 * * 1" }
+{ "name": "Posts from X", "rule": { "domains": ["x.com", "twitter.com"], "types": ["tweet"] }, "digestSchedule": "0 8 * * 1" }
 ```
 
 Backing code, if you need to check a claim before recording:

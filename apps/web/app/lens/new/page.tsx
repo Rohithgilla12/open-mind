@@ -8,10 +8,11 @@ const { color } = tokens;
 export default async function NewLensPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; color?: string; types?: string }>;
+  searchParams: Promise<{ q?: string; color?: string; types?: string; domains?: string }>;
 }) {
-  const { q, color: colorParam, types } = await searchParams;
+  const { q, color: colorParam, types, domains } = await searchParams;
   const initialTypes = types ? types.split(",").filter(Boolean) : [];
+  const initialDomains = domains?.split(",").filter(Boolean) ?? [];
 
   return (
     <Shell>
@@ -37,7 +38,12 @@ export default async function NewLensPage({
         </p>
       </div>
       <div style={{ padding: "26px 28px 40px" }}>
-        <LensForm initialQ={q} initialColor={colorParam} initialTypes={initialTypes} />
+        <LensForm
+          initialQ={q}
+          initialColor={colorParam}
+          initialTypes={initialTypes}
+          initialDomains={initialDomains}
+        />
       </div>
     </Shell>
   );

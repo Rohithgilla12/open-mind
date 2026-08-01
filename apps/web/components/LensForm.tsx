@@ -43,7 +43,7 @@ const textInput = {
 } as const;
 
 /**
- * Create/refine a Lens. A Lens = a named saved rule (text, colour, card types);
+ * Create/refine a Lens. A Lens = a named saved rule (text, colour, domains, card types);
  * the same signals /search uses. The form seeds from the current search when
  * reached via "Save as lens", so a query you like becomes a standing view.
  */
@@ -52,15 +52,18 @@ export function LensForm({
   initialQ = "",
   initialColor = "",
   initialTypes = [],
+  initialDomains = [],
 }: {
   initialName?: string;
   initialQ?: string;
   initialColor?: string;
   initialTypes?: string[];
+  initialDomains?: string[];
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [q, setQ] = useState(initialQ);
+  const [domains, setDomains] = useState(() => initialDomains.join(", "));
   const [swatch, setSwatch] = useState(initialColor.toLowerCase());
   const [types, setTypes] = useState<Set<string>>(
     () => new Set(initialTypes.filter((t) => (ALL_TYPES as readonly string[]).includes(t))),
@@ -69,7 +72,11 @@ export function LensForm({
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const hasRule = q.trim() !== "" || swatch !== "" || types.size > 0;
+  const domainList = domains
+    .split(/[\s,]+/)
+    .map((d) => d.trim())
+    .filter(Boolean);
+  const hasRule = q.trim() !== "" || swatch !== "" || types.size > 0 || domainList.length > 0;
   const canSubmit = name.trim() !== "" && hasRule && !busy && !pending;
 
   function toggleType(t: string) {
@@ -86,10 +93,11 @@ export function LensForm({
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
-    const rule: { q?: string; color?: string; types?: string[] } = {};
+    const rule: { q?: string; color?: string; types?: string[]; domains?: string[] } = {};
     if (q.trim()) rule.q = q.trim();
     if (swatch) rule.color = swatch;
     if (types.size > 0) rule.types = [...types];
+    if (domainList.length) rule.domains = domainList;
     try {
       const res = await fetch("/api/lenses", {
         method: "POST",
@@ -140,6 +148,22 @@ export function LensForm({
           placeholder="anything about running shoes"
           style={textInput}
         />
+      </div>
+
+      <div>
+        <label htmlFor="lens-domains" style={fieldLabel}>
+          Domains
+        </label>
+        <input
+          id="lens-domains"
+          value={domains}
+          onChange={(e) => setDomains(e.target.value)}
+          placeholder="x.com, twitter.com"
+          style={textInput}
+        />
+        <p className="meta" style={{ textTransform: "none", letterSpacing: ".02em", margin: "8px 0 0" }}>
+          Host only — subdomains match
+        </p>
       </div>
 
       <div>
@@ -208,7 +232,7 @@ export function LensForm({
       )}
       {!hasRule && (
         <p className="meta" style={{ textTransform: "none", letterSpacing: ".02em", margin: 0 }}>
-          Add a query, a colour, or at least one card type — a lens needs something to match.
+          Add a query, a colour, a domain, or at least one card type — a lens needs something to match.
         </p>
       )}
 
