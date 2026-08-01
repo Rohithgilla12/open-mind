@@ -58,6 +58,12 @@ const (
 	ItemDetailStatusPending  ItemDetailStatus = "pending"
 )
 
+// Defines values for LensRuleScope.
+const (
+	All     LensRuleScope = "all"
+	Library LensRuleScope = "library"
+)
+
 // Defines values for LensRuleTypes.
 const (
 	LensRuleTypesArticle LensRuleTypes = "article"
@@ -224,7 +230,7 @@ type CreateLensRequest struct {
 	DigestSchedule *string `json:"digestSchedule,omitempty"`
 	Name           string  `json:"name"`
 
-	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+	// Rule A saved search Query. At least one of q, color, types, or domains must be set. Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types, domains (URL host / subdomain), scope (library = Mind only; all = include feed river). Omitted scope defaults to library when the rule is run as a Lens.
 	Rule LensRule `json:"rule"`
 }
 
@@ -377,21 +383,30 @@ type Lens struct {
 	LastDigestAt *time.Time `json:"lastDigestAt"`
 	Name         string     `json:"name"`
 
-	// Rule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+	// Rule A saved search Query. At least one of q, color, types, or domains must be set. Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types, domains (URL host / subdomain), scope (library = Mind only; all = include feed river). Omitted scope defaults to library when the rule is run as a Lens.
 	Rule LensRule `json:"rule"`
 }
 
-// LensRule A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type.
+// LensRule A saved search Query. At least one of q, color, types, or domains must be set. Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types, domains (URL host / subdomain), scope (library = Mind only; all = include feed river). Omitted scope defaults to library when the rule is run as a Lens.
 type LensRule struct {
 	// Color Hex (#RRGGBB) or named colour (e.g. cobalt).
 	Color *string `json:"color,omitempty"`
 
-	// Q Free-text query.
+	// Domains URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match (x.com matches mobile.x.com).
+	Domains *[]string `json:"domains,omitempty"`
+
+	// Q Free-text query (rank).
 	Q *string `json:"q,omitempty"`
 
-	// Types Card types to include.
+	// Scope library = saved/kept only; all = include unkept feed items. Lens runs default to library when omitted.
+	Scope *LensRuleScope `json:"scope,omitempty"`
+
+	// Types Card types to include (filter).
 	Types *[]LensRuleTypes `json:"types,omitempty"`
 }
+
+// LensRuleScope library = saved/kept only; all = include unkept feed items. Lens runs default to library when omitted.
+type LensRuleScope string
 
 // LensRuleTypes defines model for LensRule.Types.
 type LensRuleTypes string

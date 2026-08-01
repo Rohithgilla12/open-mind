@@ -341,7 +341,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. */
+        /** @description Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river. */
         get: operations["getLensItems"];
         put?: never;
         post?: never;
@@ -759,14 +759,21 @@ export interface components {
             /** @description Card-type filters applied, if any. */
             types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
         };
-        /** @description A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type. */
+        /** @description A saved search Query. At least one of q, color, types, or domains must be set. Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types, domains (URL host / subdomain), scope (library = Mind only; all = include feed river). Omitted scope defaults to library when the rule is run as a Lens. */
         LensRule: {
-            /** @description Free-text query. */
+            /** @description Free-text query (rank). */
             q?: string;
             /** @description Hex (#RRGGBB) or named colour (e.g. cobalt). */
             color?: string;
-            /** @description Card types to include. */
+            /** @description Card types to include (filter). */
             types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+            /** @description URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match (x.com matches mobile.x.com). */
+            domains?: string[];
+            /**
+             * @description library = saved/kept only; all = include unkept feed items. Lens runs default to library when omitted.
+             * @enum {string}
+             */
+            scope?: "library" | "all";
         };
         Lens: {
             /** Format: uuid */

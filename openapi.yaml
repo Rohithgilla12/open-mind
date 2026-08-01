@@ -401,7 +401,7 @@ paths:
   /lenses/{id}/items:
     get:
       operationId: getLensItems
-      description: "Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing."
+      description: "Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river."
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -799,14 +799,26 @@ components:
           items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
     LensRule:
       type: object
-      description: "A saved search rule. At least one of q, color, or types must be set. Applied like /search: q is text (FTS + vector), color ranks by palette proximity, types narrows by card type."
+      description: >
+        A saved search Query. At least one of q, color, types, or domains must be set.
+        Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types,
+        domains (URL host / subdomain), scope (library = Mind only; all = include feed river).
+        Omitted scope defaults to library when the rule is run as a Lens.
       properties:
-        q: { type: string, description: "Free-text query." }
+        q: { type: string, description: "Free-text query (rank)." }
         color: { type: string, description: "Hex (#RRGGBB) or named colour (e.g. cobalt)." }
         types:
           type: array
-          description: "Card types to include."
+          description: "Card types to include (filter)."
           items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+        domains:
+          type: array
+          description: "URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match (x.com matches mobile.x.com)."
+          items: { type: string, minLength: 1 }
+        scope:
+          type: string
+          description: "library = saved/kept only; all = include unkept feed items. Lens runs default to library when omitted."
+          enum: [library, all]
     Lens:
       type: object
       required: [id, name, rule, createdAt, digestSchedule]
