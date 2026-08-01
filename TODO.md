@@ -92,6 +92,19 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Web item detail + reader redesign — detail page reframed as "the card,
+  opened": grounded panel (warm card shadow + terracotta screen hairline
+  instead of the overlay drop-shadow), chrome bar (back link left; pin/Kindle
+  separated from delete right), real primary actions under the title (cobalt
+  "Read · N min" + outline "Open original"), and long bodies now preview ~3
+  paragraphs fading into a "Keep reading →" hand-off instead of duplicating
+  the reader; rail reordered (palette → tags → your tags → places → links →
+  provenance) with the archive line pinned as a colophon; columns stack under
+  920px via `.item-*` classes. Reader gained a terracotta scroll-progress
+  hairline, reading-time in the kicker (`lib/reading-time.ts`, tested), a
+  select-to-highlight hint, summary markdown rendering (was raw asterisks),
+  and a closing colophon (palette dots + back/original/Kindle). Title
+  3-line clamp deliberately kept (2026-07-17 decision) (2026-08-01)
 - **Deployed to prod 2026-08-01** — PRs #56 (Feed spacing + summary markdown),
   #57 (Raindrop token import), #59 (place removal). Box had been on #54 since
   2026-07-31. Sequential api→web build (load peaked 5.5, well under the <8

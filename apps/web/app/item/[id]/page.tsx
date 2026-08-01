@@ -1,7 +1,7 @@
 import { tokens } from "@openmind/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Palette } from "../../../components/Palette";
 import { RailLinks } from "../../../components/RailLinks";
 import { Rule } from "../../../components/Rule";
@@ -9,6 +9,7 @@ import { apiFetch } from "../../../lib/api";
 import { assetSrc } from "../../../lib/assets";
 import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
+import { readingMinutes } from "../../../lib/reading-time";
 import { relativeTime } from "../../../lib/relative-time";
 import { renderInlineMarkdown } from "../../../lib/text";
 import type { ItemDetail, Place } from "../../../lib/types";
@@ -21,12 +22,10 @@ import { TagEditor } from "./TagEditor";
 
 const { color, font } = tokens;
 
-const backLink: CSSProperties = {
-  fontFamily: font.mono,
-  fontSize: "0.78rem",
-  color: color.cobalt,
-  textDecoration: "none",
-};
+// How much archived body the detail page previews before handing off to the
+// reader — enough to decide whether to commit, never the whole article.
+const EXCERPT_MAX_PARAGRAPHS = 3;
+const EXCERPT_MAX_CHARS = 700;
 
 /**
  * Whether an item has long-form text worth opening in distraction-free reader
@@ -38,10 +37,17 @@ function readableBody(item: ItemDetail): boolean {
   return textForward && (item.body ?? "").trim().length > 120;
 }
 
-/** "ARTICLE · domain · 4 JUL 2026" — mono meta line above the title. */
+/** External original URL, or null for uploads/notes whose url is an asset path. */
+function externalUrl(item: ItemDetail): string | null {
+  return item.url && !item.url.startsWith("/assets/") ? item.url : null;
+}
+
+/** "ARTICLE · 8 MIN · domain · 4 JUL 2026" — mono kicker above the title. */
 function metaLine(item: ItemDetail): string {
   const kind = cardKind(item.cardType);
   const parts: string[] = [typeLabel[kind]];
+  const minutes = readingMinutes(item.body);
+  if (minutes) parts.push(`${minutes} min`);
   const domain = domainOf(item.url);
   if (domain) parts.push(domain);
   if (item.createdAt) {
@@ -95,7 +101,7 @@ function Title({ children }: { children: ReactNode }) {
     <h1
       className="serif"
       style={{
-        fontSize: 32,
+        fontSize: "clamp(26px, 4.5vw, 34px)",
         fontWeight: 600,
         lineHeight: 1.15,
         letterSpacing: "-.02em",
@@ -112,16 +118,43 @@ function Title({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Primary actions live directly under the title, as real buttons: Read (cobalt,
+ * when there's an archived body worth reading) and Open original (outline).
+ * Everything else is quiet chrome in the top bar.
+ */
+function ActionRow({ item }: { item: ItemDetail }) {
+  const external = externalUrl(item);
+  const readable = readableBody(item);
+  const minutes = readingMinutes(item.body);
+  if (!readable && !external) return null;
+  return (
+    <div style={{ display: "flex", gap: 10, margin: "22px 0 0", flexWrap: "wrap", alignItems: "center" }}>
+      {readable ? (
+        <Link href={`/item/${item.id}/read`} className="savebtn" style={{ textDecoration: "none", display: "inline-block" }}>
+          Read{minutes ? ` · ${minutes} min` : ""}
+        </Link>
+      ) : null}
+      {external ? (
+        <a href={external} target="_blank" rel="noreferrer" className="ghostbtn">
+          Open original ↗
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function SummaryLead({ children }: { children: string }) {
   return (
     <p
       className="serif"
       style={{
-        fontSize: 16,
-        lineHeight: 1.7,
+        fontStyle: "italic",
+        fontSize: 17,
+        lineHeight: 1.65,
         color: color.inkMuted,
-        margin: "18px 0 0",
-        maxWidth: "62ch",
+        margin: "20px 0 0",
+        maxWidth: "60ch",
       }}
     >
       {renderInlineMarkdown(children)}
@@ -129,26 +162,77 @@ function SummaryLead({ children }: { children: string }) {
   );
 }
 
-function Body({ body }: { body: string }) {
-  const paragraphs = body.split("\n\n").filter((p) => p.trim().length > 0);
+function BodyParagraphs({ paragraphs, serif }: { paragraphs: string[]; serif?: boolean }) {
   if (paragraphs.length === 0) return null;
   return (
-    <div style={{ margin: "22px 0 0", maxWidth: "62ch" }}>
+    <div style={{ maxWidth: "62ch" }}>
       {paragraphs.map((p, i) => (
         <p
           key={i}
+          className={serif ? "serif" : undefined}
           style={{
-            fontFamily: font.sans,
-            fontSize: 14,
-            lineHeight: 1.75,
+            fontFamily: serif ? undefined : font.sans,
+            fontSize: serif ? 16 : 15,
+            lineHeight: 1.8,
             color: color.ink,
-            margin: "0 0 1.1rem",
+            margin: "0 0 1.2rem",
             whiteSpace: "pre-wrap",
           }}
         >
           {p}
         </p>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Preview of a long archived body: the opening paragraphs fading into the card
+ * surface, then a hand-off into the reader. The detail page shows enough to
+ * decide; the reader owns the reading.
+ */
+function BodyPreview({ item }: { item: ItemDetail }) {
+  const body = (item.body ?? "").trim();
+  const paragraphs = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length === 0) return null;
+
+  const shown: string[] = [];
+  let chars = 0;
+  for (const p of paragraphs) {
+    shown.push(p);
+    chars += p.length;
+    if (shown.length >= EXCERPT_MAX_PARAGRAPHS || chars >= EXCERPT_MAX_CHARS) break;
+  }
+  const truncated = shown.length < paragraphs.length;
+  const minutes = readingMinutes(body);
+
+  if (!truncated || !readableBody(item)) {
+    return (
+      <div style={{ margin: "22px 0 0" }}>
+        <BodyParagraphs paragraphs={paragraphs} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ margin: "22px 0 0" }}>
+      <div className="body-fade">
+        <BodyParagraphs paragraphs={shown} />
+      </div>
+      <Link
+        href={`/item/${item.id}/read`}
+        className="serif"
+        style={{
+          display: "inline-block",
+          fontStyle: "italic",
+          fontSize: 16,
+          color: color.cobalt,
+          textDecoration: "none",
+          marginTop: 2,
+        }}
+      >
+        Keep reading{minutes ? ` — ${minutes} min` : ""} →
+      </Link>
     </div>
   );
 }
@@ -178,130 +262,123 @@ function QuoteReader({ text }: { text: string }) {
   );
 }
 
-function OpenOriginal({ url }: { url: string }) {
-  if (!url || url.startsWith("/assets/")) return null;
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="savebtn" style={{ textDecoration: "none" }}>
-      Open original ↗
-    </a>
-  );
-}
-
-/** Right-hand rail: palette swatches, tags, and the archive assurance line. */
+/**
+ * Right-hand rail: what the machine extracted (palette, tags, places), then
+ * what you've woven (your tags, links), with the archive assurance pinned to
+ * the bottom so it reads as the rail's colophon rather than another section.
+ */
 function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
   const tags = item.tags ?? [];
   const colors =
     item.palette && item.palette.length > 0
       ? item.palette
       : derivedPalette(`${item.title ?? ""} ${tags.join(" ")}`.trim() || item.cardType || "item");
-  const divider = <Rule />;
   return (
-    <aside
-      style={{
-        flex: "0 1 266px",
-        minWidth: 220,
-        background: color.panel,
-        borderLeft: `1px solid ${color.hairline}`,
-        padding: "26px 22px",
-      }}
-    >
-      <div className="meta" style={{ color: color.inkFaintAlt }}>
-        Palette
+    <aside className="item-rail">
+      <div>
+        <div className="meta" style={{ color: color.inkFaintAlt }}>
+          Palette
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
+          <Palette colors={colors} size={24} colorLinks />
+        </div>
+        <p
+          style={{
+            fontFamily: font.sans,
+            fontSize: 11,
+            lineHeight: 1.4,
+            color: color.inkFaint,
+            margin: "8px 0 0",
+          }}
+        >
+          Tap a colour to find matches.
+        </p>
+        {tags.length > 0 ? (
+          <>
+            <Rule />
+            <div className="meta" style={{ color: color.inkFaintAlt }}>
+              Tags
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
+              {tags.map((t) => (
+                <span key={t} className="tag">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : null}
+        <Rule />
+        <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
+        <PlacesSection itemId={item.id} places={places} />
+        <Rule />
+        <RailLinks itemId={item.id} />
+        {item.feedId ? (
+          <>
+            <Rule />
+            <div className="meta" style={{ color: color.inkFaintAlt }}>
+              Provenance
+            </div>
+            <p
+              style={{
+                fontFamily: font.sans,
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: color.inkMuted,
+                margin: "9px 0 0",
+              }}
+            >
+              From your feeds · {item.keptAt ? `kept ${relativeTime(item.keptAt)}` : "not kept"}
+            </p>
+            <div style={{ marginTop: 10 }}>
+              <KeepButton itemId={item.id} kept={!!item.keptAt} />
+            </div>
+          </>
+        ) : null}
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
-        <Palette colors={colors} size={24} colorLinks />
+      <div style={{ marginTop: "auto", paddingTop: 22 }}>
+        <Rule />
+        <p
+          className="meta"
+          style={{
+            color: color.inkFaint,
+            textTransform: "none",
+            letterSpacing: ".02em",
+            lineHeight: 1.5,
+            margin: 0,
+          }}
+        >
+          Archived locally · link can&apos;t rot
+        </p>
       </div>
-      <p
-        style={{
-          fontFamily: font.sans,
-          fontSize: 11,
-          lineHeight: 1.4,
-          color: color.inkFaint,
-          margin: "8px 0 0",
-        }}
-      >
-        Tap a colour to find matches.
-      </p>
-      {tags.length > 0 ? (
-        <>
-          {divider}
-          <div className="meta" style={{ color: color.inkFaintAlt }}>
-            Tags
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
-            {tags.map((t) => (
-              <span key={t} className="tag">
-                {t}
-              </span>
-            ))}
-          </div>
-        </>
-      ) : null}
-      {item.feedId ? (
-        <>
-          {divider}
-          <div className="meta" style={{ color: color.inkFaintAlt }}>
-            Provenance
-          </div>
-          <p
-            style={{
-              fontFamily: font.sans,
-              fontSize: 13,
-              lineHeight: 1.5,
-              color: color.inkMuted,
-              margin: "9px 0 0",
-            }}
-          >
-            From your feeds · {item.keptAt ? `kept ${relativeTime(item.keptAt)}` : "not kept"}
-          </p>
-          <div style={{ marginTop: 10 }}>
-            <KeepButton itemId={item.id} kept={!!item.keptAt} />
-          </div>
-        </>
-      ) : null}
-      <PlacesSection itemId={item.id} places={places} />
-      {divider}
-      <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
-      {divider}
-      <RailLinks itemId={item.id} />
-      {divider}
-      <p
-        className="meta"
-        style={{
-          color: color.inkFaint,
-          textTransform: "none",
-          letterSpacing: ".02em",
-          lineHeight: 1.5,
-          margin: 0,
-        }}
-      >
-        Archived locally · link can&apos;t rot
-      </p>
     </aside>
   );
 }
 
-/** The type-aware reader body (left column content below the title). */
+/** The type-aware content below the title and actions. */
 function ReaderContent({ item }: { item: ItemDetail }) {
   const kind = cardKind(item.cardType);
   const gradient = typeGradient[kind];
 
   if (item.status === "pending") {
     return (
-      <p style={{ fontFamily: font.mono, fontSize: "0.82rem", color: color.cobalt, margin: "18px 0 0" }}>
-        Still enriching…
-      </p>
+      <>
+        <p style={{ fontFamily: font.mono, fontSize: "0.82rem", color: color.cobalt, margin: "20px 0 0" }}>
+          Still enriching…
+        </p>
+        <ActionRow item={item} />
+      </>
     );
   }
 
   if (item.status === "failed") {
     return (
-      <div style={{ margin: "18px 0 0", display: "flex", flexDirection: "column", gap: 16 }}>
-        <p style={{ fontFamily: font.sans, fontSize: 14, color: color.inkMuted, margin: 0 }}>
+      <>
+        <p style={{ fontFamily: font.sans, fontSize: 14, color: color.inkMuted, margin: "20px 0 0" }}>
           Enrichment failed for this item.
         </p>
-        <OpenOriginal url={item.url} />
-      </div>
+        <ActionRow item={item} />
+      </>
     );
   }
 
@@ -309,16 +386,20 @@ function ReaderContent({ item }: { item: ItemDetail }) {
     return (
       <>
         <QuoteReader text={item.body || item.summary || item.title || ""} />
-        <Actions url={item.url} />
+        <ActionRow item={item} />
       </>
     );
   }
 
   if (kind === "note") {
+    const body = (item.body || item.summary || item.title || "").trim();
+    const paragraphs = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
     return (
       <>
-        <Body body={item.body || item.summary || item.title || ""} />
-        <Actions url={item.url} />
+        <div style={{ margin: "20px 0 0" }}>
+          <BodyParagraphs paragraphs={paragraphs} serif />
+        </div>
+        <ActionRow item={item} />
       </>
     );
   }
@@ -326,10 +407,10 @@ function ReaderContent({ item }: { item: ItemDetail }) {
   if (kind === "image") {
     return (
       <>
-        <div style={{ margin: "18px 0 0" }}>
+        <ActionRow item={item} />
+        <div style={{ margin: "22px 0 0" }}>
           <ReaderImage src={assetSrc(item.leadImageUrl)} alt={item.title ?? "saved image"} gradient={gradient} />
         </div>
-        <Actions url={item.url} />
       </>
     );
   }
@@ -338,24 +419,15 @@ function ReaderContent({ item }: { item: ItemDetail }) {
   const showHero = kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "video";
   return (
     <>
+      <ActionRow item={item} />
       {showHero && item.leadImageUrl ? (
-        <div style={{ margin: "18px 0 0" }}>
+        <div style={{ margin: "24px 0 0" }}>
           <ReaderImage src={assetSrc(item.leadImageUrl)} alt={item.title ? `${item.title}` : "lead image"} gradient={gradient} />
         </div>
       ) : null}
       {item.summary ? <SummaryLead>{item.summary}</SummaryLead> : null}
-      {item.body ? <Body body={item.body} /> : null}
-      <Actions url={item.url} />
+      {item.body ? <BodyPreview item={item} /> : null}
     </>
-  );
-}
-
-function Actions({ url }: { url: string }) {
-  if (!url || url.startsWith("/assets/")) return null;
-  return (
-    <div style={{ display: "flex", gap: 8, margin: "26px 0 0", flexWrap: "wrap" }}>
-      <OpenOriginal url={url} />
-    </div>
   );
 }
 
@@ -376,58 +448,58 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         display: "flex",
         justifyContent: "center",
         alignItems: "flex-start",
-        padding: "40px 24px",
+        padding: "clamp(16px, 4vw, 44px) clamp(12px, 3vw, 24px)",
       }}
     >
       <article
         style={{
-          width: 960,
+          width: 980,
           maxWidth: "100%",
           background: color.cardSurface,
-          borderRadius: 16,
+          borderRadius: 14,
           border: `1px solid ${color.hairline}`,
           overflow: "hidden",
-          boxShadow: "0 40px 90px -20px rgba(0,0,0,.6)",
-          display: "flex",
-          flexWrap: "wrap",
+          boxShadow: "0 2px 6px rgba(28,26,22,.06), 0 30px 70px -42px rgba(28,26,22,.55)",
         }}
       >
-        <div style={{ flex: "1 1 460px", minWidth: 0, padding: "40px 48px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
+        {/* The screen-title mark: same terracotta hairline The Mind wears. */}
+        <div
+          aria-hidden
+          style={{
+            height: 2,
+            background: `linear-gradient(90deg, ${color.terracotta}, ${color.terracotta} 38%, transparent)`,
+          }}
+        />
+        <header className="item-chrome">
+          <Link
+            href="/"
+            style={{ fontFamily: font.mono, fontSize: "0.78rem", color: color.cobalt, textDecoration: "none" }}
           >
-            <Link href="/" style={backLink}>
-              ← library
-            </Link>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {readableBody(item) ? (
-                <Link href={`/item/${item.id}/read`} style={{ ...backLink, color: color.ink }}>
-                  Read ↗
-                </Link>
-              ) : null}
-              <PinButton itemId={item.id} pinned={!!item.pinnedAt} />
-              <KindleButton target="item" id={item.id} />
-              <DeleteButton id={item.id} />
+            ← The Mind
+          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <PinButton itemId={item.id} pinned={!!item.pinnedAt} />
+            <KindleButton target="item" id={item.id} />
+            <span aria-hidden style={{ width: 1, height: 14, background: color.hairline }} />
+            <DeleteButton id={item.id} />
+          </div>
+        </header>
+        <div className="item-columns">
+          <div className="item-main">
+            <div className="meta" style={{ color: color.inkFaint }}>
+              {metaLine(item)}
+              {item.pageCount != null && (
+                <span>
+                  {" "}
+                  · PDF · {item.pageCount} {item.pageCount === 1 ? "page" : "pages"}
+                </span>
+              )}
             </div>
+            {item.title ? <Title>{item.title}</Title> : null}
+            <ReaderContent item={item} />
           </div>
-          <div className="meta" style={{ color: color.inkFaint, marginTop: 22 }}>
-            {metaLine(item)}
-            {item.pageCount != null && (
-              <span>
-                {" "}
-                · PDF · {item.pageCount} {item.pageCount === 1 ? "page" : "pages"}
-              </span>
-            )}
-          </div>
-          {item.title ? <Title>{item.title}</Title> : null}
-          <ReaderContent item={item} />
+          <Rail item={item} places={places} />
         </div>
-        <Rail item={item} places={places} />
       </article>
     </main>
   );
