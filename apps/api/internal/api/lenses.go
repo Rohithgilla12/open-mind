@@ -99,7 +99,7 @@ func parseRule(rule LensRule) (normalisedRule, error) {
 	}
 	if rule.Scope != nil {
 		switch *rule.Scope {
-		case Library, All:
+		case LensRuleScopeLibrary, LensRuleScopeAll:
 			out.scope = search.Scope(*rule.Scope)
 		default:
 			return out, errors.New("rule.scope must be library or all")

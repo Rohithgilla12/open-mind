@@ -480,7 +480,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Text search (q), colour-proximity search (color), or both fused. Set parse=true to interpret q as a natural-language query — the AI provider splits it into a text portion, a colour, and card-type filters, all fused into one search. At least one of q or color is required. Results rank library items (direct saves and kept feed items) ahead of unkept feed-river matches; within each group ordering is by descending fused score. */
+        /** @description Text search (q), colour-proximity (color), and/or structured filters (types, domains), optionally limited by scope. Set parse=true to interpret q as a natural-language query — the AI provider may extract text, colour, types, and domains, all fused into one search. Explicit params win over parsed values. At least one of q, color, types, or domains is required (scope alone is not enough). Results rank library items (direct saves and kept feed items) ahead of unkept feed-river matches when scope includes them; within each group ordering is by descending fused score. */
         get: operations["searchItems"];
         put?: never;
         post?: never;
@@ -758,6 +758,8 @@ export interface components {
             color?: string;
             /** @description Card-type filters applied, if any. */
             types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+            /** @description URL host filters applied, if any. */
+            domains?: string[];
         };
         /** @description A saved search Query. At least one of q, color, types, or domains must be set. Rank signals: q (FTS+vector), color (palette proximity). Hard filters: types, domains (URL host / subdomain), scope (library = Mind only; all = include feed river). Omitted scope defaults to library when the rule is run as a Lens. */
         LensRule: {
@@ -2066,7 +2068,13 @@ export interface operations {
                 q?: string;
                 /** @description Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour. */
                 color?: string;
-                /** @description Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured. */
+                /** @description Card types to include (filter). Repeatable query param. */
+                types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+                /** @description URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match. */
+                domains?: string[];
+                /** @description library = saved/kept only; all = include unkept feed items. Defaults to all when omitted on /search. */
+                scope?: "library" | "all";
+                /** @description Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured. */
                 parse?: boolean;
             };
             header?: never;

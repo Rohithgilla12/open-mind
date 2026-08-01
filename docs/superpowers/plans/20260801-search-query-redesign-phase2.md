@@ -25,14 +25,14 @@
 
 **Files:** `openapi.yaml`; `task generate`
 
-- [ ] **Step 1:** Update `GET /search`:
+- [x] **Step 1:** Update `GET /search`:
   - Description: structured filters + parse extracts text/colour/types/domains
   - Params: `types` (array of card-type enum, style: form, explode: true OR comma — prefer explode true for oapi), `domains` (array of string), `scope` (enum library|all)
   - At least one of q, color, types, domains required (document; enforce in handler)
 
-- [ ] **Step 2:** `UnderstoodQuery` gains `domains: string[]`
+- [x] **Step 2:** `UnderstoodQuery` gains `domains: string[]`
 
-- [ ] **Step 3:** `task generate` + commit `feat(api): expose types, domains, scope on /search`
+- [x] **Step 3:** `task generate` + commit `feat(api): expose types, domains, scope on /search`
 
 ---
 

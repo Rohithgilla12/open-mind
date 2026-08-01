@@ -60,8 +60,8 @@ const (
 
 // Defines values for LensRuleScope.
 const (
-	All     LensRuleScope = "all"
-	Library LensRuleScope = "library"
+	LensRuleScopeAll     LensRuleScope = "all"
+	LensRuleScopeLibrary LensRuleScope = "library"
 )
 
 // Defines values for LensRuleTypes.
@@ -142,6 +142,25 @@ const (
 	UnderstoodQueryTypesRecipe  UnderstoodQueryTypes = "recipe"
 	UnderstoodQueryTypesTweet   UnderstoodQueryTypes = "tweet"
 	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
+)
+
+// Defines values for SearchItemsParamsTypes.
+const (
+	Article SearchItemsParamsTypes = "article"
+	Book    SearchItemsParamsTypes = "book"
+	Image   SearchItemsParamsTypes = "image"
+	Note    SearchItemsParamsTypes = "note"
+	Product SearchItemsParamsTypes = "product"
+	Quote   SearchItemsParamsTypes = "quote"
+	Recipe  SearchItemsParamsTypes = "recipe"
+	Tweet   SearchItemsParamsTypes = "tweet"
+	Video   SearchItemsParamsTypes = "video"
+)
+
+// Defines values for SearchItemsParamsScope.
+const (
+	SearchItemsParamsScopeAll     SearchItemsParamsScope = "all"
+	SearchItemsParamsScopeLibrary SearchItemsParamsScope = "library"
 )
 
 // Account defines model for Account.
@@ -535,6 +554,9 @@ type UnderstoodQuery struct {
 	// Color The colour searched, if any.
 	Color *string `json:"color,omitempty"`
 
+	// Domains URL host filters applied, if any.
+	Domains *[]string `json:"domains,omitempty"`
+
 	// Text The free-text portion searched.
 	Text *string `json:"text,omitempty"`
 
@@ -601,9 +623,24 @@ type SearchItemsParams struct {
 	// Color Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour.
 	Color *string `form:"color,omitempty" json:"color,omitempty"`
 
-	// Parse Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured.
+	// Types Card types to include (filter). Repeatable query param.
+	Types *[]SearchItemsParamsTypes `form:"types,omitempty" json:"types,omitempty"`
+
+	// Domains URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match.
+	Domains *[]string `form:"domains,omitempty" json:"domains,omitempty"`
+
+	// Scope library = saved/kept only; all = include unkept feed items. Defaults to all when omitted on /search.
+	Scope *SearchItemsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// Parse Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured.
 	Parse *bool `form:"parse,omitempty" json:"parse,omitempty"`
 }
+
+// SearchItemsParamsTypes defines parameters for SearchItems.
+type SearchItemsParamsTypes string
+
+// SearchItemsParamsScope defines parameters for SearchItems.
+type SearchItemsParamsScope string
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
 type CreateApiKeyJSONRequestBody = CreateApiKeyRequest
@@ -2246,6 +2283,30 @@ func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Re
 	err = runtime.BindQueryParameter("form", true, false, "color", r.URL.Query(), &params.Color)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "color", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "types" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "types", r.URL.Query(), &params.Types)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "types", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "domains" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "domains", r.URL.Query(), &params.Domains)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "domains", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "scope", r.URL.Query(), &params.Scope)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
 		return
 	}
 

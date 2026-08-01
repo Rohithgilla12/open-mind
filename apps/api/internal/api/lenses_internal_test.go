@@ -57,10 +57,10 @@ func TestParseRule(t *testing.T) {
 		},
 		{name: "bad domain rejected", rule: LensRule{Domains: domainsptr("not a host")}, wantErr: true},
 		{name: "whitespace-only domains rejected", rule: LensRule{Domains: domainsptr("  ", "")}, wantErr: true},
-		{name: "scope library", rule: LensRule{Types: typesptr("article"), Scope: scopeptr(Library)}, wantTys: []string{"article"}, wantSc: search.ScopeLibrary},
-		{name: "scope all", rule: LensRule{Types: typesptr("article"), Scope: scopeptr(All)}, wantTys: []string{"article"}, wantSc: search.ScopeAll},
+		{name: "scope library", rule: LensRule{Types: typesptr("article"), Scope: scopeptr(LensRuleScopeLibrary)}, wantTys: []string{"article"}, wantSc: search.ScopeLibrary},
+		{name: "scope all", rule: LensRule{Types: typesptr("article"), Scope: scopeptr(LensRuleScopeAll)}, wantTys: []string{"article"}, wantSc: search.ScopeAll},
 		{name: "invalid scope rejected", rule: LensRule{Types: typesptr("article"), Scope: scopeptr("feed")}, wantErr: true},
-		{name: "scope alone rejected", rule: LensRule{Scope: scopeptr(Library)}, wantErr: true},
+		{name: "scope alone rejected", rule: LensRule{Scope: scopeptr(LensRuleScopeLibrary)}, wantErr: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

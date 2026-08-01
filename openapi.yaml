@@ -528,11 +528,43 @@ paths:
   /search:
     get:
       operationId: searchItems
-      description: "Text search (q), colour-proximity search (color), or both fused. Set parse=true to interpret q as a natural-language query — the AI provider splits it into a text portion, a colour, and card-type filters, all fused into one search. At least one of q or color is required. Results rank library items (direct saves and kept feed items) ahead of unkept feed-river matches; within each group ordering is by descending fused score."
+      description: >
+        Text search (q), colour-proximity (color), and/or structured filters
+        (types, domains), optionally limited by scope. Set parse=true to
+        interpret q as a natural-language query — the AI provider may extract
+        text, colour, types, and domains, all fused into one search. Explicit
+        params win over parsed values. At least one of q, color, types, or
+        domains is required (scope alone is not enough). Results rank library
+        items (direct saves and kept feed items) ahead of unkept feed-river
+        matches when scope includes them; within each group ordering is by
+        descending fused score.
       parameters:
         - { name: q, in: query, required: false, schema: { type: string } }
         - { name: color, in: query, required: false, schema: { type: string }, description: "Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour." }
-        - { name: parse, in: query, required: false, schema: { type: boolean }, description: "Interpret q as a natural-language query, splitting it into text + colour + card-type filters via the AI provider. Falls back to a plain text search when no AI provider is configured." }
+        - name: types
+          in: query
+          required: false
+          style: form
+          explode: true
+          description: "Card types to include (filter). Repeatable query param."
+          schema:
+            type: array
+            items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+        - name: domains
+          in: query
+          required: false
+          style: form
+          explode: true
+          description: "URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match."
+          schema:
+            type: array
+            items: { type: string, minLength: 1 }
+        - name: scope
+          in: query
+          required: false
+          description: "library = saved/kept only; all = include unkept feed items. Defaults to all when omitted on /search."
+          schema: { type: string, enum: [library, all], default: all }
+        - { name: parse, in: query, required: false, schema: { type: boolean }, description: "Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured." }
       responses:
         "200":
           content:
@@ -797,6 +829,10 @@ components:
           type: array
           description: "Card-type filters applied, if any."
           items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+        domains:
+          type: array
+          description: "URL host filters applied, if any."
+          items: { type: string }
     LensRule:
       type: object
       description: >
