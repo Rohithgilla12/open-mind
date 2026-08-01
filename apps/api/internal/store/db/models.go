@@ -89,6 +89,7 @@ type Item struct {
 	FeedID         pgtype.UUID
 	KeptAt         pgtype.Timestamptz
 	TaggedLocation string
+	UrlHost        pgtype.Text
 }
 
 type ItemEmbedding struct {

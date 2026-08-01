@@ -46,7 +46,7 @@ func (q *Queries) CountDriftCandidates(ctx context.Context, userID uuid.UUID) (i
 }
 
 const createFeedItem = `-- name: CreateFeedItem :one
-INSERT INTO items (user_id, url, feed_id) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location
+INSERT INTO items (user_id, url, feed_id) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host
 `
 
 type CreateFeedItemParams struct {
@@ -80,12 +80,13 @@ func (q *Queries) CreateFeedItem(ctx context.Context, arg CreateFeedItemParams) 
 		&i.FeedID,
 		&i.KeptAt,
 		&i.TaggedLocation,
+		&i.UrlHost,
 	)
 	return i, err
 }
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host
 `
 
 type CreateItemParams struct {
@@ -119,12 +120,13 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.FeedID,
 		&i.KeptAt,
 		&i.TaggedLocation,
+		&i.UrlHost,
 	)
 	return i, err
 }
 
 const createQuoteItem = `-- name: CreateQuoteItem :one
-INSERT INTO items (user_id, body, card_type, url) VALUES ($1, $2, 'quote', '') RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location
+INSERT INTO items (user_id, body, card_type, url) VALUES ($1, $2, 'quote', '') RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host
 `
 
 type CreateQuoteItemParams struct {
@@ -157,6 +159,7 @@ func (q *Queries) CreateQuoteItem(ctx context.Context, arg CreateQuoteItemParams
 		&i.FeedID,
 		&i.KeptAt,
 		&i.TaggedLocation,
+		&i.UrlHost,
 	)
 	return i, err
 }
@@ -210,7 +213,7 @@ func (q *Queries) EnsureUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 AND id = $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items WHERE user_id = $1 AND id = $2
 `
 
 type GetItemParams struct {
@@ -243,12 +246,13 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 		&i.FeedID,
 		&i.KeptAt,
 		&i.TaggedLocation,
+		&i.UrlHost,
 	)
 	return i, err
 }
 
 const getItemByURL = `-- name: GetItemByURL :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 AND url = $2 LIMIT 1
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items WHERE user_id = $1 AND url = $2 LIMIT 1
 `
 
 type GetItemByURLParams struct {
@@ -281,12 +285,13 @@ func (q *Queries) GetItemByURL(ctx context.Context, arg GetItemByURLParams) (Ite
 		&i.FeedID,
 		&i.KeptAt,
 		&i.TaggedLocation,
+		&i.UrlHost,
 	)
 	return i, err
 }
 
 const listDriftCandidates = `-- name: ListDriftCandidates :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
   AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
   AND (feed_id IS NULL OR kept_at IS NOT NULL)
@@ -330,6 +335,7 @@ func (q *Queries) ListDriftCandidates(ctx context.Context, arg ListDriftCandidat
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +348,7 @@ func (q *Queries) ListDriftCandidates(ctx context.Context, arg ListDriftCandidat
 }
 
 const listFeedItems = `-- name: ListFeedItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1 AND feed_id IS NOT NULL
   AND ($2::uuid IS NULL OR feed_id = $2)
 ORDER BY created_at DESC LIMIT $3
@@ -385,6 +391,7 @@ func (q *Queries) ListFeedItems(ctx context.Context, arg ListFeedItemsParams) ([
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -421,7 +428,7 @@ func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string,
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1 AND (feed_id IS NULL OR kept_at IS NOT NULL)
 ORDER BY created_at DESC LIMIT $2
 `
@@ -462,6 +469,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -474,7 +482,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 }
 
 const listItemsAll = `-- name: ListItemsAll :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1
 ORDER BY created_at DESC LIMIT $2
 `
@@ -519,6 +527,7 @@ func (q *Queries) ListItemsAll(ctx context.Context, arg ListItemsAllParams) ([]I
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -531,7 +540,7 @@ func (q *Queries) ListItemsAll(ctx context.Context, arg ListItemsAllParams) ([]I
 }
 
 const listItemsForExport = `-- name: ListItemsForExport :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items WHERE user_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -565,6 +574,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -577,7 +587,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 }
 
 const listPinned = `-- name: ListPinned :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
 `
 
 func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -611,6 +621,7 @@ func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, err
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}

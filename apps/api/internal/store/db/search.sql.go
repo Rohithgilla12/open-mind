@@ -13,12 +13,52 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
-const listItemsWithPalette = `-- name: ListItemsWithPalette :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location FROM items WHERE user_id = $1 AND cardinality(palette) > 0
+const listItemsMatching = `-- name: ListItemsMatching :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host
+FROM items
+WHERE user_id = $1
+  AND (
+    NOT $2::bool
+    OR feed_id IS NULL
+    OR kept_at IS NOT NULL
+  )
+  AND (
+    $3::text[] IS NULL
+    OR cardinality($3::text[]) = 0
+    OR card_type = ANY ($3::text[])
+  )
+  AND (
+    $4::text[] IS NULL
+    OR cardinality($4::text[]) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM unnest($4::text[]) AS d(domain)
+      WHERE url_host = d.domain
+         OR url_host LIKE d.domain || '.%'
+    )
+  )
+ORDER BY created_at DESC
+LIMIT $5
 `
 
-func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([]Item, error) {
-	rows, err := q.db.Query(ctx, listItemsWithPalette, userID)
+type ListItemsMatchingParams struct {
+	UserID        uuid.UUID
+	LibraryOnly   bool
+	FilterTypes   []string
+	FilterDomains []string
+	LimitCount    int32
+}
+
+// Filter-only listing (types and/or domains; optional library scope).
+// Newest first. Used when a Query has no text/colour rank signal.
+func (q *Queries) ListItemsMatching(ctx context.Context, arg ListItemsMatchingParams) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listItemsMatching,
+		arg.UserID,
+		arg.LibraryOnly,
+		arg.FilterTypes,
+		arg.FilterDomains,
+		arg.LimitCount,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +88,88 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemsWithPalette = `-- name: ListItemsWithPalette :many
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
+WHERE user_id = $1
+  AND cardinality(palette) > 0
+  AND (
+    NOT $2::bool
+    OR feed_id IS NULL
+    OR kept_at IS NOT NULL
+  )
+  AND (
+    $3::text[] IS NULL
+    OR cardinality($3::text[]) = 0
+    OR card_type = ANY ($3::text[])
+  )
+  AND (
+    $4::text[] IS NULL
+    OR cardinality($4::text[]) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM unnest($4::text[]) AS d(domain)
+      WHERE url_host = d.domain
+         OR url_host LIKE d.domain || '.%'
+    )
+  )
+`
+
+type ListItemsWithPaletteParams struct {
+	UserID        uuid.UUID
+	LibraryOnly   bool
+	FilterTypes   []string
+	FilterDomains []string
+}
+
+func (q *Queries) ListItemsWithPalette(ctx context.Context, arg ListItemsWithPaletteParams) ([]Item, error) {
+	rows, err := q.db.Query(ctx, listItemsWithPalette,
+		arg.UserID,
+		arg.LibraryOnly,
+		arg.FilterTypes,
+		arg.FilterDomains,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Item
+	for rows.Next() {
+		var i Item
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Title,
+			&i.Body,
+			&i.LeadImageUrl,
+			&i.Summary,
+			&i.Tags,
+			&i.CardType,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Palette,
+			&i.UserTags,
+			&i.PinnedAt,
+			&i.LastDriftedAt,
+			&i.SearchTsv,
+			&i.PageCount,
+			&i.FeedID,
+			&i.KeptAt,
+			&i.TaggedLocation,
+			&i.UrlHost,
 		); err != nil {
 			return nil, err
 		}
@@ -60,7 +182,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, userID uuid.UUID) ([
 }
 
 const relatedByEmbedding = `-- name: RelatedByEmbedding :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, (e.embedding <=> src.embedding)::float8 AS distance
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, (e.embedding <=> src.embedding)::float8 AS distance
 FROM item_embeddings src
 JOIN item_embeddings e ON e.user_id = src.user_id AND e.item_id <> src.item_id
 JOIN items i ON i.id = e.item_id
@@ -105,6 +227,7 @@ type RelatedByEmbeddingRow struct {
 	FeedID         pgtype.UUID
 	KeptAt         pgtype.Timestamptz
 	TaggedLocation string
+	UrlHost        pgtype.Text
 	Distance       float64
 }
 
@@ -147,6 +270,7 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 			&i.Distance,
 		); err != nil {
 			return nil, err
@@ -160,16 +284,42 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 }
 
 const searchFTS = `-- name: SearchFTS :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
+
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items
-WHERE user_id = $1 AND search_tsv @@ websearch_to_tsquery('english', $2)
-ORDER BY rank DESC LIMIT $3
+WHERE user_id = $1
+  AND search_tsv @@ websearch_to_tsquery('english', $2)
+  AND (
+    NOT $4::bool
+    OR feed_id IS NULL
+    OR kept_at IS NOT NULL
+  )
+  AND (
+    $5::text[] IS NULL
+    OR cardinality($5::text[]) = 0
+    OR card_type = ANY ($5::text[])
+  )
+  AND (
+    $6::text[] IS NULL
+    OR cardinality($6::text[]) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM unnest($6::text[]) AS d(domain)
+      WHERE url_host = d.domain
+         OR url_host LIKE d.domain || '.%'
+    )
+  )
+ORDER BY rank DESC
+LIMIT $3
 `
 
 type SearchFTSParams struct {
 	UserID             uuid.UUID
 	WebsearchToTsquery string
 	Limit              int32
+	LibraryOnly        bool
+	FilterTypes        []string
+	FilterDomains      []string
 }
 
 type SearchFTSRow struct {
@@ -194,11 +344,22 @@ type SearchFTSRow struct {
 	FeedID         pgtype.UUID
 	KeptAt         pgtype.Timestamptz
 	TaggedLocation string
+	UrlHost        pgtype.Text
 	Rank           float64
 }
 
+// library_only: when true, Mind predicate
+// types: NULL or '{}' means no type filter; else card_type = ANY(types)
+// domains: NULL or '{}' means no domain filter; else host equals or is subdomain
 func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchFTSRow, error) {
-	rows, err := q.db.Query(ctx, searchFTS, arg.UserID, arg.WebsearchToTsquery, arg.Limit)
+	rows, err := q.db.Query(ctx, searchFTS,
+		arg.UserID,
+		arg.WebsearchToTsquery,
+		arg.Limit,
+		arg.LibraryOnly,
+		arg.FilterTypes,
+		arg.FilterDomains,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +389,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 			&i.Rank,
 		); err != nil {
 			return nil, err
@@ -241,16 +403,39 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 }
 
 const searchVector = `-- name: SearchVector :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, (1 - (e.embedding <=> $2))::float8 AS similarity
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, (1 - (e.embedding <=> $2))::float8 AS similarity
 FROM item_embeddings e JOIN items i ON i.id = e.item_id
 WHERE e.user_id = $1
+  AND (
+    NOT $4::bool
+    OR i.feed_id IS NULL
+    OR i.kept_at IS NOT NULL
+  )
+  AND (
+    $5::text[] IS NULL
+    OR cardinality($5::text[]) = 0
+    OR i.card_type = ANY ($5::text[])
+  )
+  AND (
+    $6::text[] IS NULL
+    OR cardinality($6::text[]) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM unnest($6::text[]) AS d(domain)
+      WHERE i.url_host = d.domain
+         OR i.url_host LIKE d.domain || '.%'
+    )
+  )
 ORDER BY e.embedding <=> $2 LIMIT $3
 `
 
 type SearchVectorParams struct {
-	UserID    uuid.UUID
-	Embedding pgvector_go.Vector
-	Limit     int32
+	UserID        uuid.UUID
+	Embedding     pgvector_go.Vector
+	Limit         int32
+	LibraryOnly   bool
+	FilterTypes   []string
+	FilterDomains []string
 }
 
 type SearchVectorRow struct {
@@ -275,11 +460,19 @@ type SearchVectorRow struct {
 	FeedID         pgtype.UUID
 	KeptAt         pgtype.Timestamptz
 	TaggedLocation string
+	UrlHost        pgtype.Text
 	Similarity     float64
 }
 
 func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]SearchVectorRow, error) {
-	rows, err := q.db.Query(ctx, searchVector, arg.UserID, arg.Embedding, arg.Limit)
+	rows, err := q.db.Query(ctx, searchVector,
+		arg.UserID,
+		arg.Embedding,
+		arg.Limit,
+		arg.LibraryOnly,
+		arg.FilterTypes,
+		arg.FilterDomains,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +502,7 @@ func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]S
 			&i.FeedID,
 			&i.KeptAt,
 			&i.TaggedLocation,
+			&i.UrlHost,
 			&i.Similarity,
 		); err != nil {
 			return nil, err
