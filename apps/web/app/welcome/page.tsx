@@ -432,8 +432,10 @@ export default function WelcomePage() {
               <>
                 <p style={p}>
                   Browser bookmarks, Pocket, Raindrop, Pinboard, Instapaper, an
-                  Omnivore zip, a CSV, or just a list of URLs. Each new URL
-                  becomes a pending item and enriches in the background.
+                  Omnivore zip, a CSV, or just a list of URLs. Raindrop.io also
+                  connects directly with an API test token — no export file
+                  needed, and collections become tags. Each new URL becomes a
+                  pending item and enriches in the background.
                 </p>
                 <p style={p}>
                   URLs already in your library are skipped, so re-running an

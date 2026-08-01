@@ -222,6 +222,8 @@ at its default (`false`) reproduces the standard distroless image byte-for-byte.
 
 **Omnivore**: labels are preserved as your tags. Only the saved URLs are imported in the current version — the archived article bodies in the zip are not used yet, so pages whose original URL has since died will import as failed cards.
 
+**Raindrop.io** can also be imported directly, with no export file: in Raindrop open **Settings → Integrations**, create an app, copy its **test token**, and paste it into the Raindrop section of the Import page (or `POST /import/raindrop` with `{"token": "..."}`). The server uses the token for a single export request against the Raindrop API and never stores or logs it. Raindrop tags are preserved as your tags, and each bookmark's collection becomes a tag too (the default "Unsorted" bucket is skipped). The same collections-become-tags rule applies when you upload a Raindrop CSV export by file.
+
 ## Exporting your library
 
 A link to a full JSON export is on the web UI's home page (top-level nav). It calls `GET /api/export` (bearer-token or logged-in-cookie authenticated, scoped to your account) and returns every saved item as a JSON array, including each item's extracted text (`body`), title, tags, and metadata — so you always have a portable, lock-in-free copy of everything you've saved.

@@ -84,6 +84,16 @@
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
 
 ## Done (recent)
+- Direct Raindrop.io import (tweet request) — `POST /import/raindrop` takes a
+  Raindrop API test token, pulls the account's one-shot CSV export server-side
+  (token used for that single request, never stored/logged), and funnels it
+  through the existing parse → dedupe → create-and-enrich path, so it's
+  idempotent like file imports. Raindrop tags preserved; each bookmark's
+  collection (CSV `folder` column) now also becomes a tag ("Unsorted"
+  skipped) — for uploaded Raindrop CSVs too. Web Import page gained a
+  token form; docs + welcome/README copy updated. Rejected token → 400,
+  Raindrop down → 502, oversized export → 413 with upload-a-file fallback
+  hint (2026-08-01)
 - Notifications (PR #52, merged) — at-least-once delivery (Expo, email,
   noop) via idempotent outbox (migration 0020_notifications.sql, partial unique
   index guard). `internal/notify` adapter + four River workers: scan, per-user

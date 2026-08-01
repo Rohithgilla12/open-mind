@@ -105,7 +105,9 @@ the caption, geocodes them, and pins them on a map.
 <br>
 
 Bring an existing library in — browser bookmarks, Pocket, Raindrop, Pinboard,
-Instapaper, an Omnivore zip, a CSV, or a plain list of URLs.
+Instapaper, an Omnivore zip, a CSV, or a plain list of URLs. Raindrop.io can
+also be imported directly with an API test token, no export file needed —
+your tags come along and collections become tags.
 
 <img src="docs/screenshots/import.jpg" alt="The import screen listing supported formats including browser bookmarks, Pocket, Raindrop and Omnivore">
 

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { tokens } from "@openmind/ui";
 import { Shell } from "../../components/Shell";
 import { ImportForm } from "../../components/ImportForm";
+import { RaindropImportForm } from "../../components/RaindropImportForm";
 
 const { color, font } = tokens;
 
 const SOURCES = [
   "Browser bookmarks (Chrome, Firefox, Safari) — export as HTML",
   "Pocket — HTML or CSV export",
-  "Raindrop — HTML or CSV export",
+  "Raindrop.io — connect directly with a test token below (no export file needed), or upload an HTML/CSV export; collections become tags either way",
   "Pinboard / Instapaper — HTML export",
   "Omnivore — zip export (labels become your tags; archived article bodies aren't used yet, so dead links import as failed cards)",
   "A plain .txt list of URLs, one per line",
@@ -41,6 +42,7 @@ export default function ImportPage() {
       </div>
       <div style={{ padding: "26px 28px 40px", display: "flex", flexDirection: "column", gap: 26 }}>
         <ImportForm />
+        <RaindropImportForm />
         <div>
           <div className="meta" style={{ marginBottom: 10 }}>
             Supported sources
