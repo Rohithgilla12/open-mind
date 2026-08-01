@@ -261,7 +261,7 @@ func registerTools(s *mcp.Server, b Backend, uidFor func(context.Context) uuid.U
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "create_lens",
-		Description: "Create a Lens (a named saved search). rule needs at least one of q (text query), color (name or hex), types (card types).",
+		Description: "Create a Lens (a named saved search). rule needs at least one of q (text query), color (name or hex), types (card types), or domains (URL hosts). Optional scope is library (default, Mind only) or all (include unkept feed).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in createLensInput) (*mcp.CallToolResult, LensInfo, error) {
 		name := strings.TrimSpace(in.Name)
 		if name == "" {

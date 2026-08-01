@@ -46,17 +46,19 @@ func validCardType(t string) bool {
 }
 
 // normalisedRule is the validated, canonical form of a LensRule: trimmed text,
-// trimmed colour, and deduped/known card types. It is what gets persisted so a
-// stored rule is always directly usable by search.Run.
+// trimmed colour, deduped/known card types, normalised domains, and optional
+// scope. It is what gets persisted so a stored rule is always directly usable
+// by search.RunLensRule. Empty scope means library at run time.
 type normalisedRule struct {
-	q     string
-	color string
-	types []string
+	q, color       string
+	types, domains []string
+	scope          search.Scope // "" means library at run time
 }
 
 // parseRule validates an incoming LensRule and returns its canonical form. A
-// rule must carry at least one signal (q, colour, or types); an unknown colour
-// or card type is rejected. The returned error message is safe to surface.
+// rule must carry at least one signal (q, colour, types, or domains); an
+// unknown colour, card type, domain, or scope is rejected. The returned error
+// message is safe to surface.
 func parseRule(rule LensRule) (normalisedRule, error) {
 	var out normalisedRule
 	if rule.Q != nil {
@@ -81,13 +83,37 @@ func parseRule(rule LensRule) (normalisedRule, error) {
 			}
 		}
 	}
-	if out.q == "" && out.color == "" && len(out.types) == 0 {
-		return out, errors.New("rule must set at least one of q, color, or types")
+	if rule.Domains != nil {
+		var nonEmpty []string
+		for _, raw := range *rule.Domains {
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := search.NormalizeDomain(trimmed); !ok {
+				return out, errors.New("rule.domains contains an invalid host")
+			}
+			nonEmpty = append(nonEmpty, trimmed)
+		}
+		out.domains = search.NormalizeDomains(nonEmpty)
+	}
+	if rule.Scope != nil {
+		switch *rule.Scope {
+		case Library, All:
+			out.scope = search.Scope(*rule.Scope)
+		default:
+			return out, errors.New("rule.scope must be library or all")
+		}
+	}
+	if out.q == "" && out.color == "" && len(out.types) == 0 && len(out.domains) == 0 {
+		return out, errors.New("rule must set at least one of q, color, types, or domains")
 	}
 	return out, nil
 }
 
 // marshalRule encodes a canonical rule as the jsonb payload stored on the row.
+// Empty scope is omitted so the stored form stays compact (library is the
+// run-time default). Empty domains are omitted likewise.
 func marshalRule(n normalisedRule) ([]byte, error) {
 	r := LensRule{}
 	if n.q != "" {
@@ -102,6 +128,14 @@ func marshalRule(n normalisedRule) ([]byte, error) {
 			ts = append(ts, LensRuleTypes(t))
 		}
 		r.Types = &ts
+	}
+	if len(n.domains) > 0 {
+		ds := append([]string(nil), n.domains...)
+		r.Domains = &ds
+	}
+	if n.scope != "" {
+		sc := LensRuleScope(n.scope)
+		r.Scope = &sc
 	}
 	return json.Marshal(r)
 }
@@ -293,14 +327,17 @@ func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi
 
 // runLensRule executes a canonical rule via the shared search.RunLensRule
 // seam (also used by the send-to-Kindle Lens digest job), so both paths see
-// identical matches. Domains/scope on normalisedRule land in Task 5; until
-// then every Lens run defaults to library scope.
+// identical matches. Empty scope defaults to library (Mind only).
 func (s *Server) runLensRule(ctx context.Context, uid uuid.UUID, rule normalisedRule) ([]search.Result, error) {
 	q := search.Query{
-		Text:  rule.q,
-		Color: rule.color,
-		Types: rule.types,
-		Scope: search.ScopeLibrary,
+		Text:    rule.q,
+		Color:   rule.color,
+		Types:   rule.types,
+		Domains: rule.domains,
+		Scope:   rule.scope,
+	}
+	if q.Scope == "" {
+		q.Scope = search.ScopeLibrary
 	}
 	return search.RunLensRule(ctx, s.store, s.provider, uid, q)
 }

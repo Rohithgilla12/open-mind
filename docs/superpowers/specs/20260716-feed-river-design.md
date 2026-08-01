@@ -24,6 +24,8 @@ the user wants them separate. Approved shape: "option 1 + promotion".
   see everything because they run through `search.Run`; the types-only
   rule now runs through `ListItemsAll` (no Mind predicate) instead of
   `ListItems`, so it matches.
+  > **Superseded 2026-08-01** by search-query-redesign: Lens runs default to
+  > `scope: library` (Mind only); pass `scope: all` to include the feed river.
 
 ## Schema (migration, next free number)
 

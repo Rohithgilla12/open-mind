@@ -288,12 +288,10 @@ func TestLensItemsIsLiveView(t *testing.T) {
 	resp.Body.Close()
 }
 
-// TestLensTypesOnlyIncludesUnkeptFeedItem proves the user decision that
-// Lenses include unkept feed items on every rule path. Text/colour rules
-// already see everything because they run through search.Run; this exercises
-// the types-only path (ListItemsAll, not ListItems) and confirms GET /items
+// TestLensTypesOnlyExcludesUnkeptFeedItem proves Lenses default to library
+// scope: unkept feed-river items are absent from lens matches. GET /items
 // (the Mind) still excludes the same unkept feed item.
-func TestLensTypesOnlyIncludesUnkeptFeedItem(t *testing.T) {
+func TestLensTypesOnlyExcludesUnkeptFeedItem(t *testing.T) {
 	s, rc, _ := testDeps(t)
 	srv := httptest.NewServer(newSrv(t, s, rc, ""))
 	t.Cleanup(srv.Close)
@@ -325,14 +323,10 @@ func TestLensTypesOnlyIncludesUnkeptFeedItem(t *testing.T) {
 		t.Fatalf("decode items: %v", err)
 	}
 	resp.Body.Close()
-	found := false
 	for _, r := range out.Results {
 		if r.Item.Id == feedItem.ID.String() {
-			found = true
+			t.Fatalf("lens results included unkept feed item %s, want excluded (library default)", feedItem.ID)
 		}
-	}
-	if !found {
-		t.Fatalf("lens results = %+v, want unkept feed item %s included", out.Results, feedItem.ID)
 	}
 
 	// GET /items (the Mind) must still exclude the unkept feed item.
@@ -351,5 +345,108 @@ func TestLensTypesOnlyIncludesUnkeptFeedItem(t *testing.T) {
 		if r.Id == feedItem.ID.String() {
 			t.Fatalf("GET /items included unkept feed item %s, want excluded", feedItem.ID)
 		}
+	}
+}
+
+// TestLensScopeAllIncludesUnkeptFeedItem proves an explicit scope:all Lens
+// still surfaces unkept feed-river items.
+func TestLensScopeAllIncludesUnkeptFeedItem(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+	ctx := context.Background()
+
+	feed := seedFeed(t, s, api.DevUserID, "https://example.com/rss-scope-all.xml")
+	feedItem := seedFeedItem(t, s, api.DevUserID, feed.ID, "https://example.com/unkept-scope-all")
+	if _, err := s.Pool.Exec(ctx, `UPDATE items SET card_type='article' WHERE id=$1`, feedItem.ID); err != nil {
+		t.Fatalf("set feed item type: %v", err)
+	}
+
+	resp := postJSON(t, srv.URL+"/lenses", `{"name":"All articles","rule":{"types":["article"],"scope":"all"}}`)
+	var lens lensResp
+	json.NewDecoder(resp.Body).Decode(&lens)
+	resp.Body.Close()
+
+	resp = doJSON(t, http.MethodGet, srv.URL+"/lenses/"+lens.ID+"/items", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("items status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Results []struct {
+			Item struct {
+				Id string `json:"id"`
+			} `json:"item"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode items: %v", err)
+	}
+	resp.Body.Close()
+	found := false
+	for _, r := range out.Results {
+		if r.Item.Id == feedItem.ID.String() {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("lens results = %+v, want unkept feed item %s included under scope:all", out.Results, feedItem.ID)
+	}
+}
+
+// TestLensDomainFilter verifies a domains-only Lens returns Mind items whose
+// URL host matches (and excludes other hosts).
+func TestLensDomainFilter(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+	ctx := context.Background()
+
+	xItem, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://x.com/status/1"})
+	if err != nil {
+		t.Fatalf("create x.com item: %v", err)
+	}
+	exItem, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: api.DevUserID, Url: "https://example.com/post"})
+	if err != nil {
+		t.Fatalf("create example.com item: %v", err)
+	}
+
+	resp := postJSON(t, srv.URL+"/lenses", `{"name":"X only","rule":{"domains":["x.com"]}}`)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create lens status = %d, want 201", resp.StatusCode)
+	}
+	var lens lensResp
+	json.NewDecoder(resp.Body).Decode(&lens)
+	resp.Body.Close()
+
+	resp = doJSON(t, http.MethodGet, srv.URL+"/lenses/"+lens.ID+"/items", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("items status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Results []struct {
+			Item struct {
+				Id string `json:"id"`
+			} `json:"item"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode items: %v", err)
+	}
+	resp.Body.Close()
+
+	foundX, foundEx := false, false
+	for _, r := range out.Results {
+		if r.Item.Id == xItem.ID.String() {
+			foundX = true
+		}
+		if r.Item.Id == exItem.ID.String() {
+			foundEx = true
+		}
+	}
+	if !foundX {
+		t.Fatalf("lens results = %+v, want x.com item %s", out.Results, xItem.ID)
+	}
+	if foundEx {
+		t.Fatalf("lens results included example.com item %s, want only x.com", exItem.ID)
 	}
 }
