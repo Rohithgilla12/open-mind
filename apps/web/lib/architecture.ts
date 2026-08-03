@@ -5,7 +5,7 @@
 // Keeping content as data — rather than buried in JSX — is what makes the page
 // cheap to maintain, and lets us unit-test it without a DOM.
 
-export const LAST_UPDATED = "2026-08-01";
+export const LAST_UPDATED = "2026-08-03";
 
 export type Principle = { title: string; body: string };
 export type PipelineStage = { name: string; note: string };
@@ -41,7 +41,7 @@ export const principles: Principle[] = [
 
 export const pipelineStages: PipelineStage[] = [
   { name: "extract", note: "readability · trafilatura · domdistiller; PDF via go-pdfium on wazero WASM" },
-  { name: "classify", note: "card type — article, product, book, recipe, video, tweet, image, note, quote" },
+  { name: "classify", note: "card type — article, product, book, recipe, video, tweet, image, note, quote, repo" },
   { name: "summarise", note: "AI adapter — short summary + tags, cheap tier only" },
   { name: "embed", note: "pgvector embedding for semantic + colour search" },
 ];
