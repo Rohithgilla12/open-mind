@@ -2,8 +2,14 @@ import { tokens } from "@openmind/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HighlightableBody } from "../../../../components/HighlightableBody";
+import { KindleButton } from "../../../../components/KindleButton";
+import { Palette } from "../../../../components/Palette";
+import { ReadingProgress } from "../../../../components/ReadingProgress";
 import { apiFetch } from "../../../../lib/api";
 import { cardKind, domainOf, typeLabel } from "../../../../lib/cards";
+import { derivedPalette } from "../../../../lib/palette";
+import { readingMinutes } from "../../../../lib/reading-time";
+import { renderInlineMarkdown } from "../../../../lib/text";
 import type { ItemDetail } from "../../../../lib/types";
 
 /** Text-forward types worth painting highlights over — mirrors the "Read"
@@ -15,9 +21,11 @@ function textForward(item: ItemDetail): boolean {
 
 const { color, font } = tokens;
 
-/** "ARTICLE · domain · 4 JUL 2026" kicker. */
+/** "ARTICLE · 8 MIN · domain · 4 JUL 2026" kicker. */
 function metaLine(item: ItemDetail): string {
   const parts: string[] = [typeLabel[cardKind(item.cardType)]];
+  const minutes = readingMinutes(item.body);
+  if (minutes) parts.push(`${minutes} min`);
   const domain = domainOf(item.url);
   if (domain) parts.push(domain);
   const d = new Date(item.createdAt);
@@ -38,7 +46,9 @@ const barLink = {
 /**
  * Distraction-free reader: a single calm reading column on paper, no sidebar or
  * rail. Serif body at a generous measure and line-height for long-form reading;
- * the surrounding chrome collapses to a slim top bar (back + open original).
+ * the surrounding chrome collapses to a slim top bar plus a terracotta
+ * progress hairline, and the piece closes with a colophon — the item's palette
+ * fingerprint and the actions that make sense once you've read it.
  */
 export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -49,9 +59,17 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   const external = item.url && !item.url.startsWith("/assets/") ? item.url : null;
   const body = (item.body ?? "").trim();
   const paragraphs = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  const highlightable = textForward(item) && paragraphs.length > 0;
+  const colors =
+    item.palette && item.palette.length > 0
+      ? item.palette
+      : derivedPalette(
+          `${item.title ?? ""} ${(item.tags ?? []).join(" ")}`.trim() || item.cardType || "item",
+        );
 
   return (
     <main style={{ minHeight: "100vh", background: color.paper }}>
+      <ReadingProgress />
       <div
         style={{
           position: "sticky",
@@ -77,7 +95,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
         ) : null}
       </div>
 
-      <article style={{ maxWidth: 680, margin: "0 auto", padding: "56px 24px 120px" }}>
+      <article style={{ maxWidth: 680, margin: "0 auto", padding: "clamp(36px, 7vh, 56px) 24px 96px" }}>
         <div className="meta" style={{ color: color.inkFaint }}>
           {metaLine(item)}
         </div>
@@ -85,7 +103,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           <h1
             className="serif"
             style={{
-              fontSize: 40,
+              fontSize: "clamp(30px, 6vw, 42px)",
               fontWeight: 600,
               lineHeight: 1.12,
               letterSpacing: "-.02em",
@@ -112,7 +130,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
               margin: "22px 0 0",
             }}
           >
-            {item.summary}
+            {renderInlineMarkdown(item.summary)}
           </p>
         ) : null}
 
@@ -122,8 +140,22 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           <div style={{ height: 30 }} />
         )}
 
+        {highlightable ? (
+          <p
+            className="meta"
+            style={{
+              color: color.inkFaint,
+              textTransform: "none",
+              letterSpacing: ".02em",
+              margin: "-16px 0 26px",
+            }}
+          >
+            Select a passage to keep it as a highlight.
+          </p>
+        ) : null}
+
         {paragraphs.length > 0 ? (
-          textForward(item) ? (
+          highlightable ? (
             <HighlightableBody body={body} itemId={item.id} />
           ) : (
             paragraphs.map((p, i) => (
@@ -158,14 +190,45 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           </p>
         )}
 
-        <div style={{ marginTop: 48, paddingTop: 20, borderTop: `1px solid ${color.hairline}` }}>
+        {/* Colophon: the item's colour fingerprint closes the reading, followed
+            by the actions that make sense once you've finished. */}
+        <footer style={{ marginTop: 56, paddingTop: 26, borderTop: `1px solid ${color.hairline}` }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+            <Palette colors={colors} colorLinks />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 20,
+              marginTop: 20,
+              flexWrap: "wrap",
+            }}
+          >
+            <Link href={`/item/${item.id}`} style={barLink}>
+              ← Back to card
+            </Link>
+            {external ? (
+              <a href={external} target="_blank" rel="noreferrer" style={barLink}>
+                Open original ↗
+              </a>
+            ) : null}
+            <KindleButton target="item" id={item.id} />
+          </div>
           <p
             className="meta"
-            style={{ color: color.inkFaint, textTransform: "none", letterSpacing: ".02em", margin: 0 }}
+            style={{
+              color: color.inkFaint,
+              textTransform: "none",
+              letterSpacing: ".02em",
+              margin: "22px 0 0",
+              textAlign: "center",
+            }}
           >
             Archived locally · link can&apos;t rot
           </p>
-        </div>
+        </footer>
       </article>
     </main>
   );

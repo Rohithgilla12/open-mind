@@ -604,6 +604,9 @@ open http://localhost:3000`}</code>
             style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}
           >
             <Mark size={22} />
+            <a href="/architecture" className="meta" style={{ color: "inherit" }}>
+              Architecture
+            </a>
             <a href="/privacy" className="meta" style={{ color: "inherit" }}>
               Privacy
             </a>
