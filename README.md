@@ -224,6 +224,11 @@ line (DCO) — `git commit -s`. The one convention worth repeating: change
 Found a security issue? **[SECURITY.md](SECURITY.md)** — please use private
 vulnerability reporting rather than a public issue.
 
+For a full architecture & tech-stack deep dive, read the `/architecture`
+page in a running instance (public — no sign-in needed), or its design
+spec at
+[docs/superpowers/specs/20260717-architecture-page-design.md](docs/superpowers/specs/20260717-architecture-page-design.md).
+
 ## Licence
 
 **AGPL-3.0** — see [LICENSE](LICENSE). Run it for yourself, modify it freely; if

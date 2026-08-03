@@ -7,6 +7,7 @@ Openmind (working title) — open-source, self-hostable "commonplace book": save
 - **`TODO.md` at the repo root is the task tracker.** Start each session by reading it; when finishing work, update it (move items to Done, add discovered follow-ups under Next/Later). Keep it structured as Now / Next / Later / Done per milestone — prune Done periodically.
 - Do not start Milestone 2+ items while Milestone 1 has open Now/Next tasks.
 - At OSS launch, tasks graduate to GitHub Issues; TODO.md then tracks only the maintainer's private planning.
+- **Keep the public `/architecture` page current.** When the architecture changes (a new pipeline stage, a new client, a swapped core dependency), update the structured data in `apps/web/app/architecture/page.tsx` and bump its `LAST_UPDATED` date.
 
 ## Non-negotiable principles
 
