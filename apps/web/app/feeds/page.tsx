@@ -1,23 +1,11 @@
 import Link from "next/link";
 import { tokens } from "@openmind/ui";
-import { apiFetch } from "../../lib/api";
-import type { Feed } from "../../lib/types";
+import { getFeeds } from "../../lib/feeds";
 import { Shell } from "../../components/Shell";
 import { AddFeed } from "./AddFeed";
 import { DeleteFeedButton } from "./DeleteFeedButton";
 
 const { color, font } = tokens;
-
-async function getFeeds(): Promise<Feed[]> {
-  try {
-    const res = await apiFetch("/feeds");
-    if (!res.ok) return [];
-    return ((await res.json()) as Feed[]) ?? [];
-  } catch {
-    // API may be down; render the empty state rather than failing the page.
-    return [];
-  }
-}
 
 function hostOf(u: string): string {
   try {

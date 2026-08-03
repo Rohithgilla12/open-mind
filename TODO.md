@@ -105,6 +105,20 @@
   the repo card type.
 
 ## Done (recent)
+- Feed page header/filter spacing — `/feed` reached for a `var(--gutter)` that
+  is defined nowhere, so both `padding` shorthands were invalid at computed-value
+  time and the header *and* the river rendered with zero padding. Now on the
+  house `18px 28px 16px` / `22px 28px 40px` rhythm like Desk and Places. The
+  per-feed chips graduated from the content column into a `.feed-strip` chrome
+  band flush under the header (same recipe as the Mind's `FilterStrip`) — they
+  were previously 48px from the header they belong to and 28px from the first
+  row they filter. Also: subscriptions now fetched server-side
+  (`lib/feeds.ts`, shared with `/feeds`) so the strip can't appear late and
+  shove the river down; broken `role="tablist"` → `role="group"` + `aria-pressed`
+  (no tabpanel, no arrow keys ever existed); "+N more" got chip geometry and a
+  way back; empty state distinguishes "no subscriptions" from "nothing published
+  yet"; `.chip` ellipsises and the strip stacks two-per-row under 640px
+  (2026-08-03)
 - Web item detail + reader redesign — detail page reframed as "the card,
   opened": grounded panel (warm card shadow + terracotta screen hairline
   instead of the overlay drop-shadow), chrome bar (back link left; pin/Kindle

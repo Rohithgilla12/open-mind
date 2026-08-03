@@ -33,9 +33,23 @@ body{-webkit-font-smoothing:antialiased}
 
 .card-wrap .card:hover{transform:none}
 
-.chip{font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;letter-spacing:.02em;color:#1C1A16;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s;text-decoration:none;display:inline-block}
+/* max-width + ellipsis: feed titles become chips on the Feed strip, and
+   "The Berkeley Artificial Intelligence Research Blog" is wider than a phone. */
+.chip{font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;letter-spacing:.02em;color:#1C1A16;background:#FCFBF6;border:1px solid rgba(28,26,22,.13);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s;text-decoration:none;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .chip:hover{border-color:rgba(28,26,22,.24)}
+
+.chip:focus-visible{outline:2px solid #1B3FD1;outline-offset:2px}
+
+/* A quiet mono link sitting in a chrome strip, e.g. the Feed filter strip's
+   "Manage subscriptions". Inherits .meta's size and tracking. The faint rule is
+   the only thing distinguishing it from the uppercase mono *labels* that share
+   .meta, so it stays even at rest. */
+.meta-link{text-decoration:underline;text-decoration-color:rgba(28,26,22,.22);text-underline-offset:3px;transition:color .15s ease,text-decoration-color .15s ease}
+
+.meta-link:hover{color:#1C1A16;text-decoration-color:rgba(28,26,22,.5)}
+
+.meta-link:focus-visible{outline:2px solid #1B3FD1;outline-offset:3px;border-radius:2px}
 
 .savebtn:hover{background:#17206b}
 
@@ -90,17 +104,50 @@ body{-webkit-font-smoothing:antialiased}
 /* Faint horizontal-rule paper texture; overlay behind card content. */
 .paper-texture{background:repeating-linear-gradient(#00000000 0 31px,rgba(28,26,22,.028) 31px 32px)}
 
-/* Feed river — subscription filter chips wrap rather than scroll. A hidden
-   horizontal scroller severed the last chip mid-word on macOS (overlay
-   scrollbars leave no visible affordance); the list is capped with a
-   "+N more" toggle instead so a long subscription list can't push the
-   river off the fold. */
-.feed-chips{
+/* Feed filter strip — a band of page chrome flush under the Feed header, same
+   recipe as the Mind's FilterStrip. The chips take the line; "Manage
+   subscriptions" holds the right edge instead of orphaning on whichever
+   wrapped row happens to be last. Narrow screens stack the two. */
+.feed-strip{
   display:flex;
-  gap:8px;
-  flex-wrap:wrap;
   align-items:center;
-  padding-bottom:4px;
+  gap:16px;
+  padding:12px 28px;
+  border-bottom:1px solid rgba(28,26,22,.08);
+  background:#F1ECE1;
+}
+.feed-strip-chips{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  flex:1;
+  min-width:0;
+}
+/* The "+N more" / "Fewer" disclosure. Pill geometry so it sits on the chips'
+   line; dashed so it never reads as one of the feeds. */
+.feed-strip-more{
+  font:500 10px/1 var(--font-jetbrains-mono),'JetBrains Mono',monospace;
+  letter-spacing:.06em;
+  color:#57534A;
+  background:none;
+  border:1px dashed rgba(28,26,22,.13);
+  border-radius:20px;
+  padding:6px 11px;
+  cursor:pointer;
+  transition:border-color .15s ease,color .15s ease;
+}
+.feed-strip-more:hover{border-color:rgba(28,26,22,.28);color:#1C1A16}
+.feed-strip-more:focus-visible{outline:2px solid #1B3FD1;outline-offset:2px}
+@media (max-width:640px){
+  /* Only the direction and gap change — the 28px gutter has to hold, or the
+     chips sit 8px left of the "Feed" title and the river below them. */
+  .feed-strip{flex-direction:column;align-items:flex-start;gap:10px;padding:12px 28px}
+  .feed-strip-chips{width:100%}
+  /* Two per row rather than one. A full-width chip per feed title turned the
+     strip into 200px of chrome before the first headline; the ellipsised
+     titles keep their full text in the chip's title attribute. */
+  .feed-strip-chips .chip{max-width:calc(50% - 4px)}
 }
 
 /* Feed river rows — no cards. The river is set as a ruled ledger page: rows
