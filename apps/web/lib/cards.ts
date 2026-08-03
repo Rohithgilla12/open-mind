@@ -1,28 +1,103 @@
 import { tokens } from "@openmind/ui";
+import type { Item } from "./types";
 
-export type CardKind =
-  | "article"
-  | "quote"
-  | "image"
-  | "product"
-  | "note"
-  | "video"
-  | "tweet"
-  | "book"
-  | "recipe"
-  | "repo";
+const { color } = tokens;
 
-const KNOWN_KINDS: readonly CardKind[] = [
+/**
+ * The card types, straight from the OpenAPI contract rather than re-typed here.
+ * Every per-type map below is a `Record<CardKind, …>`, so adding a type to
+ * `openapi.yaml` and regenerating breaks compilation until each map — including
+ * the home-page filter chips — accounts for it.
+ */
+export type CardKind = NonNullable<Item["cardType"]>;
+
+/** Meta-line label per type (matches mockup: tweet reads "Post"). */
+export const typeLabel: Record<CardKind, string> = {
+  article: "Article",
+  quote: "Quote",
+  image: "Image",
+  product: "Product",
+  note: "Note",
+  video: "Video",
+  tweet: "Post",
+  book: "Book",
+  recipe: "Recipe",
+  repo: "Repo",
+};
+
+/** Plural form for the filter chips, where the label names a collection. */
+export const chipLabel: Record<CardKind, string> = {
+  article: "Articles",
+  quote: "Quotes",
+  image: "Images",
+  product: "Products",
+  note: "Notes",
+  video: "Video",
+  tweet: "Posts",
+  book: "Books",
+  recipe: "Recipes",
+  repo: "Repos",
+};
+
+/**
+ * Per-type gradient used as the underlay behind a lead image, so a missing or
+ * broken image reveals the gradient instead of a broken-image glyph.
+ */
+export const typeGradient: Record<CardKind, string> = {
+  article: `linear-gradient(120deg, ${color.cobalt}, ${color.cobaltDeep})`,
+  quote: `linear-gradient(135deg, ${color.ink}, ${color.cobaltDeep})`,
+  image: `linear-gradient(150deg, ${color.terracotta} 0%, ${color.gold} 55%, ${color.paper} 100%)`,
+  product: `linear-gradient(135deg, ${color.green}, ${color.ink})`,
+  note: `linear-gradient(135deg, ${color.gold}, ${color.noteSurface})`,
+  video: `linear-gradient(135deg, ${color.ink}, rgba(0,0,0,1))`,
+  tweet: `linear-gradient(135deg, ${color.cobalt}, ${color.green})`,
+  book: `linear-gradient(160deg, ${color.terracotta}, ${color.ink})`,
+  recipe: `linear-gradient(135deg, ${color.terracotta}, ${color.gold})`,
+  repo: `linear-gradient(135deg, ${color.gold}, ${color.green})`,
+};
+
+/**
+ * Per-type accent colour, used as a thin top rule on text-forward cards
+ * (imageless article/product/book/recipe) as a subtle nod to the type.
+ */
+export const typeAccent: Record<CardKind, string> = {
+  article: color.cobalt,
+  quote: color.gold,
+  image: color.terracotta,
+  product: color.green,
+  note: color.gold,
+  video: color.ink,
+  tweet: color.cobalt,
+  book: color.terracotta,
+  recipe: color.gold,
+  repo: color.gold,
+};
+
+/** Every known kind, derived from the label map so the two can't disagree. */
+const KNOWN_KINDS = Object.keys(typeLabel) as readonly CardKind[];
+
+/**
+ * Chip order for the home-page filter strip — curated for the eye (commonest
+ * types first), not the contract's enum order. `all` carries no `type` param
+ * and so shows everything; the page maps `type` → API `types` and filters
+ * server-side. `typeFilters` covers every kind, enforced by a test.
+ */
+const CHIP_ORDER: readonly CardKind[] = [
   "article",
-  "quote",
   "image",
+  "quote",
   "product",
-  "note",
   "video",
   "tweet",
-  "book",
   "recipe",
+  "note",
+  "book",
   "repo",
+];
+
+export const typeFilters: readonly { label: string; type: string }[] = [
+  { label: "All", type: "all" },
+  ...CHIP_ORDER.map((kind) => ({ label: chipLabel[kind], type: kind })),
 ];
 
 /** Normalise a raw cardType into a known kind; unknown/absent → article. */
@@ -82,53 +157,3 @@ export function fallbackTitle(url: string | undefined): string | null {
     .trim();
   return words || null;
 }
-
-const { color } = tokens;
-
-/**
- * Per-type gradient used as the underlay behind a lead image, so a missing or
- * broken image reveals the gradient instead of a broken-image glyph.
- */
-export const typeGradient: Record<CardKind, string> = {
-  article: `linear-gradient(120deg, ${color.cobalt}, ${color.cobaltDeep})`,
-  quote: `linear-gradient(135deg, ${color.ink}, ${color.cobaltDeep})`,
-  image: `linear-gradient(150deg, ${color.terracotta} 0%, ${color.gold} 55%, ${color.paper} 100%)`,
-  product: `linear-gradient(135deg, ${color.green}, ${color.ink})`,
-  note: `linear-gradient(135deg, ${color.gold}, ${color.noteSurface})`,
-  video: `linear-gradient(135deg, ${color.ink}, rgba(0,0,0,1))`,
-  tweet: `linear-gradient(135deg, ${color.cobalt}, ${color.green})`,
-  book: `linear-gradient(160deg, ${color.terracotta}, ${color.ink})`,
-  recipe: `linear-gradient(135deg, ${color.terracotta}, ${color.gold})`,
-  repo: `linear-gradient(135deg, ${color.gold}, ${color.green})`,
-};
-
-/**
- * Per-type accent colour, used as a thin top rule on text-forward cards
- * (imageless article/product/book/recipe) as a subtle nod to the type.
- */
-export const typeAccent: Record<CardKind, string> = {
-  article: color.cobalt,
-  quote: color.gold,
-  image: color.terracotta,
-  product: color.green,
-  note: color.gold,
-  video: color.ink,
-  tweet: color.cobalt,
-  book: color.terracotta,
-  recipe: color.gold,
-  repo: color.gold,
-};
-
-/** Meta-line label per type (matches mockup: tweet reads "Post"). */
-export const typeLabel: Record<CardKind, string> = {
-  article: "Article",
-  quote: "Quote",
-  image: "Image",
-  product: "Product",
-  note: "Note",
-  video: "Video",
-  tweet: "Post",
-  book: "Book",
-  recipe: "Recipe",
-  repo: "Repo",
-};

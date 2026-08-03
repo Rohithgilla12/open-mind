@@ -1,5 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { cardKind, fallbackTitle, isTextForward, typeGradient, typeLabel } from "./cards";
+import {
+  cardKind,
+  chipLabel,
+  fallbackTitle,
+  isTextForward,
+  typeAccent,
+  typeFilters,
+  typeGradient,
+  typeLabel,
+} from "./cards";
+
+describe("typeFilters", () => {
+  const kinds = Object.keys(typeLabel);
+
+  it("leads with All, which carries no type filter", () => {
+    expect(typeFilters[0]).toEqual({ label: "All", type: "all" });
+  });
+
+  // The guard the chip list previously lacked: `repo` had to be added by hand,
+  // and `Record<CardKind, …>` alone can't catch a kind missing from the order.
+  it("offers a chip for every card kind", () => {
+    const chipped = typeFilters.filter((f) => f.type !== "all").map((f) => f.type);
+    expect([...chipped].sort()).toEqual([...kinds].sort());
+  });
+
+  // Pins the curated order and the plural wording as shipped, so deriving the
+  // chips from the enum can't quietly reorder or rename the strip.
+  it("renders the curated order", () => {
+    expect(typeFilters.map((f) => f.label)).toEqual([
+      "All",
+      "Articles",
+      "Images",
+      "Quotes",
+      "Products",
+      "Video",
+      "Posts",
+      "Recipes",
+      "Notes",
+      "Books",
+      "Repos",
+    ]);
+  });
+
+  it("lists no kind twice", () => {
+    const types = typeFilters.map((f) => f.type);
+    expect(new Set(types).size).toBe(types.length);
+  });
+
+  it("gives every kind a gradient, accent, and both labels", () => {
+    for (const kind of kinds) {
+      expect(typeGradient[kind as keyof typeof typeGradient]).toBeTruthy();
+      expect(typeAccent[kind as keyof typeof typeAccent]).toBeTruthy();
+      expect(typeLabel[kind as keyof typeof typeLabel]).toBeTruthy();
+      expect(chipLabel[kind as keyof typeof chipLabel]).toBeTruthy();
+    }
+  });
+});
 
 describe("repo card type", () => {
   it("normalises repo to itself", () => {

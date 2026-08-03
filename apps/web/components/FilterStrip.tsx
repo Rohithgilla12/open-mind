@@ -1,23 +1,8 @@
 import Link from "next/link";
 import { tokens } from "@openmind/ui";
+import { typeFilters } from "../lib/cards";
 
 const { color } = tokens;
-
-// Chip → cardType. "all" carries no `type` param (shows everything).
-// The page maps `type` → API `types` and filters server-side.
-const FILTERS: readonly { label: string; type: string }[] = [
-  { label: "All", type: "all" },
-  { label: "Articles", type: "article" },
-  { label: "Images", type: "image" },
-  { label: "Quotes", type: "quote" },
-  { label: "Products", type: "product" },
-  { label: "Video", type: "video" },
-  { label: "Posts", type: "tweet" },
-  { label: "Recipes", type: "recipe" },
-  { label: "Notes", type: "note" },
-  { label: "Books", type: "book" },
-  { label: "Repos", type: "repo" },
-];
 
 /**
  * Type filter strip. Chips are links to `?type=<cardType>` (preserving any
@@ -47,7 +32,7 @@ export function FilterStrip({
         background: color.header,
       }}
     >
-      {FILTERS.map((f) => {
+      {typeFilters.map((f) => {
         const isActive = f.type === active;
         const params = new URLSearchParams();
         if (q) params.set("q", q);

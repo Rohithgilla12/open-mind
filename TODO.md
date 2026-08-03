@@ -97,14 +97,27 @@
   than once; the alternative (repo-root-only matching) was rejected in
   `docs/superpowers/specs/20260801-repo-card-type-design.md` because it splits
   one project's saves across two card types.
-- `FilterStrip.tsx` home-page chips omit `recipe`, `tweet`, and `repo` has only
-  just been added — the chip list has drifted from the card-type enum and
-  should be derived from it or kept in sync deliberately.
+- Mobile card kinds are still hand-written: `apps/mobile/lib/theme.ts` declares
+  its own `CardKind` union rather than deriving it from the contract, so it can
+  drift from `openapi.yaml` the way web's chips could. Complete as of
+  2026-08-03 (all ten kinds present in `lib/cards.ts` labels + `KNOWN_KINDS`);
+  worth the same treatment web just got if it ever bites.
 - `TestListPushDevicesSkipsFailed` is order-dependent and flaky: `testStore`
   does not truncate `push_devices` between runs. Pre-existing, unrelated to
   the repo card type.
 
 ## Done (recent)
+- Home-page filter chips can no longer drift from the card-type enum — `CardKind`
+  in `apps/web/lib/cards.ts` is now derived from the OpenAPI contract
+  (`NonNullable<Item["cardType"]>`) instead of a re-typed union, so adding a card
+  type and regenerating fails `tsc` until every `Record<CardKind, …>` accounts for
+  it (gradient, accent, label, and the new plural `chipLabel`). The chip list moved
+  out of `FilterStrip.tsx` into tested data as `typeFilters`, leaving the component
+  a pure renderer; a vitest guard asserts the curated chip order covers every kind,
+  which is the half types can't catch. Rendered labels and order are byte-identical
+  to before. Both halves verified by deliberately breaking them. Note the old TODO
+  claim that the chips omitted `recipe`/`tweet` was stale — all ten were present;
+  the real defect was that nothing enforced it (2026-08-03)
 - Feed page header/filter spacing — `/feed` reached for a `var(--gutter)` that
   is defined nowhere, so both `padding` shorthands were invalid at computed-value
   time and the header *and* the river rendered with zero padding. Now on the
