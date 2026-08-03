@@ -76,7 +76,7 @@ mymind and Anybox inform the *problem space*; the product must have its own iden
 ### 5.2 Ingestion & enrichment pipeline (P0)
 On save, an async pipeline (Go workers, queue-backed):
 1. **Content extraction** — in-process Go readability extraction (go-readability / go-trafilatura) as primary; **Jina Reader** (`r.jina.ai`) as fallback for stubborn/JS-heavy pages; OG metadata always; full-page screenshot as last resort.
-2. **Type detection** — article / product / book / recipe / video / tweet / image / note / quote. Each type gets a bespoke card renderer.
+2. **Type detection** — article / product / book / recipe / video / tweet / image / note / quote / repo. Each type gets a bespoke card renderer.
 3. **AI enrichment** — summary (2–3 sentences), auto-tags, extracted entities (brand, author, price), dominant colours for images.
 4. **Embedding generation** — text + image embeddings stored in pgvector for semantic search.
 5. **Archival** — full-content snapshot stored (S3-compatible / local disk), so links never rot.

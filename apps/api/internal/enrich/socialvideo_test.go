@@ -14,6 +14,7 @@ func TestIsSocialVideoURL(t *testing.T) {
 		want bool
 	}{
 		{"https://www.instagram.com/reel/Cabc123/", true},
+		{"https://WWW.INSTAGRAM.COM/reel/Cabc123/", true},
 		{"https://instagram.com/p/Cabc123/", true},
 		{"https://www.tiktok.com/@user/video/123", true},
 		{"https://vm.tiktok.com/ZM123/", true},

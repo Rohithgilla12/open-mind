@@ -64,7 +64,8 @@ export type CardKind =
   | "video"
   | "tweet"
   | "book"
-  | "recipe";
+  | "recipe"
+  | "repo";
 
 /**
  * Per-type gradient fallback (used when the item has no extracted palette),
@@ -83,6 +84,7 @@ export const typeGradients: Record<CardKind, [string, string]> = {
   tweet: [colors.cobalt, colors.green],
   book: [colors.terracotta, colors.ink],
   recipe: [colors.terracotta, colors.gold],
+  repo: [colors.gold, colors.green],
 } as const;
 
 export const theme = { colors, fonts, radius, spacing, type, typeGradients } as const;

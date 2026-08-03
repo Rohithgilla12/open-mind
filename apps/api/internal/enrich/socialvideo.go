@@ -44,7 +44,7 @@ func socialVideoLabel(rawURL string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	host := strings.ToLower(strings.TrimPrefix(parsed.Hostname(), "www."))
+	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
 	label, ok := socialVideoHosts[host]
 	return label, ok
 }

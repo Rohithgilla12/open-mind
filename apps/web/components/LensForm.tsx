@@ -18,6 +18,7 @@ const ALL_TYPES: readonly CardKind[] = [
   "image",
   "note",
   "quote",
+  "repo",
 ];
 
 const fieldLabel = {

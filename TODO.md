@@ -90,6 +90,19 @@
   without `ORDER BY` makes reconciliation arbitrary above 5000 tickets/hour —
   add `ORDER BY sent_at`.
 - Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
+- `repo` card type: the reserved-first-segment denylist in
+  `apps/api/internal/enrich/classify.go` (and its SQL twin in migration 0021)
+  is not exhaustive by construction. When a forge adds a reserved route, URLs
+  under it misclassify as repos until someone notices. Revisit if it bites more
+  than once; the alternative (repo-root-only matching) was rejected in
+  `docs/superpowers/specs/20260801-repo-card-type-design.md` because it splits
+  one project's saves across two card types.
+- `FilterStrip.tsx` home-page chips omit `recipe`, `tweet`, and `repo` has only
+  just been added — the chip list has drifted from the card-type enum and
+  should be derived from it or kept in sync deliberately.
+- `TestListPushDevicesSkipsFailed` is order-dependent and flaky: `testStore`
+  does not truncate `push_devices` between runs. Pre-existing, unrelated to
+  the repo card type.
 
 ## Done (recent)
 - Web item detail + reader redesign — detail page reframed as "the card,

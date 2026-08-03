@@ -72,7 +72,7 @@ type Provider interface {
 const parseQueryInstruction = `You interpret a natural-language search over a personal knowledge library. ` +
 	`Split the query into four parts: "text" (the descriptive words to search for, with any colour word, item-type word, or site/host word removed), ` +
 	`"color" (a single colour name or #RRGGBB hex string if the user mentions a colour, otherwise ""), ` +
-	`"types" (a subset of [article, product, book, recipe, video, tweet, image, note, quote] the user is asking for, otherwise []), and ` +
+	`"types" (a subset of [article, product, book, recipe, video, tweet, image, note, quote, repo] the user is asking for, otherwise []), and ` +
 	`"domains" (bare URL hosts the user names, e.g. x.com or github.com — never invent hosts; otherwise []). ` +
 	`Respond with only a JSON object of the form {"text": string, "color": string, "types": [string], "domains": [string]}. ` +
 	`Example: "blue book about bread" -> {"text":"bread","color":"blue","types":["book"],"domains":[]}. ` +
@@ -214,6 +214,7 @@ func MergePlaces(groups ...PlaceGroup) []Placed {
 var cardTypes = map[string]bool{
 	"article": true, "product": true, "book": true, "recipe": true,
 	"video": true, "tweet": true, "image": true, "note": true, "quote": true,
+	"repo": true,
 }
 
 // sanitiseTypes lowercases, trims, de-duplicates, and drops unknown values from

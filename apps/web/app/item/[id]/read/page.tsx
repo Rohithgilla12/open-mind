@@ -6,7 +6,7 @@ import { KindleButton } from "../../../../components/KindleButton";
 import { Palette } from "../../../../components/Palette";
 import { ReadingProgress } from "../../../../components/ReadingProgress";
 import { apiFetch } from "../../../../lib/api";
-import { cardKind, domainOf, typeLabel } from "../../../../lib/cards";
+import { cardKind, domainOf, isTextForward, typeLabel } from "../../../../lib/cards";
 import { derivedPalette } from "../../../../lib/palette";
 import { readingMinutes } from "../../../../lib/reading-time";
 import { renderInlineMarkdown } from "../../../../lib/text";
@@ -15,8 +15,7 @@ import type { ItemDetail } from "../../../../lib/types";
 /** Text-forward types worth painting highlights over — mirrors the "Read"
  * affordance's `readableBody` condition on the item detail page. */
 function textForward(item: ItemDetail): boolean {
-  const kind = cardKind(item.cardType);
-  return kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "note";
+  return isTextForward(cardKind(item.cardType));
 }
 
 const { color, font } = tokens;

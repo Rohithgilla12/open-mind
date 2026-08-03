@@ -150,3 +150,12 @@ func TestMarshalRuleRoundTrip(t *testing.T) {
 		t.Errorf("empty rule marshalled to %q, want {}", raw)
 	}
 }
+
+func TestValidCardTypeRepo(t *testing.T) {
+	if !validCardType("repo") {
+		t.Error("validCardType(\"repo\") = false, want true")
+	}
+	if validCardType("gizmo") {
+		t.Error("validCardType(\"gizmo\") = true, want false")
+	}
+}

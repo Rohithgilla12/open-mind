@@ -38,7 +38,7 @@ func validDigestSchedule(v string) bool {
 // used to reject unknown type filters in a Lens rule.
 func validCardType(t string) bool {
 	switch t {
-	case "article", "product", "book", "recipe", "video", "tweet", "image", "note", "quote":
+	case "article", "product", "book", "recipe", "video", "tweet", "image", "note", "quote", "repo":
 		return true
 	default:
 		return false

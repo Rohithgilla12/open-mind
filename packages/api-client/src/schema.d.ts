@@ -648,7 +648,7 @@ export interface components {
             userTags?: string[];
             palette?: string[];
             /** @enum {string} */
-            cardType?: "article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote";
+            cardType?: "article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote" | "repo";
             /** @enum {string} */
             status: "pending" | "enriched" | "failed";
             /** Format: date-time */
@@ -757,7 +757,7 @@ export interface components {
             /** @description The colour searched, if any. */
             color?: string;
             /** @description Card-type filters applied, if any. */
-            types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+            types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote" | "repo")[];
             /** @description URL host filters applied, if any. */
             domains?: string[];
         };
@@ -768,7 +768,7 @@ export interface components {
             /** @description Hex (#RRGGBB) or named colour (e.g. cobalt). */
             color?: string;
             /** @description Card types to include (filter). */
-            types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+            types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote" | "repo")[];
             /** @description URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match (x.com matches mobile.x.com). */
             domains?: string[];
             /**
@@ -2069,7 +2069,7 @@ export interface operations {
                 /** @description Hex (#RRGGBB) or named colour (e.g. cobalt, terracotta); ranks items by nearest palette colour. */
                 color?: string;
                 /** @description Card types to include (filter). Repeatable query param. */
-                types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote")[];
+                types?: ("article" | "product" | "book" | "recipe" | "video" | "tweet" | "image" | "note" | "quote" | "repo")[];
                 /** @description URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match. */
                 domains?: string[];
                 /** @description library = saved/kept only; all = include unkept feed items. Defaults to all when omitted on /search. */

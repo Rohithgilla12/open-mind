@@ -7,7 +7,7 @@ import { RailLinks } from "../../../components/RailLinks";
 import { Rule } from "../../../components/Rule";
 import { apiFetch } from "../../../lib/api";
 import { assetSrc } from "../../../lib/assets";
-import { cardKind, domainOf, typeGradient, typeLabel } from "../../../lib/cards";
+import { cardKind, domainOf, isTextForward, typeGradient, typeLabel, type CardKind } from "../../../lib/cards";
 import { derivedPalette } from "../../../lib/palette";
 import { readingMinutes } from "../../../lib/reading-time";
 import { relativeTime } from "../../../lib/relative-time";
@@ -33,8 +33,7 @@ const EXCERPT_MAX_CHARS = 700;
  */
 function readableBody(item: ItemDetail): boolean {
   const kind = cardKind(item.cardType);
-  const textForward = kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "note";
-  return textForward && (item.body ?? "").trim().length > 120;
+  return isTextForward(kind) && (item.body ?? "").trim().length > 120;
 }
 
 /** External original URL, or null for uploads/notes whose url is an asset path. */
@@ -355,6 +354,25 @@ function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
   );
 }
 
+/**
+ * Kinds that get a lead-image hero on the detail page's fallback branch (the
+ * quote/note/image kinds render their own layout earlier and never consult
+ * this). A Record over the whole CardKind union so adding a card type forces
+ * a compile-time decision here instead of silently defaulting to no hero.
+ */
+const HERO_KINDS: Record<CardKind, boolean> = {
+  article: true,
+  quote: false,
+  image: false,
+  product: true,
+  note: false,
+  video: true,
+  tweet: false,
+  book: true,
+  recipe: true,
+  repo: true,
+};
+
 /** The type-aware content below the title and actions. */
 function ReaderContent({ item }: { item: ItemDetail }) {
   const kind = cardKind(item.cardType);
@@ -415,8 +433,13 @@ function ReaderContent({ item }: { item: ItemDetail }) {
     );
   }
 
-  // article / product / book / recipe / video / tweet
-  const showHero = kind === "article" || kind === "product" || kind === "book" || kind === "recipe" || kind === "video";
+  // Kinds that arrive here: quote / note / image are handled by earlier
+  // branches and pending/failed return before this point, so only
+  // article / product / book / recipe / video / tweet / repo reach this
+  // fallback. `HERO_KINDS` is a Record over the full CardKind union (not just
+  // the ones that reach here) so the compiler forces a decision when card
+  // type #11 arrives.
+  const showHero = HERO_KINDS[kind];
   return (
     <>
       <ActionRow item={item} />

@@ -27,6 +27,7 @@ const (
 	ItemCardTypeProduct ItemCardType = "product"
 	ItemCardTypeQuote   ItemCardType = "quote"
 	ItemCardTypeRecipe  ItemCardType = "recipe"
+	ItemCardTypeRepo    ItemCardType = "repo"
 	ItemCardTypeTweet   ItemCardType = "tweet"
 	ItemCardTypeVideo   ItemCardType = "video"
 )
@@ -47,6 +48,7 @@ const (
 	ItemDetailCardTypeProduct ItemDetailCardType = "product"
 	ItemDetailCardTypeQuote   ItemDetailCardType = "quote"
 	ItemDetailCardTypeRecipe  ItemDetailCardType = "recipe"
+	ItemDetailCardTypeRepo    ItemDetailCardType = "repo"
 	ItemDetailCardTypeTweet   ItemDetailCardType = "tweet"
 	ItemDetailCardTypeVideo   ItemDetailCardType = "video"
 )
@@ -73,6 +75,7 @@ const (
 	LensRuleTypesProduct LensRuleTypes = "product"
 	LensRuleTypesQuote   LensRuleTypes = "quote"
 	LensRuleTypesRecipe  LensRuleTypes = "recipe"
+	LensRuleTypesRepo    LensRuleTypes = "repo"
 	LensRuleTypesTweet   LensRuleTypes = "tweet"
 	LensRuleTypesVideo   LensRuleTypes = "video"
 )
@@ -140,6 +143,7 @@ const (
 	UnderstoodQueryTypesProduct UnderstoodQueryTypes = "product"
 	UnderstoodQueryTypesQuote   UnderstoodQueryTypes = "quote"
 	UnderstoodQueryTypesRecipe  UnderstoodQueryTypes = "recipe"
+	UnderstoodQueryTypesRepo    UnderstoodQueryTypes = "repo"
 	UnderstoodQueryTypesTweet   UnderstoodQueryTypes = "tweet"
 	UnderstoodQueryTypesVideo   UnderstoodQueryTypes = "video"
 )
@@ -153,6 +157,7 @@ const (
 	Product SearchItemsParamsTypes = "product"
 	Quote   SearchItemsParamsTypes = "quote"
 	Recipe  SearchItemsParamsTypes = "recipe"
+	Repo    SearchItemsParamsTypes = "repo"
 	Tweet   SearchItemsParamsTypes = "tweet"
 	Video   SearchItemsParamsTypes = "video"
 )

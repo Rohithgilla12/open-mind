@@ -80,7 +80,7 @@ Task definitions live in `Taskfile.yml` at the root. Use `deps:` for parallelism
 - **Lens** — saved query/rule collection (not "Smart Space")
 - **Drift** — resurfacing mode (not "Serendipity")
 - **Desk** — pinned board (not "Top of Mind")
-- Card types: article, product, book, recipe, video, tweet, image, note, quote
+- Card types: article, product, book, recipe, video, tweet, image, note, quote, repo
 
 ## Testing expectations
 

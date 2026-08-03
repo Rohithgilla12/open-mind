@@ -9,7 +9,8 @@ export type CardKind =
   | "video"
   | "tweet"
   | "book"
-  | "recipe";
+  | "recipe"
+  | "repo";
 
 const KNOWN_KINDS: readonly CardKind[] = [
   "article",
@@ -21,6 +22,7 @@ const KNOWN_KINDS: readonly CardKind[] = [
   "tweet",
   "book",
   "recipe",
+  "repo",
 ];
 
 /** Normalise a raw cardType into a known kind; unknown/absent → article. */
@@ -29,6 +31,22 @@ export function cardKind(cardType: string | undefined): CardKind {
     return cardType as CardKind;
   }
   return "article";
+}
+
+/**
+ * Text-forward types worth treating as long-form reading material: opening in
+ * distraction-free reader mode (item detail page) and painting highlights over
+ * (reader page). A repo's README-style body reads like an article's.
+ */
+export function isTextForward(kind: CardKind): boolean {
+  return (
+    kind === "article" ||
+    kind === "product" ||
+    kind === "book" ||
+    kind === "recipe" ||
+    kind === "note" ||
+    kind === "repo"
+  );
 }
 
 /** Human hostname for the meta line; null for uploads/notes or unparseable urls. */
@@ -57,6 +75,7 @@ export const typeGradient: Record<CardKind, string> = {
   tweet: `linear-gradient(135deg, ${color.cobalt}, ${color.green})`,
   book: `linear-gradient(160deg, ${color.terracotta}, ${color.ink})`,
   recipe: `linear-gradient(135deg, ${color.terracotta}, ${color.gold})`,
+  repo: `linear-gradient(135deg, ${color.gold}, ${color.green})`,
 };
 
 /**
@@ -73,6 +92,7 @@ export const typeAccent: Record<CardKind, string> = {
   tweet: color.cobalt,
   book: color.terracotta,
   recipe: color.gold,
+  repo: color.gold,
 };
 
 /** Meta-line label per type (matches mockup: tweet reads "Post"). */
@@ -86,4 +106,5 @@ export const typeLabel: Record<CardKind, string> = {
   tweet: "Post",
   book: "Book",
   recipe: "Recipe",
+  repo: "Repo",
 };

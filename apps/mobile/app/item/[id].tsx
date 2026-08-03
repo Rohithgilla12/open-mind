@@ -41,8 +41,23 @@ import type { Settings } from "@/lib/settings";
 import { colors, fonts, radius, spacing, typeGradients, type CardKind } from "@/lib/theme";
 import { stripMarkdown } from "@/lib/text";
 
-/** Types that get a gradient hero wash on the detail screen. */
-const HERO_KINDS: readonly CardKind[] = ["article", "image", "product", "book", "recipe", "video", "tweet"];
+/**
+ * Types that get a gradient hero wash on the detail screen. A Record over the
+ * whole CardKind union (not a plain array) so the compiler forces a decision
+ * here when a new card type is added.
+ */
+const HERO_KINDS: Record<CardKind, boolean> = {
+  article: true,
+  quote: false,
+  image: true,
+  product: true,
+  note: false,
+  video: true,
+  tweet: true,
+  book: true,
+  recipe: true,
+  repo: true,
+};
 
 function hostOf(url?: string): string {
   if (!url) return "";
@@ -429,7 +444,7 @@ function Body({
     );
   }
 
-  const showHero = HERO_KINDS.includes(kind);
+  const showHero = HERO_KINDS[kind];
   const gradientColors: [string, string] = dots.length >= 2 ? [dots[0], dots[1]] : typeGradients[kind];
 
   return (

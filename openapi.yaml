@@ -549,7 +549,7 @@ paths:
           description: "Card types to include (filter). Repeatable query param."
           schema:
             type: array
-            items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+            items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote, repo] }
         - name: domains
           in: query
           required: false
@@ -718,7 +718,7 @@ components:
         tags: { type: array, items: { type: string } }
         userTags: { type: array, items: { type: string } }
         palette: { type: array, items: { type: string } }
-        cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+        cardType: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote, repo] }
         status: { type: string, enum: [pending, enriched, failed] }
         createdAt: { type: string, format: date-time }
         pinnedAt: { type: string, format: date-time, nullable: true, description: "When the item was pinned to the Desk; null if not pinned." }
@@ -828,7 +828,7 @@ components:
         types:
           type: array
           description: "Card-type filters applied, if any."
-          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote, repo] }
         domains:
           type: array
           description: "URL host filters applied, if any."
@@ -846,7 +846,7 @@ components:
         types:
           type: array
           description: "Card types to include (filter)."
-          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote] }
+          items: { type: string, enum: [article, product, book, recipe, video, tweet, image, note, quote, repo] }
         domains:
           type: array
           description: "URL hosts to include (filter). Normalised lowercase; www stripped. Subdomains match (x.com matches mobile.x.com)."

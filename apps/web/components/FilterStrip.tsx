@@ -16,6 +16,7 @@ const FILTERS: readonly { label: string; type: string }[] = [
   { label: "Recipes", type: "recipe" },
   { label: "Notes", type: "note" },
   { label: "Books", type: "book" },
+  { label: "Repos", type: "repo" },
 ];
 
 /**

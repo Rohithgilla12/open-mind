@@ -217,7 +217,7 @@ export function ItemCard({ item, settings, onPress, onLongPress, onPickColor, on
     );
   }
 
-  // article / product / book / recipe / video / tweet — hero + serif title + summary.
+  // article / product / book / recipe / video / tweet / repo — hero + serif title + summary.
   return wrap(
     <View>
       <Hero kind={kind} dots={dots} source={source} height={84} innerRef={heroRef} />

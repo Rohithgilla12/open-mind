@@ -109,3 +109,16 @@ func TestFromEnvGeminiMissingKeyErrors(t *testing.T) {
 		t.Fatal("FromEnv err = nil, want error for gemini without key")
 	}
 }
+
+func TestSanitiseTypesKeepsRepo(t *testing.T) {
+	got := sanitiseTypes([]string{"repo", "REPO", "gizmo", "article"})
+	want := []string{"repo", "article"}
+	if len(got) != len(want) {
+		t.Fatalf("sanitiseTypes = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("sanitiseTypes[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

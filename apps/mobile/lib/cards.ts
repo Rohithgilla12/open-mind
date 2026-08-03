@@ -13,6 +13,7 @@ export const KNOWN_KINDS: readonly CardKind[] = [
   "tweet",
   "book",
   "recipe",
+  "repo",
 ];
 
 /** Normalise a raw cardType into a known kind; unknown/absent → article. */
@@ -33,6 +34,7 @@ export const typeLabel: Record<CardKind, string> = {
   tweet: "Post",
   book: "Book",
   recipe: "Recipe",
+  repo: "Repo",
 };
 
 /** Plural label for group-by-type section headers. */
@@ -46,4 +48,5 @@ export const typeLabelPlural: Record<CardKind, string> = {
   tweet: "Posts",
   book: "Books",
   recipe: "Recipes",
+  repo: "Repos",
 };
