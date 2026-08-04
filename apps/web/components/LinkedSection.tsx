@@ -4,7 +4,7 @@ import { tokens } from "@openmind/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cardKind, domainOf, typeLabel } from "../lib/cards";
-import type { Item } from "../lib/types";
+import type { Item, ItemPage } from "../lib/types";
 
 const { color, font } = tokens;
 
@@ -120,9 +120,19 @@ export function LinkedSection({ itemId, version = 0 }: { itemId: string; version
     fetch("/api/items?limit=50")
       .then(async (res) => {
         if (!res.ok) throw new Error(`failed to load candidates: ${res.status}`);
-        return (await res.json()) as Item[];
+        // GET /items answers with the { items, nextCursor } envelope, not a
+        // bare array. This picker deliberately doesn't paginate — it just
+        // reads the one page it asked for and drops the cursor.
+        return (await res.json()) as ItemPage;
       })
-      .then((data) => setCandidates(data))
+      .then((page) => {
+        // Web is always served by its own matching API version, so a
+        // malformed envelope means something is actually wrong, not a
+        // version-skew case to shrug off. Fail loudly into the retry state
+        // rather than rendering an empty picker that looks like "no matches".
+        if (!Array.isArray(page.items)) throw new Error("unexpected candidates response shape");
+        setCandidates(page.items);
+      })
       .catch((err) => {
         console.error("failed to load link candidates", { itemId, err });
         setCandidatesLoadFailed(true);
