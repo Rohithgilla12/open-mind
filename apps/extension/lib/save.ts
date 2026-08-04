@@ -116,9 +116,20 @@ export async function recentItems(limit: number): Promise<RecentResult> {
     }
     try {
       const parsed = (await res.json()) as unknown;
-      return { ok: true, status: res.status, items: Array.isArray(parsed) ? (parsed as Item[]) : [] };
+      const items = Array.isArray(parsed)
+        ? (parsed as Item[])
+        : parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
+          ? ((parsed as { items: Item[] }).items)
+          : null;
+      if (items === null) {
+        console.error("unrecognised item list body");
+        return { ok: false, status: res.status, items: [] };
+      }
+      return { ok: true, status: res.status, items };
     } catch {
-      return { ok: true, status: res.status, items: [] };
+      // A 200 with unparseable JSON is a real failure, not an empty library
+      // (see apps/mobile/lib/api.ts's listFeedItems for the same reasoning).
+      return { ok: false, status: res.status, items: [] };
     }
   } catch {
     return { ok: false, status: 0, items: [] };

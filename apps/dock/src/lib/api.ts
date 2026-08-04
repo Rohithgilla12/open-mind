@@ -235,6 +235,20 @@ export async function searchItems(
   }
 }
 
+/**
+ * Read an item list out of either shape: the ItemPage envelope, or the bare
+ * array served by an instance predating it. Returns null when the body is
+ * neither, so callers can report a failure instead of an empty list — the two
+ * used to be indistinguishable.
+ */
+function readItemList(data: unknown): Item[] | null {
+  if (Array.isArray(data)) return data as Item[];
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: Item[] }).items;
+  }
+  return null;
+}
+
 async function listItemsFrom(
   path: string,
   override?: Settings,
@@ -251,14 +265,14 @@ async function listItemsFrom(
       return { ok: false, status: res.status, items: [] };
     }
     try {
-      const data = (await res.json()) as unknown;
-      return {
-        ok: true,
-        status: res.status,
-        items: Array.isArray(data) ? (data as Item[]) : [],
-      };
+      const items = readItemList(await res.json());
+      if (items === null) {
+        console.error("unrecognised item list body", { path });
+        return { ok: false, status: res.status, items: [] };
+      }
+      return { ok: true, status: res.status, items };
     } catch {
-      return { ok: true, status: res.status, items: [] };
+      return { ok: false, status: res.status, items: [] };
     }
   } catch (err) {
     if (signal?.aborted) {

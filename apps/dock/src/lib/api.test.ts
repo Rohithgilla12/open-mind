@@ -211,5 +211,43 @@ describe("api client", () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 401 }));
       expect(await listRecent(8)).toEqual({ ok: false, status: 401, items: [] });
     });
+
+    it("reads items out of the ItemPage envelope", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ items: [{ id: "1", url: "https://a.test" }], nextCursor: "abc" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const res = await listRecent(8, settings);
+      expect(res.ok).toBe(true);
+      expect(res.items).toHaveLength(1);
+    });
+
+    it("still reads a bare array from an instance predating the envelope", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify([{ id: "1", url: "https://a.test" }]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const res = await listRecent(8, settings);
+      expect(res.ok).toBe(true);
+      expect(res.items).toHaveLength(1);
+    });
+
+    it("reports failure rather than an empty list when the body is unrecognised", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ unexpected: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const res = await listRecent(8, settings);
+      // An empty library and "the server said something we do not understand"
+      // must not look identical to the caller.
+      expect(res.ok).toBe(false);
+      expect(res.items).toEqual([]);
+    });
   });
 });
