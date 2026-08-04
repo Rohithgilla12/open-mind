@@ -4,9 +4,11 @@ import { tokens } from "@openmind/ui";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { domainOf } from "../lib/cards";
+import { appendPage, initialPagedState, mapPagedItems, type PagedState } from "../lib/pages";
 import { relativeTime } from "../lib/relative-time";
 import { renderInlineMarkdown } from "../lib/text";
-import type { Feed, Item } from "../lib/types";
+import type { Feed, Item, ItemPage } from "../lib/types";
+import { LoadMore } from "./LoadMore";
 
 const { color, font } = tokens;
 
@@ -138,25 +140,30 @@ function RiverSurface({ children }: { children: ReactNode }) {
  * load-failure states follow the house pattern used elsewhere (see RelatedRail).
  */
 export function FeedRiver({ feeds }: { feeds: Feed[] }) {
-  const [items, setItems] = useState<Item[] | null>(null);
+  const [state, setState] = useState<PagedState<Item> | null>(null);
   const [activeFeedId, setActiveFeedId] = useState<string | undefined>(undefined);
   const [showAllChips, setShowAllChips] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreFailed, setMoreFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoadFailed(false);
+    // A filter change is a different list, so page state resets rather than
+    // appending this feed's rows underneath another feed's.
+    setState(null);
     const params = new URLSearchParams();
     if (activeFeedId) params.set("feedId", activeFeedId);
     const qs = params.toString();
     fetch(`/api/feed${qs ? `?${qs}` : ""}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`failed to load feed: ${res.status}`);
-        return (await res.json()) as Item[];
+        return (await res.json()) as ItemPage;
       })
-      .then((data) => {
-        if (!cancelled) setItems(data);
+      .then((page) => {
+        if (!cancelled) setState(initialPagedState(page.items, page.nextCursor));
       })
       .catch((err) => {
         console.error("failed to load feed river", err);
@@ -167,6 +174,26 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
     };
   }, [activeFeedId, loadAttempt]);
 
+  const loadMore = useCallback(async () => {
+    const cursor = state?.cursor;
+    if (loadingMore || !cursor) return;
+    setLoadingMore(true);
+    setMoreFailed(false);
+    try {
+      const params = new URLSearchParams({ cursor });
+      if (activeFeedId) params.set("feedId", activeFeedId);
+      const res = await fetch(`/api/feed?${params.toString()}`);
+      if (!res.ok) throw new Error(`failed to load more feed items: ${res.status}`);
+      const page = (await res.json()) as ItemPage;
+      setState((prev) => (prev ? appendPage(prev, page) : initialPagedState(page.items, page.nextCursor)));
+    } catch (err) {
+      console.error("failed to load more feed items", err);
+      setMoreFailed(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [activeFeedId, loadingMore, state?.cursor]);
+
   const titleFor = useCallback(
     (feedId?: string | null) => {
       if (!feedId) return "Feed";
@@ -176,9 +203,11 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
   );
 
   const setKept = useCallback((itemId: string, kept: boolean) => {
-    setItems((prev) =>
+    setState((prev) =>
       prev
-        ? prev.map((it) => (it.id === itemId ? { ...it, keptAt: kept ? new Date().toISOString() : null } : it))
+        ? mapPagedItems(prev, (it) =>
+            it.id === itemId ? { ...it, keptAt: kept ? new Date().toISOString() : null } : it,
+          )
         : prev,
     );
   }, []);
@@ -214,15 +243,15 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
     >
       Couldn&apos;t load the feed — retry
     </button>
-  ) : items === null ? (
+  ) : state === null ? (
     <p className="meta" style={{ textTransform: "none", letterSpacing: ".05em", color: color.inkFaintAlt }}>
       Loading…
     </p>
-  ) : items.length === 0 && activeFeedId ? (
+  ) : state.pages[0].length === 0 && activeFeedId ? (
     <p className="meta" style={{ textTransform: "none", letterSpacing: ".05em", color: color.inkFaintAlt }}>
       Nothing from this feed yet.
     </p>
-  ) : items.length === 0 ? (
+  ) : state.pages[0].length === 0 ? (
     <div
       style={{
         maxWidth: 560,
@@ -258,16 +287,21 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
       </p>
     </div>
   ) : (
-    <ul className="feed-river" style={{ listStyle: "none", margin: 0, maxWidth: 780 }}>
-      {items.map((item) => (
-        <Row
-          key={item.id}
-          item={item}
-          feedTitle={titleFor(item.feedId)}
-          onKeptChange={(kept) => setKept(item.id, kept)}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="feed-river" style={{ listStyle: "none", margin: 0, maxWidth: 780 }}>
+        {state.pages.flat().map((item) => (
+          <Row
+            key={item.id}
+            item={item}
+            feedTitle={titleFor(item.feedId)}
+            onKeptChange={(kept) => setKept(item.id, kept)}
+          />
+        ))}
+      </ul>
+      {state.cursor ? (
+        <LoadMore onLoad={loadMore} loading={loadingMore} error={moreFailed} label="Load more" />
+      ) : null}
+    </>
   );
 
   return (
