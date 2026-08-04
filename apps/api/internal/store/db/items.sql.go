@@ -351,17 +351,30 @@ const listFeedItems = `-- name: ListFeedItems :many
 SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1 AND feed_id IS NOT NULL
   AND ($2::uuid IS NULL OR feed_id = $2)
-ORDER BY created_at DESC LIMIT $3
+  AND (
+    $3::timestamptz IS NULL
+    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $5
 `
 
 type ListFeedItemsParams struct {
-	UserID       uuid.UUID
-	FilterFeedID pgtype.UUID
-	LimitCount   int32
+	UserID          uuid.UUID
+	FilterFeedID    pgtype.UUID
+	CursorCreatedAt pgtype.Timestamptz
+	CursorID        pgtype.UUID
+	LimitCount      int32
 }
 
 func (q *Queries) ListFeedItems(ctx context.Context, arg ListFeedItemsParams) ([]Item, error) {
-	rows, err := q.db.Query(ctx, listFeedItems, arg.UserID, arg.FilterFeedID, arg.LimitCount)
+	rows, err := q.db.Query(ctx, listFeedItems,
+		arg.UserID,
+		arg.FilterFeedID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.LimitCount,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -430,16 +443,31 @@ func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string,
 const listItems = `-- name: ListItems :many
 SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host FROM items
 WHERE user_id = $1 AND (feed_id IS NULL OR kept_at IS NOT NULL)
-ORDER BY created_at DESC LIMIT $2
+  AND (
+    $2::timestamptz IS NULL
+    OR (created_at, id) < ($2::timestamptz, $3::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $4
 `
 
 type ListItemsParams struct {
-	UserID uuid.UUID
-	Limit  int32
+	UserID          uuid.UUID
+	CursorCreatedAt pgtype.Timestamptz
+	CursorID        pgtype.UUID
+	LimitCount      int32
 }
 
+// Keyset (not OFFSET) pagination: the seek is anchored to a row, so a capture
+// landing at the head between two requests cannot shift a window and re-serve
+// a row the client already holds. id breaks created_at ties.
 func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, error) {
-	rows, err := q.db.Query(ctx, listItems, arg.UserID, arg.Limit)
+	rows, err := q.db.Query(ctx, listItems,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.LimitCount,
+	)
 	if err != nil {
 		return nil, err
 	}

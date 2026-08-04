@@ -8,9 +8,17 @@ INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING *;
 SELECT * FROM items WHERE user_id = $1 AND id = $2;
 
 -- name: ListItems :many
+-- Keyset (not OFFSET) pagination: the seek is anchored to a row, so a capture
+-- landing at the head between two requests cannot shift a window and re-serve
+-- a row the client already holds. id breaks created_at ties.
 SELECT * FROM items
 WHERE user_id = $1 AND (feed_id IS NULL OR kept_at IS NOT NULL)
-ORDER BY created_at DESC LIMIT $2;
+  AND (
+    sqlc.narg(cursor_created_at)::timestamptz IS NULL
+    OR (created_at, id) < (sqlc.narg(cursor_created_at)::timestamptz, sqlc.narg(cursor_id)::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(limit_count);
 
 -- name: ListItemsAll :many
 -- Same as ListItems but without the Mind predicate: serves the types-only
@@ -28,7 +36,12 @@ INSERT INTO items (user_id, url, feed_id) VALUES ($1, $2, $3) RETURNING *;
 SELECT * FROM items
 WHERE user_id = $1 AND feed_id IS NOT NULL
   AND (sqlc.narg(filter_feed_id)::uuid IS NULL OR feed_id = sqlc.narg(filter_feed_id))
-ORDER BY created_at DESC LIMIT sqlc.arg(limit_count);
+  AND (
+    sqlc.narg(cursor_created_at)::timestamptz IS NULL
+    OR (created_at, id) < (sqlc.narg(cursor_created_at)::timestamptz, sqlc.narg(cursor_id)::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(limit_count);
 
 -- name: SetItemKept :execrows
 UPDATE items SET kept_at = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
