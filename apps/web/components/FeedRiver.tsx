@@ -147,6 +147,7 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreFailed, setMoreFailed] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
   // Bumped once per run of the effect below (a feed-filter change or a retry
   // via loadAttempt). loadMore snapshots this before its fetch and checks it
   // again on resolution, so a "Load more" response that arrives after the
@@ -164,6 +165,7 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
     setState(null);
     setLoadingMore(false);
     setMoreFailed(false);
+    setAnnouncement("");
     const params = new URLSearchParams();
     if (activeFeedId) params.set("feedId", activeFeedId);
     const qs = params.toString();
@@ -202,6 +204,7 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
       const page = (await res.json()) as ItemPage;
       if (requestId !== requestIdRef.current) return;
       setState((prev) => (prev ? appendPage(prev, page) : initialPagedState(page.items, page.nextCursor)));
+      setAnnouncement(`${page.items.length} more items loaded`);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       console.error("failed to load more feed items", err);
@@ -316,7 +319,13 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
         ))}
       </ul>
       {state.cursor ? (
-        <LoadMore onLoad={loadMore} loading={loadingMore} error={moreFailed} label="Load more" />
+        <LoadMore
+          onLoad={loadMore}
+          loading={loadingMore}
+          error={moreFailed}
+          label="Load more"
+          announcement={announcement}
+        />
       ) : null}
     </>
   );

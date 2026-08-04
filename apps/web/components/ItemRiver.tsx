@@ -83,18 +83,19 @@ export function ItemRiver({
   return (
     <>
       {state.pages.map((page, i) => (
-        // Index keys are safe here: pages are only ever appended, never
-        // reordered or spliced.
+        // Index keys are safe here: pages are appended, or replaced wholesale by
+        // a re-seed — never reordered or spliced. Cards themselves are keyed by
+        // id inside Grid, so a re-seed reconciles on identity, not position.
         <Grid key={i} items={page} colorActive={colorActive} />
       ))}
-      <p
-        aria-live="polite"
-        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
-      >
-        {announcement}
-      </p>
       {state.cursor ? (
-        <LoadMore onLoad={loadMore} loading={loading} error={failed} label="Load more saves" />
+        <LoadMore
+          onLoad={loadMore}
+          loading={loading}
+          error={failed}
+          label="Load more saves"
+          announcement={announcement}
+        />
       ) : null}
     </>
   );
