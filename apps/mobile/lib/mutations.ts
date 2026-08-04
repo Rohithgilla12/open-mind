@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { Alert } from "react-native";
 import { deleteItem, setKept, setPinned, type Item } from "./api";
 import { confirmDelete } from "./item-actions";
+import { mapCachedItems, trimToFirstPage } from "./paged-cache";
 import { queryKeys } from "./query";
 
 type LibraryData = { items: Item[]; understood?: unknown };
@@ -13,24 +14,19 @@ function patchItemInCaches(
   id: string,
   patch: Partial<Item>,
 ) {
-  const apply = (items: Item[] | undefined) =>
-    items?.map((it) => (it.id === id ? { ...it, ...patch } : it));
+  const apply = (it: Item): Item => (it.id === id ? { ...it, ...patch } : it);
 
-  qc.setQueriesData<Item[]>({ queryKey: ["feed"] }, apply);
+  qc.setQueriesData({ queryKey: ["feed"] }, (prev) => mapCachedItems<Item>(prev, apply));
+  qc.setQueriesData({ queryKey: ["items"] }, (prev) => mapCachedItems<Item>(prev, apply));
+  qc.setQueriesData({ queryKey: ["search"] }, (prev) => mapCachedItems<Item>(prev, apply));
   qc.setQueriesData<Item[]>({ queryKey: queryKeys.desk() }, (prev) => {
     if (!prev) return prev;
     // Unpinning removes from desk immediately.
     if (patch.pinnedAt === null) return prev.filter((it) => it.id !== id);
     // Pinning: if the item isn't on desk yet, leave lists to invalidate
     // (we may not have the full item here). Just patch badge fields if present.
-    return apply(prev) ?? prev;
+    return prev.map(apply);
   });
-  qc.setQueriesData<LibraryData>({ queryKey: ["items"] }, (prev) =>
-    prev ? { ...prev, items: apply(prev.items) ?? prev.items } : prev,
-  );
-  qc.setQueriesData<LibraryData>({ queryKey: ["search"] }, (prev) =>
-    prev ? { ...prev, items: apply(prev.items) ?? prev.items } : prev,
-  );
   qc.setQueryData(queryKeys.item(id), (prev: Item | undefined) =>
     prev ? { ...prev, ...patch } : prev,
   );
@@ -40,6 +36,11 @@ function patchItemInCaches(
 export function useInvalidateLists() {
   const qc = useQueryClient();
   return useCallback(() => {
+    // Trim before invalidating: v5 refetches every loaded page of an active
+    // infinite query, so one pin with ten pages loaded would fire ten requests.
+    // The optimistic patch above already keeps the visible list correct.
+    qc.setQueriesData({ queryKey: ["items"] }, (prev) => trimToFirstPage(prev));
+    qc.setQueriesData({ queryKey: ["feed"] }, (prev) => trimToFirstPage(prev));
     void qc.invalidateQueries({ queryKey: ["items"] });
     void qc.invalidateQueries({ queryKey: ["search"] });
     void qc.invalidateQueries({ queryKey: ["feed"] });
