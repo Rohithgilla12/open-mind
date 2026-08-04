@@ -2,7 +2,7 @@
 
 import { tokens } from "@openmind/ui";
 import Link from "next/link";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { domainOf } from "../lib/cards";
 import { appendPage, initialPagedState, mapPagedItems, type PagedState } from "../lib/pages";
 import { relativeTime } from "../lib/relative-time";
@@ -147,13 +147,23 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreFailed, setMoreFailed] = useState(false);
+  // Bumped once per run of the effect below (a feed-filter change or a retry
+  // via loadAttempt). loadMore snapshots this before its fetch and checks it
+  // again on resolution, so a "Load more" response that arrives after the
+  // reader has switched feeds (or retried) is discarded instead of being
+  // spliced into a list it was never requested for.
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    requestIdRef.current += 1;
     setLoadFailed(false);
     // A filter change is a different list, so page state resets rather than
-    // appending this feed's rows underneath another feed's.
+    // appending this feed's rows underneath another feed's. Any load-more
+    // that was in flight for the previous list is now moot too.
     setState(null);
+    setLoadingMore(false);
+    setMoreFailed(false);
     const params = new URLSearchParams();
     if (activeFeedId) params.set("feedId", activeFeedId);
     const qs = params.toString();
@@ -177,6 +187,11 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
   const loadMore = useCallback(async () => {
     const cursor = state?.cursor;
     if (loadingMore || !cursor) return;
+    // Snapshotted so a response can be told apart from a newer request: if a
+    // feed switch or a retry happens before this fetch resolves, the effect
+    // above will have moved requestIdRef on, and the comparison below drops
+    // the stale page instead of appending it under the wrong feed.
+    const requestId = requestIdRef.current;
     setLoadingMore(true);
     setMoreFailed(false);
     try {
@@ -185,12 +200,14 @@ export function FeedRiver({ feeds }: { feeds: Feed[] }) {
       const res = await fetch(`/api/feed?${params.toString()}`);
       if (!res.ok) throw new Error(`failed to load more feed items: ${res.status}`);
       const page = (await res.json()) as ItemPage;
+      if (requestId !== requestIdRef.current) return;
       setState((prev) => (prev ? appendPage(prev, page) : initialPagedState(page.items, page.nextCursor)));
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error("failed to load more feed items", err);
       setMoreFailed(true);
     } finally {
-      setLoadingMore(false);
+      if (requestId === requestIdRef.current) setLoadingMore(false);
     }
   }, [activeFeedId, loadingMore, state?.cursor]);
 
