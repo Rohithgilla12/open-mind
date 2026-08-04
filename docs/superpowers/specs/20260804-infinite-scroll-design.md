@@ -167,6 +167,18 @@ resize listener (two sources of truth), makes uneven column bottoms permanent ra
 and rewrites the Mind's core layout. Rejected as disproportionate; revisit only if the seam proves
 annoying against a real 50-card page.
 
+### The masthead count
+
+`Topbar.tsx:57` renders `{count} gatherings · organised by the machine`, where `count` is however many
+rows page 1 returned. Today that is silently capped at 50; under pagination it would either stay
+frozen at 50 while the river grows beneath it, or tick upward as the reader scrolls. Both are worse
+than the status quo, because both assert a library size that is not one.
+
+So when a `nextCursor` exists, the subline renders `50+ gatherings`. It stays server-rendered and does
+not track client-side appends — an unknown-but-larger total stated honestly, which is the same call
+made for mobile's grouped headers below. A true total would need `total` on `ItemPage` (a `COUNT(*)`
+per request) or a count endpoint; that stays a follow-up.
+
 ### Load control
 
 A real `<button>` ("Load more saves") is rendered whenever a cursor exists. An IntersectionObserver
