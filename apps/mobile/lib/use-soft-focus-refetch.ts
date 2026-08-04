@@ -11,9 +11,12 @@ import { QUERY_STALE_MS } from "./query";
 export function useSoftFocusRefetch(
   query: Pick<UseQueryResult, "isStale" | "isPending" | "refetch" | "dataUpdatedAt">,
   extra?: () => void,
+  onBeforeRefetch?: () => void,
 ): void {
   const extraRef = useRef(extra);
   extraRef.current = extra;
+  const beforeRef = useRef(onBeforeRefetch);
+  beforeRef.current = onBeforeRefetch;
 
   useFocusEffect(
     useCallback(() => {
@@ -21,6 +24,9 @@ export function useSoftFocusRefetch(
       // Refetch when stale or never fetched. `isStale` alone can be true before
       // the first successful fetch completes; refetch is a no-op while pending.
       if (query.isStale || query.dataUpdatedAt === 0) {
+        // An infinite query refetches every loaded page, so callers trim to the
+        // first page here to keep a focus refetch to one request.
+        beforeRef.current?.();
         void query.refetch();
       }
       // Intentionally omit query object identity — depend on freshness signals.

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -19,6 +19,7 @@ import { cardKind, KNOWN_KINDS, typeLabelPlural } from "@/lib/cards";
 import { useCaptureQueue } from "@/lib/capture-queue-context";
 import { showItemActions, useAndroidActionSheet } from "@/lib/item-actions";
 import { useDeleteItem, usePinItem } from "@/lib/mutations";
+import { trimToFirstPage } from "@/lib/paged-cache";
 import { queryKeys } from "@/lib/query";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing, typeGradients, type CardKind } from "@/lib/theme";
@@ -53,7 +54,7 @@ function heroColors(item: Item): [string, string] {
 const SEARCH_DEBOUNCE_MS = 300;
 const LIST_LIMIT = 50;
 
-type LibraryData = { items: Item[]; understood?: UnderstoodQuery };
+type LibraryPage = { items: Item[]; understood?: UnderstoodQuery; nextCursor?: string };
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -76,38 +77,50 @@ export default function LibraryScreen() {
   const searching = debouncedQuery.length > 0;
   const filteringByColor = !searching && !!colorFilter;
 
-  const listQuery = useQuery({
+  const queryClient = useQueryClient();
+
+  const listQuery = useInfiniteQuery({
     queryKey: searching
       ? queryKeys.search(debouncedQuery)
       : filteringByColor
         ? queryKeys.search(`color:${colorFilter}`)
         : queryKeys.items(LIST_LIMIT),
     enabled: !!settings && configured,
-    queryFn: async (): Promise<LibraryData> => {
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }): Promise<LibraryPage> => {
+      // Search and the colour filter are not paginated (the API fuses and caps
+      // at 50), so they return a single page with no cursor and this hook
+      // simply never asks for a second one.
       if (searching) {
         const res = await searchItems({ q: debouncedQuery, parse: true });
         if (!res.ok) throw new ApiError(res.status);
-        return {
-          items: res.results.map((r) => r.item),
-          understood: res.understood,
-        };
+        return { items: res.results.map((r) => r.item), understood: res.understood };
       }
       if (filteringByColor) {
         const res = await searchItems({ color: colorFilter });
         if (!res.ok) throw new ApiError(res.status);
         return { items: res.results.map((r) => r.item) };
       }
-      const res = await listItems(LIST_LIMIT);
+      const res = await listItems(LIST_LIMIT, pageParam);
       if (!res.ok) throw new ApiError(res.status);
-      return { items: res.items };
+      return { items: res.items, nextCursor: res.nextCursor };
     },
+    getNextPageParam: (last) => last.nextCursor,
     // Keep prior results visible while a new search key loads.
     placeholderData: (prev) => prev,
   });
 
-  useSoftFocusRefetch(listQuery, () => {
-    void flush();
-  });
+  const trimToFirst = useCallback(() => {
+    queryClient.setQueryData(queryKeys.items(LIST_LIMIT), (prev: unknown) => trimToFirstPage(prev));
+  }, [queryClient]);
+
+  useSoftFocusRefetch(
+    listQuery,
+    () => {
+      void flush();
+    },
+    trimToFirst,
+  );
 
   const morph = useMorph();
 
@@ -151,9 +164,16 @@ export default function LibraryScreen() {
     [onOpen, pinItem, deleteItem, present],
   );
 
+  const onEndReached = useCallback(() => {
+    if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) {
+      void listQuery.fetchNextPage();
+    }
+  }, [listQuery]);
+
   if (!loading && !configured) return <Redirect href="/sign-in" />;
 
-  const items = listQuery.data?.items ?? [];
+  const items = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const understood = listQuery.data?.pages[0]?.understood;
   const count = items.length;
   const errStatus = listQuery.error instanceof ApiError ? listQuery.error.status : undefined;
 
@@ -202,9 +222,7 @@ export default function LibraryScreen() {
             clearButtonMode="while-editing"
           />
         </View>
-        {listQuery.data?.understood ? (
-          <UnderstoodRow understood={listQuery.data.understood} q={debouncedQuery} />
-        ) : null}
+        {understood ? <UnderstoodRow understood={understood} q={debouncedQuery} /> : null}
         {colorFilter ? (
           <View style={styles.colorChip}>
             <View style={[styles.colorChipSwatch, { backgroundColor: colorFilter }]} />
@@ -227,9 +245,15 @@ export default function LibraryScreen() {
         searching={searching || filteringByColor}
         items={items}
         settings={settings}
-        refreshing={listQuery.isRefetching && !listQuery.isPending}
+        refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
         grouped={grouped && !searching && !filteringByColor}
-        onRefresh={() => void listQuery.refetch()}
+        hasNextPage={listQuery.hasNextPage}
+        isFetchingNextPage={listQuery.isFetchingNextPage}
+        onEndReached={onEndReached}
+        onRefresh={() => {
+          trimToFirst();
+          void listQuery.refetch();
+        }}
         onRetry={() => void listQuery.refetch()}
         onOpen={onOpen}
         onMorphPress={onMorphOpen}
@@ -271,6 +295,9 @@ type BodyProps = {
   settings: ReturnType<typeof useSettingsContext>["settings"];
   refreshing: boolean;
   grouped: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onEndReached: () => void;
   onRefresh: () => void;
   onRetry: () => void;
   onOpen: (item: Item) => void;
@@ -288,6 +315,9 @@ function Body({
   settings,
   refreshing,
   grouped,
+  hasNextPage,
+  isFetchingNextPage,
+  onEndReached,
   onRefresh,
   onRetry,
   onOpen,
@@ -336,13 +366,21 @@ function Body({
     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.cobalt} />
   );
 
+  const listFooter = isFetchingNextPage ? (
+    <View style={styles.footer}>
+      <ActivityIndicator color={colors.inkFaint} />
+    </View>
+  ) : null;
+
   // Grouped browsing sections by card type; searching sections library
   // matches ahead of unkept feed-river matches (results arrive in that order
   // from the API, the header just makes the split visible).
   let sections: { title: string; data: Item[] }[] | null = null;
   if (grouped) {
     sections = groupByKind(items).map(({ kind, items: sectionItems }) => ({
-      title: `${typeLabelPlural[kind]} · ${sectionItems.length}`,
+      // A count over a partial list asserts a library size that is not one, so
+      // while more pages remain the header carries the label alone.
+      title: hasNextPage ? typeLabelPlural[kind] : `${typeLabelPlural[kind]} · ${sectionItems.length}`,
       data: sectionItems,
     }));
   } else if (searching) {
@@ -373,6 +411,9 @@ function Body({
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={refreshControl}
         ListEmptyComponent={emptyMessage}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.6}
+        ListFooterComponent={listFooter}
       />
     );
   }
@@ -388,6 +429,9 @@ function Body({
       ItemSeparatorComponent={() => <View style={styles.separator} />}
       refreshControl={refreshControl}
       ListEmptyComponent={emptyMessage}
+      onEndReached={onEndReached}
+      onEndReachedThreshold={0.6}
+      ListFooterComponent={listFooter}
     />
   );
 }
@@ -507,6 +551,7 @@ const styles = StyleSheet.create({
   colorChipClear: { fontFamily: fonts.sans, fontSize: 15, color: colors.inkFaint, lineHeight: 16 },
   list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, flexGrow: 1 },
   separator: { height: 14 },
+  footer: { paddingVertical: spacing.xl, alignItems: "center" },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   messageText: {
     fontFamily: fonts.sans,
