@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { Alert } from "react-native";
 import { deleteItem, setKept, setPinned, type Item } from "./api";
 import { confirmDelete } from "./item-actions";
-import { filterCachedItems, mapCachedItems, trimToFirstPage } from "./paged-cache";
+import { filterCachedItems, mapCachedItems } from "./paged-cache";
 import { queryKeys } from "./query";
 
 /** Patch an item across every list cache that might hold it. */
@@ -34,14 +34,24 @@ function patchItemInCaches(
 export function useInvalidateLists() {
   const qc = useQueryClient();
   return useCallback(() => {
-    // Trim before invalidating: v5 refetches every loaded page of an active
-    // infinite query, so one pin with ten pages loaded would fire ten requests.
-    // The optimistic patch above already keeps the visible list correct.
-    qc.setQueriesData({ queryKey: ["items"] }, (prev) => trimToFirstPage(prev));
-    qc.setQueriesData({ queryKey: ["feed"] }, (prev) => trimToFirstPage(prev));
-    void qc.invalidateQueries({ queryKey: ["items"] });
+    // ["items"] and ["feed"] are infinite queries: invalidating them normally
+    // would refetch every loaded page in sequence (v5 dropped refetchPage), and
+    // we used to dodge that by trimming the cache to one page before
+    // invalidating. That trim was wrong here — it runs on every pin/keep/delete,
+    // so a reader scrolled to item 120 would see their list collapse back to
+    // page one the moment the mutation resolved. Instead, mark them stale with
+    // refetchType: "none": no refetch fires now, so nothing collapses.
+    // patchItemInCaches/filterCachedItems above already keep the visible items
+    // correct optimistically; the one gap they can't cover — e.g. a keep making
+    // an item newly eligible for a list that doesn't have it yet — reconciles
+    // next time that tab regains focus, via useSoftFocusRefetch, which already
+    // passes trimToFirstPage as its onBeforeRefetch so that eventual refetch is
+    // still a single request. Do not restore the trim here.
+    void qc.invalidateQueries({ queryKey: ["items"], refetchType: "none" });
+    void qc.invalidateQueries({ queryKey: ["feed"], refetchType: "none" });
+    // search and desk are single-page caches, so the fan-out problem never
+    // applied to them; refetch immediately as before.
     void qc.invalidateQueries({ queryKey: ["search"] });
-    void qc.invalidateQueries({ queryKey: ["feed"] });
     void qc.invalidateQueries({ queryKey: queryKeys.desk() });
   }, [qc]);
 }
