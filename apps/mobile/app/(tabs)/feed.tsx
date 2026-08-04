@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, listFeedItems, type Item } from "@/lib/api";
 import { showItemActions, useAndroidActionSheet } from "@/lib/item-actions";
 import { useKeepItem, usePinItem } from "@/lib/mutations";
+import { trimToFirstPage } from "@/lib/paged-cache";
 import { queryKeys } from "@/lib/query";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
@@ -51,17 +52,31 @@ export default function FeedScreen() {
   const pinItem = usePinItem();
   const { present, node: actionSheet } = useAndroidActionSheet();
 
-  const feedQuery = useQuery({
+  const queryClient = useQueryClient();
+
+  const feedQuery = useInfiniteQuery({
     queryKey: queryKeys.feed(LIST_LIMIT),
     enabled: !!settings && configured,
-    queryFn: async () => {
-      const res = await listFeedItems(LIST_LIMIT);
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const res = await listFeedItems(LIST_LIMIT, pageParam);
       if (!res.ok) throw new ApiError(res.status);
-      return res.items;
+      return { items: res.items, nextCursor: res.nextCursor };
     },
+    getNextPageParam: (last) => last.nextCursor,
   });
 
-  useSoftFocusRefetch(feedQuery);
+  const trimToFirst = useCallback(() => {
+    queryClient.setQueryData(queryKeys.feed(LIST_LIMIT), (prev: unknown) => trimToFirstPage(prev));
+  }, [queryClient]);
+
+  useSoftFocusRefetch(feedQuery, undefined, trimToFirst);
+
+  const onEndReached = useCallback(() => {
+    if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
+      void feedQuery.fetchNextPage();
+    }
+  }, [feedQuery]);
 
   const onToggleKeep = useCallback(
     async (item: Item) => {
@@ -103,7 +118,7 @@ export default function FeedScreen() {
 
   if (!loading && !configured) return <Redirect href="/settings" />;
 
-  const items = feedQuery.data ?? [];
+  const items = feedQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const count = items.length;
   const errStatus = feedQuery.error instanceof ApiError ? feedQuery.error.status : undefined;
 
@@ -114,7 +129,12 @@ export default function FeedScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Feed</Text>
         <Text style={styles.subtitle}>
-          {count} {count === 1 ? "item" : "items"} · from your subscribed feeds
+          {/* A count over a partial list asserts a feed size that isn't true yet —
+              carry the "+" suffix (as the Library header does) while more pages
+              remain, and force the plural since a "+" total is always more than one. */}
+          {count}
+          {feedQuery.hasNextPage ? "+" : ""}{" "}
+          {feedQuery.hasNextPage || count !== 1 ? "items" : "item"} · from your subscribed feeds
         </Text>
       </View>
       <Body
@@ -122,9 +142,14 @@ export default function FeedScreen() {
         isError={feedQuery.isError}
         errStatus={errStatus}
         items={items}
-        refreshing={feedQuery.isRefetching && !feedQuery.isPending}
+        refreshing={feedQuery.isRefetching && !feedQuery.isFetchingNextPage}
         pendingKeepIds={pendingKeepIds}
-        onRefresh={() => void feedQuery.refetch()}
+        isFetchingNextPage={feedQuery.isFetchingNextPage}
+        onEndReached={onEndReached}
+        onRefresh={() => {
+          trimToFirst();
+          void feedQuery.refetch();
+        }}
         onRetry={() => void feedQuery.refetch()}
         onToggleKeep={onToggleKeep}
         onOpen={onOpen}
@@ -141,6 +166,8 @@ type BodyProps = {
   items: Item[];
   refreshing: boolean;
   pendingKeepIds: Set<string>;
+  isFetchingNextPage: boolean;
+  onEndReached: () => void;
   onRefresh: () => void;
   onRetry: () => void;
   onToggleKeep: (item: Item) => void;
@@ -155,6 +182,8 @@ function Body({
   items,
   refreshing,
   pendingKeepIds,
+  isFetchingNextPage,
+  onEndReached,
   onRefresh,
   onRetry,
   onToggleKeep,
@@ -204,6 +233,15 @@ function Body({
       }
       ListEmptyComponent={
         <Message text="Nothing in your feed yet — subscribe to feeds from the web app's Feeds page." />
+      }
+      onEndReached={onEndReached}
+      onEndReachedThreshold={0.6}
+      ListFooterComponent={
+        isFetchingNextPage ? (
+          <View style={styles.footer}>
+            <ActivityIndicator color={colors.inkFaint} />
+          </View>
+        ) : null
       }
     />
   );
@@ -293,6 +331,7 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, flexGrow: 1 },
   separator: { height: 14 },
+  footer: { paddingVertical: spacing.xl, alignItems: "center" },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   messageText: {
     fontSize: 14,
