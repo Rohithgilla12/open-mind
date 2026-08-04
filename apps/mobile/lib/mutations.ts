@@ -3,10 +3,8 @@ import { useCallback } from "react";
 import { Alert } from "react-native";
 import { deleteItem, setKept, setPinned, type Item } from "./api";
 import { confirmDelete } from "./item-actions";
-import { mapCachedItems, trimToFirstPage } from "./paged-cache";
+import { filterCachedItems, mapCachedItems, trimToFirstPage } from "./paged-cache";
 import { queryKeys } from "./query";
-
-type LibraryData = { items: Item[]; understood?: unknown };
 
 /** Patch an item across every list cache that might hold it. */
 function patchItemInCaches(
@@ -123,18 +121,13 @@ export function useDeleteItem() {
         }
         void qc.removeQueries({ queryKey: queryKeys.item(item.id) });
         // Drop from list caches immediately so back-nav doesn't flash the gone card.
-        qc.setQueriesData<Item[]>({ queryKey: ["feed"] }, (prev) =>
-          prev?.filter((it) => it.id !== item.id),
-        );
-        qc.setQueriesData<Item[]>({ queryKey: queryKeys.desk() }, (prev) =>
-          prev?.filter((it) => it.id !== item.id),
-        );
-        qc.setQueriesData<LibraryData>({ queryKey: ["items"] }, (prev) =>
-          prev ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) } : prev,
-        );
-        qc.setQueriesData<LibraryData>({ queryKey: ["search"] }, (prev) =>
-          prev ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) } : prev,
-        );
+        const keep = (it: Item) => it.id !== item.id;
+        qc.setQueriesData({ queryKey: ["feed"] }, (prev) => filterCachedItems<Item>(prev, keep));
+        qc.setQueriesData({ queryKey: ["items"] }, (prev) => filterCachedItems<Item>(prev, keep));
+        qc.setQueriesData({ queryKey: ["search"] }, (prev) => filterCachedItems<Item>(prev, keep));
+        // Desk stays a flat Item[] (it isn't paginated), so a plain filter is
+        // simplest and matches the other Desk-specific branches in this file.
+        qc.setQueriesData<Item[]>({ queryKey: queryKeys.desk() }, (prev) => prev?.filter(keep));
         invalidate();
         after?.();
       });

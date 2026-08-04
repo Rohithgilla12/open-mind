@@ -34,6 +34,23 @@ export function mapCachedItems<T>(cache: unknown, fn: (item: T) => T): unknown {
 }
 
 /**
+ * Keep only the items matching predicate, whatever shape the cache has. Never
+ * mutates. Used for removal (delete) where mapCachedItems's transform-in-place
+ * shape can't express "drop this entry".
+ */
+export function filterCachedItems<T>(cache: unknown, predicate: (item: T) => boolean): unknown {
+  if (!cache) return cache;
+  if (isInfiniteCache(cache)) {
+    const c = cache as InfiniteCache<T>;
+    return { ...c, pages: c.pages.map((p) => ({ ...p, items: p.items.filter(predicate) })) };
+  }
+  if (Array.isArray(cache)) return (cache as T[]).filter(predicate);
+  const obj = cache as { items?: unknown };
+  if (Array.isArray(obj.items)) return { ...obj, items: (obj.items as T[]).filter(predicate) };
+  return cache;
+}
+
+/**
  * Drop every page but the first.
  *
  * TanStack Query v5 removed refetchPage, so refetching an infinite query
