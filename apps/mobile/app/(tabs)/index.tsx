@@ -201,7 +201,14 @@ export default function LibraryScreen() {
         <Text style={styles.subtitle}>
           {searching || filteringByColor
             ? `${count} ${count === 1 ? "match" : "matches"}`
-            : `${count} ${count === 1 ? "gathering" : "gatherings"} · organised by the machine`}
+            : // The loaded count isn't the library's size until every page has
+              // loaded — state that honestly with a "+" suffix (matching the web
+              // app's Topbar) rather than a number that visibly grows as the
+              // reader scrolls. A "+" total is always more than one, so force
+              // the plural even when only one item has loaded so far.
+              `${count}${listQuery.hasNextPage ? "+" : ""} ${
+                listQuery.hasNextPage || count !== 1 ? "gatherings" : "gathering"
+              } · organised by the machine`}
           {pendingCount > 0 ? ` · ${pendingCount} queued` : ""}
         </Text>
         <View style={styles.searchCard}>
