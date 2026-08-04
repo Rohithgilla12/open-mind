@@ -211,7 +211,10 @@ export function readItemPage(data: unknown): { items: Item[]; nextCursor?: strin
     if (Array.isArray(obj.items)) {
       return {
         items: obj.items as Item[],
-        nextCursor: typeof obj.nextCursor === "string" ? obj.nextCursor : undefined,
+        // An empty string is treated as absent: TanStack v5's getNextPageParam
+        // only checks for null, so a server that ever emitted "" would send
+        // mobile into an infinite refetch-page-1-and-append-duplicates loop.
+        nextCursor: typeof obj.nextCursor === "string" && obj.nextCursor ? obj.nextCursor : undefined,
       };
     }
   }

@@ -19,7 +19,9 @@ export function Topbar({
   q?: string;
   hasMore?: boolean;
 }) {
-  const noun = count === 1 ? "gathering" : "gatherings";
+  // A "+" total is always more than one, so force the plural even when only
+  // one item has loaded so far (matches apps/mobile/app/(tabs)/index.tsx).
+  const noun = hasMore || count !== 1 ? "gatherings" : "gathering";
 
   return (
     <>

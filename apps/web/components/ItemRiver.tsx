@@ -23,7 +23,19 @@ export function ItemRiver({
   initialCursor?: string;
   colorActive?: boolean;
 }) {
+  // `router.refresh()` (fired by QuickAdd/ImageDrop after a save) re-renders
+  // the server tree but preserves this client component's state, so a
+  // useState initialiser alone would never see the fresh page 1 — a save
+  // would clear the input yet never show up in the grid. Re-seeding whenever
+  // the server hands down a new `initialItems` array (identity, not length —
+  // a same-length add+delete must still be caught) restores the pre-branch
+  // behaviour of rendering straight from server props.
+  const [seed, setSeed] = useState(initialItems);
   const [state, setState] = useState(() => initialPagedState(initialItems, initialCursor));
+  if (seed !== initialItems) {
+    setSeed(initialItems);
+    setState(initialPagedState(initialItems, initialCursor));
+  }
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [announcement, setAnnouncement] = useState("");
