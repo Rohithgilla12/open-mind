@@ -192,74 +192,79 @@ export async function claimDeviceCode(
   }
 }
 
-/**
- * List items via GET {instanceUrl}/api/items?limit=. Returns an array of items
- * (empty on error).
- */
-export async function listItems(
-  limit = 50,
-  override?: Settings,
-): Promise<{ ok: boolean; status: number; items: Item[] }> {
-  const settings = await resolveSettings(override);
-  if (!settings) return { ok: false, status: 0, items: [] };
-  try {
-    const res = await fetch(`${settings.instanceUrl}/api/items?limit=${limit}`, {
-      method: "GET",
-      headers: authHeaders(settings.token),
-    });
-    let items: Item[] = [];
-    if (res.ok) {
-      try {
-        const data = (await res.json()) as unknown;
-        if (Array.isArray(data)) {
-          items = data as Item[];
-        } else if (data && Array.isArray((data as { items?: Item[] }).items)) {
-          items = (data as { items: Item[] }).items;
-        }
-      } catch {
-        items = [];
-      }
-    }
-    return { ok: res.ok, status: res.status, items };
-  } catch {
-    return { ok: false, status: 0, items: [] };
-  }
-}
+/** One page of items, plus the cursor for the next page (absent at the end). */
+export type ItemPageResult = { ok: boolean; status: number; items: Item[]; nextCursor?: string };
 
 /**
- * List feed-originated items via GET {instanceUrl}/api/feed?limit=. Returns an
- * array of items (empty on error), newest first.
+ * Read a list body in either shape: the ItemPage envelope, or the bare array
+ * served by an instance predating it. That compatibility path is deliberate:
+ * a self-hosted instance running an older server has no cursor to give, so
+ * pagination simply stops after page one instead of the screen breaking.
+ *
+ * Returns null when the body is neither, so callers report a failure rather
+ * than an empty library — the two must not look the same.
  */
+export function readItemPage(data: unknown): { items: Item[]; nextCursor?: string } | null {
+  if (Array.isArray(data)) return { items: data as Item[], nextCursor: undefined };
+  if (data && typeof data === "object") {
+    const obj = data as { items?: unknown; nextCursor?: unknown };
+    if (Array.isArray(obj.items)) {
+      return {
+        items: obj.items as Item[],
+        nextCursor: typeof obj.nextCursor === "string" ? obj.nextCursor : undefined,
+      };
+    }
+  }
+  return null;
+}
+
+/** List items via GET {instanceUrl}/api/items?limit=&cursor=. */
+export async function listItems(
+  limit = 50,
+  cursor?: string,
+  override?: Settings,
+): Promise<ItemPageResult> {
+  return fetchItemPage("/api/items", { limit, cursor }, override);
+}
+
+/** Feed-originated items via GET {instanceUrl}/api/feed?limit=&cursor=, newest first. */
 export async function listFeedItems(
   limit = 50,
+  cursor?: string,
   override?: Settings,
-): Promise<{ ok: boolean; status: number; items: Item[] }> {
+): Promise<ItemPageResult> {
+  return fetchItemPage("/api/feed", { limit, cursor }, override);
+}
+
+async function fetchItemPage(
+  path: string,
+  query: { limit: number; cursor?: string },
+  override?: Settings,
+): Promise<ItemPageResult> {
   const settings = await resolveSettings(override);
   if (!settings) return { ok: false, status: 0, items: [] };
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  if (query.cursor) params.set("cursor", query.cursor);
   try {
-    const res = await fetch(`${settings.instanceUrl}/api/feed?limit=${limit}`, {
+    const res = await fetch(`${settings.instanceUrl}${path}?${params.toString()}`, {
       method: "GET",
       headers: authHeaders(settings.token),
     });
-    if (res.ok) {
-      try {
-        const data = (await res.json()) as unknown;
-        let items: Item[] = [];
-        if (Array.isArray(data)) {
-          items = data as Item[];
-        } else if (data && Array.isArray((data as { items?: Item[] }).items)) {
-          items = (data as { items: Item[] }).items;
-        }
-        return { ok: true, status: res.status, items };
-      } catch (err) {
-        // A 200 with unparseable JSON is a real failure, not an empty feed:
-        // surface it as an error so the UI shows "Couldn't load your feed"
-        // instead of silently coercing to an empty, seemingly-healthy list.
-        console.error(err);
+    if (!res.ok) return { ok: false, status: res.status, items: [] };
+    try {
+      const page = readItemPage(await res.json());
+      if (!page) {
+        // A 200 we cannot read is a real failure, not an empty list: surface
+        // it as an error so the UI shows a failure state instead of silently
+        // coercing to an empty, seemingly-healthy list.
+        console.error("unrecognised item list body", { path });
         return { ok: false, status: res.status, items: [] };
       }
+      return { ok: true, status: res.status, items: page.items, nextCursor: page.nextCursor };
+    } catch (err) {
+      console.error(err);
+      return { ok: false, status: res.status, items: [] };
     }
-    return { ok: false, status: res.status, items: [] };
   } catch (err) {
     console.error(err);
     return { ok: false, status: 0, items: [] };
