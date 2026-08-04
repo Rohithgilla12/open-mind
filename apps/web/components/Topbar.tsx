@@ -10,7 +10,15 @@ const { color, font } = tokens;
  * and an Export JSON link. Server component — the only interactive piece is the
  * client SearchBox; the Save button is an in-page anchor (no client needed).
  */
-export function Topbar({ count, q }: { count: number; q?: string }) {
+export function Topbar({
+  count,
+  q,
+  hasMore,
+}: {
+  count: number;
+  q?: string;
+  hasMore?: boolean;
+}) {
   const noun = count === 1 ? "gathering" : "gatherings";
 
   return (
@@ -54,7 +62,8 @@ export function Topbar({ count, q }: { count: number; q?: string }) {
               color: color.inkFaintAlt,
             }}
           >
-            {count.toLocaleString("en-GB")} {noun} · organised by the machine
+            {count.toLocaleString("en-GB")}
+            {hasMore ? "+" : ""} {noun} · organised by the machine
           </div>
         </div>
 

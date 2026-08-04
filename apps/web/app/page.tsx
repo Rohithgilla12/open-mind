@@ -1,7 +1,8 @@
 import { tokens } from "@openmind/ui";
 import { apiFetch } from "../lib/api";
-import type { Item, SearchResponse, UnderstoodQuery } from "../lib/types";
+import type { Item, ItemPage, SearchResponse, UnderstoodQuery } from "../lib/types";
 import { Grid } from "../components/Grid";
+import { ItemRiver } from "../components/ItemRiver";
 import { QuickAdd } from "../components/QuickAdd";
 import { ImageDrop } from "../components/ImageDrop";
 import { Shell } from "../components/Shell";
@@ -9,14 +10,14 @@ import { Topbar } from "../components/Topbar";
 import { FilterStrip } from "../components/FilterStrip";
 import { SearchContext } from "../components/SearchContext";
 
-async function getRecents(): Promise<Item[]> {
+async function getRecents(): Promise<ItemPage> {
   try {
     const res = await apiFetch("/items");
-    if (!res.ok) return [];
-    return ((await res.json()) as Item[]) ?? [];
+    if (!res.ok) return { items: [] };
+    return ((await res.json()) as ItemPage) ?? { items: [] };
   } catch {
     // API/enrichment may be down; render an empty state rather than failing.
-    return [];
+    return { items: [] };
   }
 }
 
@@ -87,9 +88,13 @@ export default async function Page({
   const active = type ?? "all";
   const searching = Boolean(q || color || (type && type !== "all") || domains);
 
+  // getRecents is skipped while searching: search fuses across the whole
+  // library and feed river and the API caps fused results at 50, so it is
+  // never paginated — recency paging only applies to the plain /items list.
+  const recents = searching ? null : await getRecents();
   const { items, understood } = searching
     ? await getSearch({ q, color, type, domains })
-    : { items: await getRecents(), understood: undefined };
+    : { items: recents!.items, understood: undefined };
   // Search spans the feed river, but the library always leads: results from
   // the API arrive library-first, and unkept feed matches render below a
   // divider. Recents (/items) never include unkept feed items, so the divider
@@ -99,7 +104,7 @@ export default async function Page({
 
   return (
     <Shell>
-      <Topbar count={items.length} q={q} />
+      <Topbar count={items.length} q={q} hasMore={Boolean(recents?.nextCursor)} />
       <FilterStrip active={active} q={q} color={color} domains={domains} />
       <SearchContext
         q={q}
@@ -133,20 +138,28 @@ export default async function Page({
               <ImageDrop />
             </div>
           </div>
-          {libraryItems.length > 0 || feedItems.length === 0 ? (
-            <Grid items={libraryItems} colorActive={Boolean(color)} />
+          {searching ? (
+            libraryItems.length > 0 || feedItems.length === 0 ? (
+              <Grid items={libraryItems} colorActive={Boolean(color)} />
+            ) : (
+              <p
+                style={{
+                  fontFamily: tokens.font.quote,
+                  fontStyle: "italic",
+                  fontSize: "1.25rem",
+                  color: tokens.color.inkMuted,
+                  marginTop: "2rem",
+                }}
+              >
+                Nothing in your Mind matches — these came through your feeds.
+              </p>
+            )
           ) : (
-            <p
-              style={{
-                fontFamily: tokens.font.quote,
-                fontStyle: "italic",
-                fontSize: "1.25rem",
-                color: tokens.color.inkMuted,
-                marginTop: "2rem",
-              }}
-            >
-              Nothing in your Mind matches — these came through your feeds.
-            </p>
+            <ItemRiver
+              initialItems={libraryItems}
+              initialCursor={recents?.nextCursor}
+              colorActive={Boolean(color)}
+            />
           )}
           {feedItems.length > 0 && (
             <>
