@@ -671,6 +671,11 @@ export interface components {
              */
             keptAt?: string | null;
         };
+        /** @description One page of items, newest first. nextCursor is opaque — pass it back as ?cursor= to fetch the following page. It is absent when there are no more items, so its presence is the only "has more" signal a client needs. */
+        ItemPage: {
+            items: components["schemas"]["Item"][];
+            nextCursor?: string;
+        };
         ItemDetail: components["schemas"]["Item"] & {
             body: string;
         };
@@ -978,6 +983,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Opaque cursor from a previous page's nextCursor. Omit for the first page. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -990,8 +997,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Item"][];
+                    "application/json": components["schemas"]["ItemPage"];
                 };
+            };
+            /** @description invalid cursor */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1989,6 +2003,8 @@ export interface operations {
             query?: {
                 limit?: number;
                 feedId?: string;
+                /** @description Opaque cursor from a previous page's nextCursor. Omit for the first page. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -2002,8 +2018,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Item"][];
+                    "application/json": components["schemas"]["ItemPage"];
                 };
+            };
+            /** @description invalid cursor */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

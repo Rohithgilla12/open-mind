@@ -395,6 +395,12 @@ type ItemDetailCardType string
 // ItemDetailStatus defines model for ItemDetail.Status.
 type ItemDetailStatus string
 
+// ItemPage One page of items, newest first. nextCursor is opaque — pass it back as ?cursor= to fetch the following page. It is absent when there are no more items, so its presence is the only "has more" signal a client needs.
+type ItemPage struct {
+	Items      []Item  `json:"items"`
+	NextCursor *string `json:"nextCursor,omitempty"`
+}
+
 // Lens defines model for Lens.
 type Lens struct {
 	CreatedAt time.Time `json:"createdAt"`
@@ -598,6 +604,9 @@ type CreateAssetMultipartBody struct {
 type GetFeedItemsParams struct {
 	Limit  *int                `form:"limit,omitempty" json:"limit,omitempty"`
 	FeedId *openapi_types.UUID `form:"feedId,omitempty" json:"feedId,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's nextCursor. Omit for the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ImportItemsMultipartBody defines parameters for ImportItems.
@@ -614,6 +623,9 @@ type ImportRaindropJSONBody struct {
 // ListItemsParams defines parameters for ListItems.
 type ListItemsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's nextCursor. Omit for the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // CreateItemLinkJSONBody defines parameters for CreateItemLink.
@@ -1396,6 +1408,14 @@ func (siw *ServerInterfaceWrapper) GetFeedItems(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cursor", r.URL.Query(), &params.Cursor)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetFeedItems(w, r, params)
 	}))
@@ -1582,6 +1602,14 @@ func (siw *ServerInterfaceWrapper) ListItems(w http.ResponseWriter, r *http.Requ
 	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "cursor", r.URL.Query(), &params.Cursor)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
 		return
 	}
 

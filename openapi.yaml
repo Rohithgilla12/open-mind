@@ -34,13 +34,13 @@ paths:
       operationId: listItems
       parameters:
         - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string }, description: "Opaque cursor from a previous page's nextCursor. Omit for the first page." }
       responses:
         "200":
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/Item" }
+              schema: { $ref: "#/components/schemas/ItemPage" }
+        "400": { description: invalid cursor }
   /items/{id}:
     get:
       operationId: getItem
@@ -487,12 +487,14 @@ paths:
       parameters:
         - { name: limit, in: query, schema: { type: integer } }
         - { name: feedId, in: query, schema: { type: string, format: uuid } }
+        - { name: cursor, in: query, schema: { type: string }, description: "Opaque cursor from a previous page's nextCursor. Omit for the first page." }
       responses:
         "200":
           description: feed-originated items, newest first
           content:
             application/json:
-              schema: { type: array, items: { $ref: "#/components/schemas/Item" } }
+              schema: { $ref: "#/components/schemas/ItemPage" }
+        "400": { description: invalid cursor }
   /drift:
     get:
       operationId: getDrift
@@ -725,6 +727,18 @@ components:
         pageCount: { type: integer, nullable: true, description: "Page count when the item's original is a stored PDF; null otherwise." }
         feedId: { type: string, format: uuid, nullable: true, description: "The feed this item originated from; null if not feed-sourced." }
         keptAt: { type: string, format: date-time, nullable: true, description: "When the item was kept in the library from its feed; null if not kept." }
+    ItemPage:
+      type: object
+      description: >
+        One page of items, newest first. nextCursor is opaque — pass it back as
+        ?cursor= to fetch the following page. It is absent when there are no
+        more items, so its presence is the only "has more" signal a client needs.
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Item" }
+        nextCursor: { type: string }
     ItemDetail:
       allOf:
         - $ref: "#/components/schemas/Item"

@@ -1,7 +1,10 @@
 import type { paths } from "@openmind/api-client";
 
 export type Item =
-  paths["/items"]["get"]["responses"]["200"]["content"]["application/json"][number];
+  paths["/items"]["get"]["responses"]["200"]["content"]["application/json"]["items"][number];
+
+export type ItemPage =
+  paths["/items"]["get"]["responses"]["200"]["content"]["application/json"];
 
 export type SearchResponse =
   paths["/search"]["get"]["responses"]["200"]["content"]["application/json"];
