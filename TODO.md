@@ -105,8 +105,41 @@
 - `TestListPushDevicesSkipsFailed` is order-dependent and flaky: `testStore`
   does not truncate `push_devices` between runs. Pre-existing, unrelated to
   the repo card type.
+- Pagination follow-ups: search + Lens results are still capped at 50 fused RRF
+  matches and would need a cursor over a materialised fused ranking; `/desk` has
+  no limit or cursor at all; `ItemPage` carries no `total`, so the Mind's
+  masthead says "50+ gatherings" and mobile's grouped headers drop their counts
+  while more pages remain — a true total needs a `COUNT(*)` per request or a
+  count endpoint. Revisit the Mind's masonry (JS-distributed fixed columns, no
+  seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
+- Infinite scrolling on web and mobile — `/items` and `/feed` now return an
+  `ItemPage` envelope (`{items, nextCursor}`) with keyset pagination on
+  `(created_at DESC, id DESC)`; migration 0022 adds the matching index and drops
+  `items_user_created_idx`, which was a strict prefix of it. Handlers over-fetch
+  by one so `nextCursor` is precise and the client never ends on an empty
+  request; an undecodable cursor is a 400, never a silent page 1. Web appends one
+  `.mind-col` block per page — appending into the shared container rebalanced the
+  columns and moved 8 of 12 already-visible cards, measured. The load control is
+  a real button with an IntersectionObserver pressing it early, so it stays
+  keyboard-reachable. Mobile moved to `useInfiniteQuery`; pull-to-refresh, focus
+  refetch, and mutation invalidation all trim to the first page first, because
+  TanStack v5 refetches every loaded page. Also fixed a pre-existing silent
+  failure: the extension and dock turned an unrecognised list body into
+  `ok: true` with an empty list. Search, Lens, Desk and Places deliberately
+  unchanged (2026-08-04)
+- **Deployed to prod 2026-08-03 (second deploy of the day)** — PR #65 (card-type
+  chips derived from the contract). Shipped `origin/main` @ `c876ebb`; web-only,
+  so `--build web` + `docker restart cloudflared`, no api rebuild. Load 1.41,
+  prune took / 78%→76% (79% after). Web image `d858c6a9`→`cf14c394` proves the
+  rebuild took. `/login` `/` `/architecture` 200; `/feed` `/desk` 307 to the
+  Clerk gate; #64's `.feed-strip` still in the served CSS and `var(--gutter)`
+  still absent, so no regression. **Caveat: #65 is a behaviour-preserving
+  refactor behind the auth gate, so its own effect was NOT observed live** —
+  `typeFilters`/`chipLabel` are minified out of `.next/server` (verified with a
+  passing positive control and a negative control), and the rendered chip labels
+  are byte-identical by design. Its vitest guard is the real check
 - Home-page filter chips can no longer drift from the card-type enum — `CardKind`
   in `apps/web/lib/cards.ts` is now derived from the OpenAPI contract
   (`NonNullable<Item["cardType"]>`) instead of a re-typed union, so adding a card
