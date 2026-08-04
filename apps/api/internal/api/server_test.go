@@ -272,15 +272,21 @@ func TestListItems(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	var items []map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+	var page struct {
+		Items      []map[string]any `json:"items"`
+		NextCursor *string          `json:"nextCursor"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(items) != 2 {
-		t.Fatalf("got %d items, want 2", len(items))
+	if len(page.Items) != 2 {
+		t.Fatalf("got %d items, want 2", len(page.Items))
 	}
-	if items[0]["url"] != "https://example.com/second" {
-		t.Errorf("newest-first ordering wrong: got %v first", items[0]["url"])
+	if page.NextCursor != nil {
+		t.Errorf("nextCursor = %q with only 2 items and a limit of 50, want absent", *page.NextCursor)
+	}
+	if page.Items[0]["url"] != "https://example.com/second" {
+		t.Errorf("newest-first ordering wrong: got %v first", page.Items[0]["url"])
 	}
 }
 

@@ -334,14 +334,16 @@ func TestLensTypesOnlyExcludesUnkeptFeedItem(t *testing.T) {
 	if itemsResp.StatusCode != http.StatusOK {
 		t.Fatalf("items status = %d, want 200", itemsResp.StatusCode)
 	}
-	var homeItems []struct {
-		Id string `json:"id"`
+	var homePage struct {
+		Items []struct {
+			Id string `json:"id"`
+		} `json:"items"`
 	}
-	if err := json.NewDecoder(itemsResp.Body).Decode(&homeItems); err != nil {
+	if err := json.NewDecoder(itemsResp.Body).Decode(&homePage); err != nil {
 		t.Fatalf("decode home items: %v", err)
 	}
 	itemsResp.Body.Close()
-	for _, r := range homeItems {
+	for _, r := range homePage.Items {
 		if r.Id == feedItem.ID.String() {
 			t.Fatalf("GET /items included unkept feed item %s, want excluded", feedItem.ID)
 		}

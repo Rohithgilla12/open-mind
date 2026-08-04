@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
 
 // errInvalidCursor marks a cursor we cannot decode. Handlers turn it into a
@@ -57,4 +60,53 @@ func decodeCursor(s *string) (*pageCursor, error) {
 		return nil, fmt.Errorf("parsing cursor id: %w", errInvalidCursor)
 	}
 	return &pageCursor{CreatedAt: ts, ID: id}, nil
+}
+
+// listLimit clamps a client-supplied limit to the house range.
+func listLimit(v *int) int {
+	limit := defaultListLimit
+	if v != nil {
+		limit = *v
+	}
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+	if limit > maxListLimit {
+		limit = maxListLimit
+	}
+	return limit
+}
+
+// cursorTimestamp and cursorUUID render a decoded cursor as the nullable query
+// args. A nil cursor yields invalid (NULL) values, which the queries read as
+// "start at the newest row".
+func cursorTimestamp(c *pageCursor) pgtype.Timestamptz {
+	if c == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: c.CreatedAt, Valid: true}
+}
+
+func cursorUUID(c *pageCursor) pgtype.UUID {
+	if c == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: c.ID, Valid: true}
+}
+
+// toItemPage trims an over-fetched row set to limit and derives nextCursor from
+// the last row actually returned, so the token round-trips exactly.
+func toItemPage(rows []db.Item, limit int) ItemPage {
+	var next *string
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		tok := encodeCursor(pageCursor{CreatedAt: last.CreatedAt.Time, ID: last.ID})
+		next = &tok
+	}
+	items := make([]Item, 0, len(rows))
+	for _, it := range rows {
+		items = append(items, toAPIItem(it))
+	}
+	return ItemPage{Items: items, NextCursor: next}
 }

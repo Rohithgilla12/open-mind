@@ -61,11 +61,13 @@ func getFeed(t *testing.T, url string) []map[string]any {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("feed status = %d, want 200", resp.StatusCode)
 	}
-	var items []map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+	var page struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
 		t.Fatalf("decode feed: %v", err)
 	}
-	return items
+	return page.Items
 }
 
 func TestFeedItemsListing(t *testing.T) {
@@ -190,7 +192,7 @@ func TestFeedItemsExcludedFromHome(t *testing.T) {
 	}
 }
 
-// listItems calls GET /items and decodes the response.
+// listItems calls GET /items and decodes the ItemPage envelope's items.
 func listItems(t *testing.T, baseURL string) []map[string]any {
 	t.Helper()
 	resp, err := http.Get(baseURL + "/items")
@@ -198,11 +200,13 @@ func listItems(t *testing.T, baseURL string) []map[string]any {
 		t.Fatalf("get items: %v", err)
 	}
 	defer resp.Body.Close()
-	var items []map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+	var page struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
 		t.Fatalf("decode items: %v", err)
 	}
-	return items
+	return page.Items
 }
 
 func TestSaveExistingFeedURLPromotes(t *testing.T) {
@@ -233,7 +237,7 @@ func TestSaveExistingFeedURLPromotes(t *testing.T) {
 	if created.KeptAt == nil {
 		t.Error("keptAt = null, want a timestamp after promotion")
 	}
-	afterList, err := s.Queries.ListItems(context.Background(), db.ListItemsParams{UserID: api.DevUserID, Limit: 100})
+	afterList, err := s.Queries.ListItems(context.Background(), db.ListItemsParams{UserID: api.DevUserID, LimitCount: 100})
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}

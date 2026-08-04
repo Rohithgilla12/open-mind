@@ -120,7 +120,7 @@ func TestFeedServiceAddBackfillsAndDedups(t *testing.T) {
 	// ListItems only surfaces items with no feed (or explicitly kept feed items),
 	// so once the two backfilled items are adopted onto the feed they drop out
 	// of this view — only the seeded, feed-less item remains.
-	items, err := s.Store.Queries.ListItems(ctx, db.ListItemsParams{UserID: uid, Limit: 100})
+	items, err := s.Store.Queries.ListItems(ctx, db.ListItemsParams{UserID: uid, LimitCount: 100})
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}

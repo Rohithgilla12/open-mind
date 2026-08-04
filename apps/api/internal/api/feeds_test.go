@@ -96,10 +96,13 @@ func TestCreateFeedBackfillsAndReturns201(t *testing.T) {
 		t.Fatalf("get feed: %v", err)
 	}
 	defer feedResp.Body.Close()
-	var feedItems []map[string]any
-	if err := json.NewDecoder(feedResp.Body).Decode(&feedItems); err != nil {
+	var feedPage struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(feedResp.Body).Decode(&feedPage); err != nil {
 		t.Fatalf("decode feed items: %v", err)
 	}
+	feedItems := feedPage.Items
 	if len(feedItems) != 2 {
 		t.Errorf("feed items = %d, want 2", len(feedItems))
 	}
@@ -115,12 +118,14 @@ func TestCreateFeedBackfillsAndReturns201(t *testing.T) {
 		t.Fatalf("get items: %v", err)
 	}
 	defer homeResp.Body.Close()
-	var homeItems []map[string]any
-	if err := json.NewDecoder(homeResp.Body).Decode(&homeItems); err != nil {
+	var homePage struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(homeResp.Body).Decode(&homePage); err != nil {
 		t.Fatalf("decode home items: %v", err)
 	}
-	if len(homeItems) != 0 {
-		t.Errorf("home items = %d, want 0 (backfilled items in feed only)", len(homeItems))
+	if len(homePage.Items) != 0 {
+		t.Errorf("home items = %d, want 0 (backfilled items in feed only)", len(homePage.Items))
 	}
 
 	var jobs int

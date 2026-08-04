@@ -70,7 +70,7 @@ func (b mcpBackend) Search(ctx context.Context, uid uuid.UUID, q, color string, 
 }
 
 func (b mcpBackend) ListRecent(ctx context.Context, uid uuid.UUID, limit int) ([]db.Item, error) {
-	return b.s.store.Queries.ListItems(ctx, db.ListItemsParams{UserID: uid, Limit: int32(limit)})
+	return b.s.store.Queries.ListItems(ctx, db.ListItemsParams{UserID: uid, LimitCount: int32(limit)})
 }
 
 func (b mcpBackend) GetItem(ctx context.Context, uid uuid.UUID, id uuid.UUID) (db.Item, error) {

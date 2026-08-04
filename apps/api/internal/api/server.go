@@ -258,31 +258,31 @@ func (s *Server) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// ListItems returns the caller's items, newest first.
+// ListItems returns one page of the caller's items, newest first. Pagination is
+// keyset: nextCursor encodes the last row's (created_at, id).
 func (s *Server) ListItems(w http.ResponseWriter, r *http.Request, params ListItemsParams) {
-	limit := defaultListLimit
-	if params.Limit != nil {
-		limit = *params.Limit
-	}
-	if limit <= 0 {
-		limit = defaultListLimit
-	}
-	if limit > maxListLimit {
-		limit = maxListLimit
+	limit := listLimit(params.Limit)
+	cur, err := decodeCursor(params.Cursor)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid cursor")
+		return
 	}
 
 	ctx := r.Context()
-	items, err := s.store.Queries.ListItems(ctx, db.ListItemsParams{UserID: userID(ctx), Limit: int32(limit)})
+	// Over-fetch by one so nextCursor is only emitted when a further row really
+	// exists — otherwise the client always ends on a wasted empty request.
+	rows, err := s.store.Queries.ListItems(ctx, db.ListItemsParams{
+		UserID:          userID(ctx),
+		CursorCreatedAt: cursorTimestamp(cur),
+		CursorID:        cursorUUID(cur),
+		LimitCount:      int32(limit + 1),
+	})
 	if err != nil {
 		slog.Error("listing items", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not list items")
 		return
 	}
-	out := make([]Item, 0, len(items))
-	for _, it := range items {
-		out = append(out, toAPIItem(it))
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, toItemPage(rows, limit))
 }
 
 // SearchItems runs hybrid search (FTS + pgvector, RRF fusion) scoped to the

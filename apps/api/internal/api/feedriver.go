@@ -9,19 +9,16 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
 
-// GetFeedItems returns the caller's feed-sourced items, newest first, whether
-// or not they've been kept into the library. An optional feedId narrows to a
-// single subscription. It always returns an array (never null).
+// GetFeedItems returns one page of the caller's feed-sourced items, newest
+// first, whether or not they've been kept into the library. An optional
+// feedId narrows to a single subscription. Pagination is keyset: nextCursor
+// encodes the last row's (created_at, id) and is absent on the last page.
 func (s *Server) GetFeedItems(w http.ResponseWriter, r *http.Request, params GetFeedItemsParams) {
-	limit := defaultListLimit
-	if params.Limit != nil {
-		limit = *params.Limit
-	}
-	if limit <= 0 {
-		limit = defaultListLimit
-	}
-	if limit > maxListLimit {
-		limit = maxListLimit
+	limit := listLimit(params.Limit)
+	cur, err := decodeCursor(params.Cursor)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid cursor")
+		return
 	}
 
 	var filterFeedID pgtype.UUID
@@ -30,19 +27,17 @@ func (s *Server) GetFeedItems(w http.ResponseWriter, r *http.Request, params Get
 	}
 
 	ctx := r.Context()
-	items, err := s.store.Queries.ListFeedItems(ctx, db.ListFeedItemsParams{
-		UserID:       userID(ctx),
-		FilterFeedID: filterFeedID,
-		LimitCount:   int32(limit),
+	rows, err := s.store.Queries.ListFeedItems(ctx, db.ListFeedItemsParams{
+		UserID:          userID(ctx),
+		FilterFeedID:    filterFeedID,
+		CursorCreatedAt: cursorTimestamp(cur),
+		CursorID:        cursorUUID(cur),
+		LimitCount:      int32(limit + 1),
 	})
 	if err != nil {
 		slog.Error("listing feed items", "err", err)
 		writeError(w, http.StatusInternalServerError, "could not list feed items")
 		return
 	}
-	out := make([]Item, 0, len(items))
-	for _, it := range items {
-		out = append(out, toAPIItem(it))
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, toItemPage(rows, limit))
 }
