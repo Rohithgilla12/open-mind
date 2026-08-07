@@ -240,6 +240,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Streams a stored asset's bytes with the content type recorded at upload. Covers every type POST /assets accepts: images, PDFs, and office documents. Documents and PDFs are served verbatim, so the response is the original file. */
         get: operations["getAsset"];
         put?: never;
         post?: never;
@@ -1534,7 +1535,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description image bytes */
+            /** @description asset bytes, served with the stored content type */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1545,6 +1546,11 @@ export interface operations {
                     "image/gif": string;
                     "image/webp": string;
                     "image/avif": string;
+                    "application/pdf": string;
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": string;
+                    "application/vnd.oasis.opendocument.text": string;
+                    "application/rtf": string;
+                    "application/epub+zip": string;
                 };
             };
             /** @description not found */

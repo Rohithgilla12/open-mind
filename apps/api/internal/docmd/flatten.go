@@ -150,10 +150,16 @@ func flattenTableRow(line string) string {
 // text up to the next one. Escapables are all ASCII, so the original character
 // is recoverable by subtracting the base.
 //
-// A genuine U+E000–U+E07F in a document is rewritten to its ASCII offset.
-// Those are private-use code points with no standard meaning, so mangling them
-// is harmless for prose.
+// Only code points whose offset is one of the characters mdEscapedChar can
+// match are ever unparked, so a private-use code point that came from the
+// document itself is left alone. Restoring the whole 0x00–0x7F range would
+// rewrite a literal U+E000 into a NUL byte, and Postgres rejects NUL in a text
+// column — the enrichment write would then fail identically on every retry.
 const escapeBase = 0xE000
+
+// mdEscapable is exactly the set mdEscapedChar matches, and therefore the only
+// bytes restoreEscapes may emit. Keep the two in step.
+const mdEscapable = "\\`*_{}[]()#+-.!|>~"
 
 // protectEscapes parks each "\x" sequence at escapeBase+x.
 func protectEscapes(s string) string {
@@ -182,8 +188,13 @@ func restoreEscapes(s string) string {
 	return b.String()
 }
 
-// isParked reports whether r holds a protected escape.
-func isParked(r rune) bool { return r >= escapeBase && r < escapeBase+0x80 }
+// isParked reports whether r holds a protected escape this package created.
+func isParked(r rune) bool {
+	if r < escapeBase || r >= escapeBase+0x80 {
+		return false
+	}
+	return strings.IndexByte(mdEscapable, byte(r-escapeBase)) >= 0
+}
 
 // stripInline removes inline Markdown syntax, keeping the visible text.
 func stripInline(s string) string {

@@ -12,7 +12,12 @@
 set -euo pipefail
 
 readonly TARGET=wasm32-wasip1
-readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Declared and assigned separately on purpose: `readonly X="$(cmd)"` takes its
+# exit status from readonly, not the command substitution, so `set -e` would not
+# abort on a failed cd and ROOT would silently hold the wrong path.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly ROOT
 readonly CRATE_DIR="$ROOT/tools/anydoc-wasi"
 readonly OUT="$ROOT/apps/api/internal/docmd/anydoc.wasm"
 

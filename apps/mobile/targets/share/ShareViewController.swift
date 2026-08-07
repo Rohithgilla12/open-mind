@@ -151,16 +151,29 @@ class ShareViewController: UIViewController {
     }
   }
 
+  /// Matches the API's default ASSETS_MAX_BYTES (10 MiB). The server is still
+  /// the authority and answers 413; this bound exists because the extension has
+  /// only a ~120 MB memory budget and would be killed loading a large file
+  /// before any response could arrive.
+  private static let maxDocumentBytes = 10 * 1024 * 1024
+
   /// Read a shared document as raw bytes. Unlike images these are uploaded
   /// verbatim — no transcoding — because the server sniffs the container to
   /// identify it and converts the text in the enrichment pipeline. Re-encoding
   /// here would destroy exactly the structure anydoc reads.
+  ///
+  /// A file URL's size is checked before it is read: Data(contentsOf:) would
+  /// otherwise pull the whole thing into memory, and an oversized EPUB would
+  /// crash the extension rather than surface the server's 413.
   private func documentPayload(from item: NSSecureCoding?, type: DocumentType) -> SharedPayload? {
     var data: Data?
     var filename = "document." + type.fallbackExtension
 
     if let url = item as? URL {
-      data = try? Data(contentsOf: url)
+      if let size = fileSize(of: url), size > Self.maxDocumentBytes {
+        return nil
+      }
+      data = try? Data(contentsOf: url, options: .mappedIfSafe)
       if !url.lastPathComponent.isEmpty {
         filename = url.lastPathComponent
       }
@@ -168,8 +181,14 @@ class ShareViewController: UIViewController {
       data = raw
     }
 
-    guard let data, !data.isEmpty else { return nil }
+    guard let data, !data.isEmpty, data.count <= Self.maxDocumentBytes else { return nil }
     return .asset(data, filename: filename, mimeType: type.mimeType)
+  }
+
+  /// Byte size of a file URL, or nil when it cannot be determined (in which
+  /// case the post-read count check still applies).
+  private func fileSize(of url: URL) -> Int? {
+    (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
   }
 
   /// Normalise a share-sheet image item into JPEG bytes. Photos often hand us

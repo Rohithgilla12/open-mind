@@ -123,6 +123,19 @@ func TestFlatten(t *testing.T) {
 			in:   "Line one   \nLine two\t",
 			want: "Line one\nLine two",
 		},
+		// A document carrying a private-use code point must survive untouched.
+		// Unparking the whole range would turn U+E000 into a NUL byte, which
+		// Postgres rejects in a text column — failing the job on every retry.
+		{
+			name: "private-use code points from the document are left alone",
+			in:   "before \uE000\uE001\uE042 after",
+			want: "before \uE000\uE001\uE042 after",
+		},
+		{
+			name: "escapes still round-trip alongside private-use code points",
+			in:   "\\* and \uE000",
+			want: "* and \uE000",
+		},
 		{
 			name: "empty input",
 			in:   "",

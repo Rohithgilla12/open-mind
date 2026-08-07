@@ -275,15 +275,25 @@ paths:
       operationId: getAsset
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      description: >
+        Streams a stored asset's bytes with the content type recorded at
+        upload. Covers every type POST /assets accepts: images, PDFs, and
+        office documents. Documents and PDFs are served verbatim, so the
+        response is the original file.
       responses:
         "200":
-          description: image bytes
+          description: asset bytes, served with the stored content type
           content:
             image/png: { schema: { type: string, format: binary } }
             image/jpeg: { schema: { type: string, format: binary } }
             image/gif: { schema: { type: string, format: binary } }
             image/webp: { schema: { type: string, format: binary } }
             image/avif: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document: { schema: { type: string, format: binary } }
+            application/vnd.oasis.opendocument.text: { schema: { type: string, format: binary } }
+            application/rtf: { schema: { type: string, format: binary } }
+            application/epub+zip: { schema: { type: string, format: binary } }
         "404": { description: not found }
   /export:
     get:

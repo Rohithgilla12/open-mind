@@ -1,11 +1,15 @@
 package docmd
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tetratelabs/wazero"
 )
 
 // newConverter returns a Converter closed at test end. Compilation is lazy, so
@@ -170,6 +174,108 @@ func TestConvertConcurrent(t *testing.T) {
 func TestCloseWithoutUse(t *testing.T) {
 	if err := New().Close(context.Background()); err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+}
+
+// Close clears the compiled module, so a Converter reused afterwards
+// recompiles rather than reaching into a closed runtime.
+func TestConvertAfterClose(t *testing.T) {
+	c := New()
+	t.Cleanup(func() { _ = c.Close(context.Background()) })
+	if _, err := c.Convert(context.Background(), docxFixture(t), FormatDocx); err != nil {
+		t.Fatalf("first Convert: %v", err)
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := c.Convert(context.Background(), docxFixture(t), FormatDocx); err != nil {
+		t.Errorf("Convert after Close: %v", err)
+	}
+}
+
+// limitedWriter is what actually bounds host memory: the wasm memory limit
+// caps the guest, not the buffer the host accumulates stdout into.
+func TestLimitedWriter(t *testing.T) {
+	tests := []struct {
+		name         string
+		limit        int
+		writes       []string
+		wantExceeded bool
+		wantBuffered string
+	}{
+		{
+			name: "under the limit", limit: 10,
+			writes: []string{"abc", "def"}, wantExceeded: false, wantBuffered: "abcdef",
+		},
+		{
+			name: "exactly at the limit", limit: 6,
+			writes: []string{"abc", "def"}, wantExceeded: false, wantBuffered: "abcdef",
+		},
+		{
+			name: "one byte over", limit: 5,
+			writes: []string{"abc", "def"}, wantExceeded: true, wantBuffered: "abc",
+		},
+		{
+			name: "a single oversized write buffers nothing", limit: 2,
+			writes: []string{"abcdef"}, wantExceeded: true, wantBuffered: "",
+		},
+		{
+			name: "stays failed after the first rejection", limit: 3,
+			writes: []string{"abcd", "e"}, wantExceeded: true, wantBuffered: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &limitedWriter{limit: tt.limit}
+			for _, s := range tt.writes {
+				n, err := w.Write([]byte(s))
+				if err != nil {
+					if !errors.Is(err, ErrTooLarge) {
+						t.Errorf("Write error = %v, want ErrTooLarge", err)
+					}
+					if n != 0 {
+						t.Errorf("Write n = %d on rejection, want 0", n)
+					}
+				}
+			}
+			if w.exceeded != tt.wantExceeded {
+				t.Errorf("exceeded = %v, want %v", w.exceeded, tt.wantExceeded)
+			}
+			if got := w.buf.String(); got != tt.wantBuffered {
+				t.Errorf("buffered = %q, want %q", got, tt.wantBuffered)
+			}
+			if w.buf.Len() > tt.limit {
+				t.Errorf("buffered %d bytes, over the %d limit", w.buf.Len(), tt.limit)
+			}
+		})
+	}
+}
+
+// An oversized conversion must report the size cause, not a generic wasm exit.
+func TestConvertRejectsOversizedOutput(t *testing.T) {
+	c := New()
+	t.Cleanup(func() { _ = c.Close(context.Background()) })
+	// Force the bound down rather than building a >10 MB fixture.
+	rt, compiled, err := c.ready()
+	if err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	stdout := &limitedWriter{limit: 4}
+	cfg := wazero.NewModuleConfig().
+		WithName("").
+		WithArgs("anydoc", string(FormatDocx)).
+		WithStdin(bytes.NewReader(docxFixture(t))).
+		WithStdout(stdout)
+	mod, _ := rt.InstantiateModule(context.Background(), compiled, cfg)
+	if mod != nil {
+		_ = mod.Close(context.Background())
+	}
+	if !stdout.exceeded {
+		t.Fatal("want the writer to have rejected the output")
+	}
+	if stdout.buf.Len() > 4 {
+		t.Errorf("buffered %d bytes, over the 4-byte limit", stdout.buf.Len())
 	}
 }
 
