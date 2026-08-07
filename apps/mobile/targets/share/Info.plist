@@ -16,6 +16,12 @@
           <true/>
           <key>NSExtensionActivationSupportsImageWithMaxCount</key>
           <integer>1</integer>
+          <!-- Office documents (.docx, .odt, .rtf, .epub) arrive as file
+               attachments from Files and Mail. ShareViewController narrows
+               these to the formats the API accepts; anything else it cannot
+               identify falls through to the URL/text handling. -->
+          <key>NSExtensionActivationSupportsFileWithMaxCount</key>
+          <integer>1</integer>
         </dict>
       </dict>
       <key>NSExtensionPrincipalClass</key>

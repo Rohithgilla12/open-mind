@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { tokens } from "@openmind/ui";
+import { isUploadable, UPLOAD_ACCEPT, UPLOAD_LABEL, UPLOAD_PROMPT } from "../lib/uploads";
 
 type FileStatus = { name: string; state: "uploading" | "done" | "error"; message?: string };
 
@@ -41,7 +42,7 @@ export function ImageDrop() {
   function handleFiles(files: FileList | null) {
     if (!files) return;
     for (const file of Array.from(files)) {
-      if (file.type.startsWith("image/") || file.type === "application/pdf") void uploadOne(file);
+      if (isUploadable(file)) void uploadOne(file);
     }
   }
 
@@ -50,7 +51,7 @@ export function ImageDrop() {
       <div
         role="button"
         tabIndex={0}
-        aria-label="Upload images or PDFs — drop files here or click to choose"
+        aria-label={UPLOAD_LABEL}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -85,12 +86,12 @@ export function ImageDrop() {
           transition: ".15s",
         }}
       >
-        Drop images or PDFs here, or click to upload
+        {UPLOAD_PROMPT}
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,application/pdf"
+        accept={UPLOAD_ACCEPT}
         multiple
         onChange={(e) => {
           handleFiles(e.target.files);

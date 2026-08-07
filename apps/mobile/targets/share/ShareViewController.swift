@@ -44,7 +44,39 @@ class ShareViewController: UIViewController {
   private enum SharedPayload {
     case url(URL)
     case text(String)
-    case image(Data, filename: String, mimeType: String)
+    case asset(Data, filename: String, mimeType: String)
+  }
+
+  /// One office-document format the API accepts. The server sniffs content and
+  /// is the authority; these identifiers only decide what the share sheet
+  /// offers to hand us.
+  private struct DocumentType {
+    let type: UTType
+    let mimeType: String
+    let fallbackExtension: String
+  }
+
+  /// Document formats the enrichment pipeline converts. Built with compactMap
+  /// so an identifier the OS does not know simply drops out rather than
+  /// collapsing to a catch-all that would match every shared file.
+  private static let documentTypes: [DocumentType] = {
+    let candidates: [(UTType?, String, String)] = [
+      (UTType("org.openxmlformats.wordprocessingml.document"),
+       "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
+      (UTType("org.oasis-open.opendocument.text"),
+       "application/vnd.oasis.opendocument.text", "odt"),
+      (UTType.rtf, "application/rtf", "rtf"),
+      (UTType.epub, "application/epub+zip", "epub"),
+    ]
+    return candidates.compactMap { type, mime, ext in
+      guard let type else { return nil }
+      return DocumentType(type: type, mimeType: mime, fallbackExtension: ext)
+    }
+  }()
+
+  /// The document format this provider can supply, if any.
+  private func documentType(for provider: NSItemProvider) -> DocumentType? {
+    Self.documentTypes.first { provider.hasItemConformingToTypeIdentifier($0.type.identifier) }
   }
 
   private enum PendingRecord {
@@ -65,7 +97,7 @@ class ShareViewController: UIViewController {
       return
     }
 
-    var foundImage: SharedPayload?
+    var foundAsset: SharedPayload?
     var foundURL: URL?
     var foundText: String?
     let group = DispatchGroup()
@@ -75,9 +107,20 @@ class ShareViewController: UIViewController {
         group.enter()
         provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { [weak self] item, _ in
           defer { group.leave() }
-          guard foundImage == nil, let self else { return }
+          guard foundAsset == nil, let self else { return }
           if let payload = self.imagePayload(from: item) {
-            foundImage = payload
+            foundAsset = payload
+          }
+        }
+      } else if let docType = documentType(for: provider) {
+        // Checked before the URL and text branches: RTF conforms to public.text,
+        // so a plain-text match would otherwise win and save it as a note.
+        group.enter()
+        provider.loadItem(forTypeIdentifier: docType.type.identifier, options: nil) { [weak self] item, _ in
+          defer { group.leave() }
+          guard foundAsset == nil, let self else { return }
+          if let payload = self.documentPayload(from: item, type: docType) {
+            foundAsset = payload
           }
         }
       } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
@@ -96,8 +139,8 @@ class ShareViewController: UIViewController {
     }
 
     group.notify(queue: .main) {
-      if let foundImage {
-        completion(foundImage)
+      if let foundAsset {
+        completion(foundAsset)
       } else if let foundURL {
         completion(.url(foundURL))
       } else if let foundText {
@@ -106,6 +149,27 @@ class ShareViewController: UIViewController {
         completion(nil)
       }
     }
+  }
+
+  /// Read a shared document as raw bytes. Unlike images these are uploaded
+  /// verbatim — no transcoding — because the server sniffs the container to
+  /// identify it and converts the text in the enrichment pipeline. Re-encoding
+  /// here would destroy exactly the structure anydoc reads.
+  private func documentPayload(from item: NSSecureCoding?, type: DocumentType) -> SharedPayload? {
+    var data: Data?
+    var filename = "document." + type.fallbackExtension
+
+    if let url = item as? URL {
+      data = try? Data(contentsOf: url)
+      if !url.lastPathComponent.isEmpty {
+        filename = url.lastPathComponent
+      }
+    } else if let raw = item as? Data {
+      data = raw
+    }
+
+    guard let data, !data.isEmpty else { return nil }
+    return .asset(data, filename: filename, mimeType: type.mimeType)
   }
 
   /// Normalise a share-sheet image item into JPEG bytes. Photos often hand us
@@ -117,7 +181,7 @@ class ShareViewController: UIViewController {
       if let image = UIImage(data: data), let jpeg = image.jpegData(compressionQuality: 0.92) {
         let name = url.deletingPathExtension().lastPathComponent
         let filename = (name.isEmpty ? "photo" : name) + ".jpg"
-        return .image(jpeg, filename: filename, mimeType: "image/jpeg")
+        return .asset(jpeg, filename: filename, mimeType: "image/jpeg")
       }
       // Already a supported raster format (e.g. PNG/JPEG) — pass through.
       let ext = url.pathExtension.lowercased()
@@ -130,16 +194,16 @@ class ShareViewController: UIViewController {
       default: mime = nil
       }
       if let mime {
-        return .image(data, filename: url.lastPathComponent, mimeType: mime)
+        return .asset(data, filename: url.lastPathComponent, mimeType: mime)
       }
       return nil
     }
     if let image = item as? UIImage, let jpeg = image.jpegData(compressionQuality: 0.92) {
-      return .image(jpeg, filename: "photo.jpg", mimeType: "image/jpeg")
+      return .asset(jpeg, filename: "photo.jpg", mimeType: "image/jpeg")
     }
     if let data = item as? Data, let image = UIImage(data: data),
        let jpeg = image.jpegData(compressionQuality: 0.92) {
-      return .image(jpeg, filename: "photo.jpg", mimeType: "image/jpeg")
+      return .asset(jpeg, filename: "photo.jpg", mimeType: "image/jpeg")
     }
     return nil
   }
@@ -162,7 +226,7 @@ class ShareViewController: UIViewController {
     }
 
     switch payload {
-    case .image(let data, let filename, let mimeType):
+    case .asset(let data, let filename, let mimeType):
       uploadImage(data: data, filename: filename, mimeType: mimeType, instanceUrl: instanceUrl, token: token)
     case .url(let url):
       postItem(body: ["url": url.absoluteString], pending: .url(url.absoluteString), instanceUrl: instanceUrl, token: token)

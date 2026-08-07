@@ -9,6 +9,7 @@ import { ClerkProvider } from "@clerk/clerk-expo";
 import { useFonts } from "expo-font";
 import * as Notifications from "expo-notifications";
 import { useShareIntent } from "expo-share-intent";
+import { fallbackFilename, isUploadableMimeType, uploadMimeType } from "../lib/uploads";
 import { Stack, useRouter, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -71,15 +72,15 @@ function ShareIntentGate() {
 
   useEffect(() => {
     if (!hasShareIntent) return;
-    const imageFiles = (shareIntent.files ?? []).filter(
-      (f) => typeof f.mimeType === "string" && f.mimeType.startsWith("image/") && !!f.path,
+    const uploadFiles = (shareIntent.files ?? []).filter(
+      (f) => isUploadableMimeType(f.mimeType) && !!f.path,
     );
-    if (imageFiles.length > 0) {
+    if (uploadFiles.length > 0) {
       const sharedImages = JSON.stringify(
-        imageFiles.map((f) => ({
+        uploadFiles.map((f) => ({
           uri: f.path,
-          name: f.fileName || "photo.jpg",
-          type: f.mimeType || "image/jpeg",
+          name: f.fileName || fallbackFilename(f.mimeType),
+          type: uploadMimeType(f.mimeType),
         })),
       );
       router.navigate({ pathname: "/capture", params: { sharedImages } });

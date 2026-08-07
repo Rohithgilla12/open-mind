@@ -38,7 +38,12 @@
         {
           "androidIntentFilters": [
             "text/*",
-            "image/*"
+            "image/*",
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.oasis.opendocument.text",
+            "application/rtf",
+            "application/epub+zip"
           ],
           "androidMultiIntentFilters": [
             "image/*"

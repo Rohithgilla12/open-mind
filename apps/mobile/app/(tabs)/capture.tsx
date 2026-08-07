@@ -20,6 +20,7 @@ import { useCaptureQueue } from "@/lib/capture-queue-context";
 import { useInvalidateLists } from "@/lib/mutations";
 import { useSettingsContext } from "@/lib/settings-context";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
+import { fallbackFilename, uploadMimeType } from "@/lib/uploads";
 
 const URL_RE = /^https?:\/\//i;
 const CLOCK_SKEW_MS = 30 * 1000;
@@ -77,11 +78,11 @@ function parseSharedImages(raw: string | undefined): AssetUpload[] {
       return typeof r.uri === "string" && r.uri.length > 0;
     }).map((row) => ({
       uri: row.uri,
-      name: typeof row.name === "string" && row.name ? row.name : guessName(row.uri, "photo.jpg"),
-      type:
-        typeof row.type === "string" && row.type.startsWith("image/")
-          ? row.type
-          : "image/jpeg",
+      name:
+        typeof row.name === "string" && row.name
+          ? row.name
+          : guessName(row.uri, fallbackFilename(row.type)),
+      type: uploadMimeType(row.type),
     }));
   } catch {
     return [];
