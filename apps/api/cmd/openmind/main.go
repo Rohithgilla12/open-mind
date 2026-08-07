@@ -24,6 +24,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/api"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
 	"github.com/rohithgilla12/openmind/api/internal/auth"
+	"github.com/rohithgilla12/openmind/api/internal/docmd"
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/geo"
@@ -107,6 +108,13 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		pipeline.PDF = pdfx
 	}
+
+	// Document conversion compiles its wasm module lazily on first use, so
+	// wiring it here costs nothing at boot — a process that never enriches a
+	// document never pays the ~3s compile.
+	docConv := docmd.New()
+	defer func() { _ = docConv.Close(context.Background()) }()
+	pipeline.Doc = docConv
 
 	authCfg, err := authConfigFromEnv()
 	if err != nil {

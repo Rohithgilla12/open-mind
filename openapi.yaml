@@ -244,7 +244,14 @@ paths:
   /assets:
     post:
       operationId: createAsset
-      description: "Upload a local image as a first-class image card (multipart field 'file')."
+      description: >
+        Upload a local file as a first-class card (multipart field 'file').
+        Images become image cards; PDFs and office documents (.docx, .odt,
+        .rtf, .epub) become article cards, except .epub which becomes a book
+        card. The type is sniffed from the content, never the supplied
+        filename or part header; anything else is rejected with 415.
+        Text extraction happens asynchronously in the enrichment pipeline, so
+        the card returns immediately with an empty body.
       requestBody:
         required: true
         content:
@@ -256,7 +263,7 @@ paths:
                 file: { type: string, format: binary }
       responses:
         "201":
-          description: created image item
+          description: created item (image, article, or book depending on the uploaded type)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Item" }
