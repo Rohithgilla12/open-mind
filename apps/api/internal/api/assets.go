@@ -107,7 +107,16 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	contentType := detectImageType(head)
 	_, isImage := allowedImageTypes[contentType]
+	// Office documents are ZIP containers or RTF, neither of which
+	// detectImageType can name, so they are sniffed separately over the whole
+	// upload: telling .docx from .odt needs the archive's central directory,
+	// which does not live in the first 512 bytes.
 	if !isImage && !isPDF(contentType) {
+		if docType := detectDocType(data); docType != "" {
+			contentType = docType
+		}
+	}
+	if !isImage && !isPDF(contentType) && !isDocument(contentType) {
 		writeError(w, http.StatusUnsupportedMediaType, "unsupported file type")
 		return
 	}
@@ -172,19 +181,26 @@ func (s *Server) CreateAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	title := filenameStem(header.Filename)
-	if isPDF(contentType) {
+	// PDFs and office documents both carry their asset path in the item's URL,
+	// which is what routes them to the right enrichment path. Only the card
+	// type differs: an EPUB is a book, everything else reads as an article.
+	if isPDF(contentType) || isDocument(contentType) {
+		cardType := "article"
+		if isDocument(contentType) {
+			cardType = docCardTypeFor(contentType)
+		}
 		if err := s.store.Queries.SetItemURL(ctx, db.SetItemURLParams{
 			UserID: uid, ID: item.ID, Url: "/assets/" + asset.ID.String(),
 		}); err != nil {
-			slog.Error("setting pdf item url", "item_id", item.ID, "err", err)
+			slog.Error("setting document item url", "item_id", item.ID, "err", err)
 			writeError(w, http.StatusInternalServerError, "could not save item")
 			return
 		}
 		if err := s.store.Queries.UpdateItemExtraction(ctx, db.UpdateItemExtractionParams{
 			UserID: uid, ID: item.ID,
-			Title: title, Body: "", LeadImageUrl: "", CardType: "article",
+			Title: title, Body: "", LeadImageUrl: "", CardType: cardType,
 		}); err != nil {
-			slog.Error("setting pdf item metadata", "item_id", item.ID, "err", err)
+			slog.Error("setting document item metadata", "item_id", item.ID, "err", err)
 			writeError(w, http.StatusInternalServerError, "could not save item")
 			return
 		}
