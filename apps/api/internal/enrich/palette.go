@@ -20,11 +20,11 @@ const maxPaletteSamples = 4000
 // colourBucket accumulates the running RGB sum and count of the pixels quantised
 // into one coarse-grid cell, so the representative colour is the bucket average.
 type colourBucket struct {
-	key           uint32
-	rSum          uint64
-	gSum          uint64
-	bSum          uint64
-	count         uint64
+	key            uint32
+	rSum           uint64
+	gSum           uint64
+	bSum           uint64
+	count          uint64
 	firstSeenOrder int
 }
 

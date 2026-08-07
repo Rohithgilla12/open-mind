@@ -1,0 +1,12 @@
+-- Uploaded office documents (.docx, .odt, .rtf, .epub) convert to Markdown via
+-- anydoc. item.body keeps the flattened plain text, because every existing
+-- consumer treats body as prose: FTS, embeddings, the AI summariser, Send to
+-- Kindle (which HTML-escapes each paragraph), highlight offsets, MCP resources
+-- and reader mode. Markdown left in body would surface there as literal "##"
+-- and "|---|".
+--
+-- body_markdown keeps the structured form alongside it. Nothing reads it yet;
+-- it exists so a future Markdown-aware reader mode or a structure-preserving
+-- EPUB export needs no re-extraction pass. NULL for every item that did not
+-- come from a document conversion.
+ALTER TABLE items ADD COLUMN body_markdown text;

@@ -65,11 +65,11 @@ func pdfURLTitle(rawURL string) string {
 	return imageTitle(rawURL)
 }
 
-// failPDF marks the item failed and wraps err with stage context. It is
-// shared by runUploadedPDF and runURLPDF so both report failures the same
+// failItem marks the item failed and wraps err with stage context. It is
+// shared by the PDF and document paths so all of them report failures the same
 // way: the item and any already-created asset row survive, only the status
 // flips to "failed".
-func (p *Pipeline) failPDF(ctx context.Context, userID uuid.UUID, itemID uuid.UUID, stage string, err error) error {
+func (p *Pipeline) failItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID, stage string, err error) error {
 	if serr := p.Store.Queries.SetItemStatus(ctx, db.SetItemStatusParams{UserID: userID, ID: itemID, Status: "failed"}); serr != nil {
 		return fmt.Errorf("marking failed after %s error %v: %w", stage, err, serr)
 	}
@@ -100,7 +100,7 @@ func (p *Pipeline) persistPDF(ctx context.Context, userID uuid.UUID, item db.Ite
 // enrichment tail. Idempotent — re-running re-extracts to the same state.
 func (p *Pipeline) runUploadedPDF(ctx context.Context, userID uuid.UUID, item db.Item) error {
 	if p.PDF == nil || p.Assets == nil {
-		return p.failPDF(ctx, userID, item.ID, "pdf extraction", fmt.Errorf("pdf support not configured"))
+		return p.failItem(ctx, userID, item.ID, "pdf extraction", fmt.Errorf("pdf support not configured"))
 	}
 	// Defence in depth: resolve the asset via the user-scoped store query
 	// rather than trusting the UUID parsed straight out of item.Url. Today
@@ -111,21 +111,21 @@ func (p *Pipeline) runUploadedPDF(ctx context.Context, userID uuid.UUID, item db
 		UserID: userID, ItemID: pgtype.UUID{Bytes: item.ID, Valid: true},
 	})
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "looking up pdf asset", err)
+		return p.failItem(ctx, userID, item.ID, "looking up pdf asset", err)
 	}
 	assetID := asset.ID
 	rc, err := p.Assets.Open(assetID)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf asset", err)
+		return p.failItem(ctx, userID, item.ID, "reading pdf asset", err)
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(rc)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf asset", err)
+		return p.failItem(ctx, userID, item.ID, "reading pdf asset", err)
 	}
 	res, err := p.PDF.Extract(ctx, data)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "extracting pdf text", err)
+		return p.failItem(ctx, userID, item.ID, "extracting pdf text", err)
 	}
 	title := item.Title
 	if res.Title != "" {
@@ -158,35 +158,35 @@ func (p *Pipeline) storePDFBlob(ctx context.Context, userID uuid.UUID, assetID u
 // the web detail page via the item→asset relation.
 func (p *Pipeline) runURLPDF(ctx context.Context, userID uuid.UUID, item db.Item) error {
 	if p.PDF == nil || p.Assets == nil {
-		return p.failPDF(ctx, userID, item.ID, "pdf extraction", fmt.Errorf("pdf support not configured"))
+		return p.failItem(ctx, userID, item.ID, "pdf extraction", fmt.Errorf("pdf support not configured"))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.Url, nil)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "fetching pdf", err)
+		return p.failItem(ctx, userID, item.ID, "fetching pdf", err)
 	}
 	resp, err := p.httpClient().Do(req)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "fetching pdf", err)
+		return p.failItem(ctx, userID, item.ID, "fetching pdf", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf response", err)
+		return p.failItem(ctx, userID, item.ID, "reading pdf response", err)
 	}
 	if len(data) > maxResponseBytes {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("response exceeds %d bytes", maxResponseBytes))
+		return p.failItem(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("response exceeds %d bytes", maxResponseBytes))
 	}
 	// TOCTOU guard: isPDFURL's HEAD/ranged-GET check ran before this fetch and
 	// can no longer be trusted (the server may have swapped what it serves in
 	// between). Re-verify the actual fetched body before it ever reaches
 	// storage — a mismatch fails the item, no asset row created.
 	if resp.StatusCode != http.StatusOK {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("unexpected status %d", resp.StatusCode))
+		return p.failItem(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("unexpected status %d", resp.StatusCode))
 	}
 	if !bytes.HasPrefix(data, []byte("%PDF-")) {
-		return p.failPDF(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("response is not a pdf"))
+		return p.failItem(ctx, userID, item.ID, "reading pdf response", fmt.Errorf("response is not a pdf"))
 	}
 
 	q := p.Store.Queries
@@ -201,7 +201,7 @@ func (p *Pipeline) runURLPDF(ctx context.Context, userID uuid.UUID, item db.Item
 			OriginalFilename: path.Base(item.Url),
 		})
 		if err != nil {
-			return p.failPDF(ctx, userID, item.ID, "creating pdf asset", err)
+			return p.failItem(ctx, userID, item.ID, "creating pdf asset", err)
 		}
 		if err := p.storePDFBlob(ctx, userID, asset.ID, data); err != nil {
 			// Best-effort cleanup: drop the asset row so a retry doesn't find a
@@ -209,12 +209,12 @@ func (p *Pipeline) runURLPDF(ctx context.Context, userID uuid.UUID, item db.Item
 			// (which would otherwise leave the item enriched with a 404ing
 			// asset forever).
 			if delErr := q.DeleteAsset(ctx, db.DeleteAssetParams{UserID: userID, ID: asset.ID}); delErr != nil {
-				return p.failPDF(ctx, userID, item.ID, "storing pdf asset", fmt.Errorf("%w (cleanup also failed: %v)", err, delErr))
+				return p.failItem(ctx, userID, item.ID, "storing pdf asset", fmt.Errorf("%w (cleanup also failed: %v)", err, delErr))
 			}
-			return p.failPDF(ctx, userID, item.ID, "storing pdf asset", err)
+			return p.failItem(ctx, userID, item.ID, "storing pdf asset", err)
 		}
 	case err != nil:
-		return p.failPDF(ctx, userID, item.ID, "looking up pdf asset", err)
+		return p.failItem(ctx, userID, item.ID, "looking up pdf asset", err)
 	default:
 		// Self-heal: a prior run created the asset row but failed before (or
 		// during) writing the blob or recording its size — byte_size is still
@@ -223,14 +223,14 @@ func (p *Pipeline) runURLPDF(ctx context.Context, userID uuid.UUID, item db.Item
 		// while pointing at an asset that 404s forever.
 		if asset.ByteSize == 0 || !p.Assets.Exists(asset.ID) {
 			if err := p.storePDFBlob(ctx, userID, asset.ID, data); err != nil {
-				return p.failPDF(ctx, userID, item.ID, "storing pdf asset", err)
+				return p.failItem(ctx, userID, item.ID, "storing pdf asset", err)
 			}
 		}
 	}
 
 	res, err := p.PDF.Extract(ctx, data)
 	if err != nil {
-		return p.failPDF(ctx, userID, item.ID, "extracting pdf text", err)
+		return p.failItem(ctx, userID, item.ID, "extracting pdf text", err)
 	}
 	title := item.Title
 	if res.Title != "" {

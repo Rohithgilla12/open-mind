@@ -50,7 +50,7 @@ func (q *Queries) DeleteLink(ctx context.Context, arg DeleteLinkParams) (int64, 
 }
 
 const listLinkedItems = `-- name: ListLinkedItems :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host FROM links l
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, i.body_markdown FROM links l
 JOIN items i ON i.id = CASE WHEN l.a_item = $2 THEN l.b_item ELSE l.a_item END
 WHERE l.user_id = $1 AND ($2 IN (l.a_item, l.b_item))
 ORDER BY l.created_at DESC
@@ -93,6 +93,7 @@ func (q *Queries) ListLinkedItems(ctx context.Context, arg ListLinkedItemsParams
 			&i.KeptAt,
 			&i.TaggedLocation,
 			&i.UrlHost,
+			&i.BodyMarkdown,
 		); err != nil {
 			return nil, err
 		}

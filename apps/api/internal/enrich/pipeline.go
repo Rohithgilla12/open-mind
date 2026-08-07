@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgvector/pgvector-go"
 	"github.com/rohithgilla12/openmind/api/internal/ai"
 	"github.com/rohithgilla12/openmind/api/internal/assets"
@@ -29,13 +30,18 @@ type Pipeline struct {
 	// sniff). When nil it defaults to a SafeHTTPClient; tests inject an
 	// httptest client.
 	HTTPClient *http.Client
-	// Assets backs palette extraction for uploaded images and PDF blob storage:
-	// it reads/writes the stored blob referenced by an "/assets/<uuid>" path.
-	// When nil, palette extraction is skipped and PDF routing is disabled.
+	// Assets backs palette extraction for uploaded images and PDF/document blob
+	// storage: it reads/writes the stored blob referenced by an "/assets/<uuid>"
+	// path. When nil, palette extraction is skipped and PDF/document routing is
+	// disabled.
 	Assets *assets.FSStore
 	// PDF extracts text from PDF bytes (uploaded or fetched). When nil, PDF
 	// routing is disabled and PDF URLs fall through to the normal extractor.
 	PDF PDFTexter
+	// Doc converts uploaded office documents (.docx, .odt, .rtf, .epub) to
+	// Markdown. When nil, uploading one enriches to a failed item rather than
+	// silently producing an empty card.
+	Doc DocConverter
 }
 
 // httpClient returns the pipeline's HTTP client, defaulting to a SafeHTTPClient
@@ -64,10 +70,23 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return p.runUploadedImage(ctx, userID, item)
 	}
 
-	// Uploaded PDFs carry their asset path in the item's URL itself (Task 3),
-	// not LeadImageUrl. Must be routed before the note check, same reasoning
-	// as the uploaded-image branch above.
+	// Uploaded PDFs and office documents both carry their asset path in the
+	// item's URL itself (Task 3), not LeadImageUrl. Must be routed before the
+	// note check, same reasoning as the uploaded-image branch above.
+	//
+	// The stored content type tells the two apart. A lookup failure here is
+	// deliberately not handled: it falls through to the PDF path, which
+	// resolves the asset again and reports the failure with its own stage
+	// context, so behaviour for a missing asset row is unchanged.
 	if strings.HasPrefix(item.Url, "/assets/") {
+		asset, err := q.GetAssetByItem(ctx, db.GetAssetByItemParams{
+			UserID: userID, ItemID: pgtype.UUID{Bytes: item.ID, Valid: true},
+		})
+		if err == nil {
+			if _, isDoc := DocFormatFor(asset.ContentType); isDoc {
+				return p.runUploadedDoc(ctx, userID, item, asset)
+			}
+		}
 		return p.runUploadedPDF(ctx, userID, item)
 	}
 

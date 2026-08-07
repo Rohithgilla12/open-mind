@@ -90,6 +90,7 @@ type Item struct {
 	KeptAt         pgtype.Timestamptz
 	TaggedLocation string
 	UrlHost        pgtype.Text
+	BodyMarkdown   pgtype.Text
 }
 
 type ItemEmbedding struct {
