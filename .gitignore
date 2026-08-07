@@ -10,6 +10,7 @@ data/
 .playwright-mcp/
 apps/dock/src-tauri/target/
 apps/dock/src-tauri/gen/
+tools/anydoc-wasi/target/
 .claude/
 .agents/
 .superpowers/

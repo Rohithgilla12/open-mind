@@ -1,0 +1,19 @@
+[package]
+name = "anydoc-wasi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "WASI wrapper around anydoc: document bytes on stdin, GitHub-Flavored Markdown on stdout"
+license = "MIT"
+
+[dependencies]
+# Pinned exactly: anydoc is early software (0.1.x) and the committed
+# anydoc.wasm artefact must be reproducible from this manifest.
+anydoc = "=0.1.7"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
