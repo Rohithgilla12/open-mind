@@ -123,6 +123,18 @@ Scanned or image-only PDFs still save and store fine, but have no searchable bod
 
 **Privacy note:** unlike images, PDF metadata (author, creation date, producer, etc. in the document info dictionary) is **not** stripped on upload — PDFs are stored as-is.
 
+## Document capture
+
+Upload a Word (`.docx`), OpenDocument Text (`.odt`), Rich Text (`.rtf`), or EPUB (`.epub`) file to `POST /assets` — the same endpoint and size cap as images and PDFs. The card is created instantly and the text is extracted asynchronously. EPUBs become `book` cards; the rest become `article` cards.
+
+Conversion runs in-process via [anydoc](https://github.com/firecrawl/anydoc) compiled to WebAssembly (`apps/api/internal/docmd`) — no extra service, no network call, and no Rust toolchain required to build Openmind, because the `.wasm` artefact is committed. `scripts/build-anydoc-wasm.sh` regenerates it if you bump the pinned version in `tools/anydoc-wasi/Cargo.toml`.
+
+The file type is determined by sniffing the content, never the filename you upload — `.docx`, `.odt`, and `.epub` are all ZIP containers, so they are told apart by their internal structure. Spreadsheets, presentations, and CSV are deliberately **not** accepted: they produce poor cards and noisy embeddings. Uploading one returns `415 unsupported file type`.
+
+The extracted text feeds the same FTS/vector search pipeline as any other card. The structured Markdown is kept alongside it in `items.body_markdown` for future use; nothing reads it today.
+
+**Privacy note:** like PDFs, documents are stored **verbatim** — author, organisation, revision history, and tracked-change metadata embedded in the file are not stripped.
+
 ### AI is optional
 
 With no provider configured (or `AI_PROVIDER=noop`), saves are extracted and made searchable via Postgres FTS — no external calls, no API key. Configure one or more providers to add AI summaries, auto-tags, and vector search. Only budget model tiers are ever wired into the enrichment pipeline; a flagship model is never used.

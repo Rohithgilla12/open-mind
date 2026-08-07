@@ -114,6 +114,18 @@
   seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
+- **Document capture (2026-08-07)** — upload `.docx`/`.odt`/`.rtf`/`.epub` as
+  first-class cards. anydoc compiled to `wasm32-wasip1` and run under wazero
+  (`internal/docmd`), mirroring how pdfium already works; the 5.2 MB artefact is
+  committed and `go:embed`-ed, so no Rust toolchain is needed to build Openmind.
+  Spec: `docs/superpowers/specs/20260807-document-capture-design.md`.
+  **Not yet deployed, and iOS share-extension changes are unverified on device**
+  — they need a fresh dev build (`expo-share-intent` and the native extension
+  both changed). Follow-ups worth considering: URL routing for documents (a link
+  to a `.docx` still falls through to the article extractor); nothing reads
+  `items.body_markdown` yet, so a Markdown-aware reader mode or a
+  structure-preserving EPUB export is the natural payoff; spreadsheets and
+  presentations remain deliberately unsupported.
 - **Deployed to prod 2026-08-04** — PR #66 (cursor pagination + infinite scroll),
   squash-merged as `1c1af2f`. Touched both api and web, so sequential
   `--build api` then `--build web` + `docker restart cloudflared`. Pruned first
