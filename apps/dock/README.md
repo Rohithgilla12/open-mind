@@ -10,11 +10,12 @@ mind from anywhere, without opening the web app. Tauri v2, macOS-only for now.
   **quick-tag strip**: type comma-separated tags and press Enter to file the
   save, or Esc (or just wait 5 seconds) to skip — the save has already
   happened either way. Supported browsers: Safari, Chrome, Brave, Edge, and Arc
-  (all verified), plus Chromium (also verified), and Safari Technology
-  Preview, Orion, Vivaldi, Opera, and Chrome Beta/Dev/Canary (bundle ids
-  follow vendor convention and are **not yet verified against a real
-  install** — if one of these is your front app and the grab reports "Front
-  app isn't a supported browser", please open an issue with the output of
+  (supported since the first dock release), plus Chromium (bundle id
+  confirmed against a real install), and Safari Technology Preview, Orion,
+  Vivaldi, Opera, and Chrome Beta/Dev/Canary (bundle ids follow vendor
+  convention and have **not been checked against a real install** — if one
+  of these is your front app and the grab reports "Front app isn't a
+  supported browser", please open an issue with the output of
   `osascript -e 'id of app "<Name>"'`).
   Firefox exposes no AppleScript tab access — use the panel instead.
 - **⌘⇧O — Quick Find.** A Spotlight-style panel: type to search your library

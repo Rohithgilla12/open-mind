@@ -118,7 +118,8 @@
   behind one Rust `save_item` command so the queue cannot be bypassed; verify
   the remaining seven newly-added browser bundle ids against real installs
   (Safari Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary —
-  the original five plus Chromium are confirmed)
+  the original five have been in production use since the first dock release;
+  Chromium's bundle id was additionally confirmed by direct lookup)
 - `repo` card type: the reserved-first-segment denylist in
   `apps/api/internal/enrich/classify.go` (and its SQL twin in migration 0021)
   is not exhaustive by construction. When a forge adds a reserved route, URLs
