@@ -8,7 +8,7 @@ use std::fs;
 use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -26,6 +26,45 @@ const PRIMARY_MODIFIER: Modifiers = Modifiers::CONTROL;
 // format `Shortcut`'s `Display` produces — see `parse_accelerator_pair`).
 const DEFAULT_QUICK_SAVE_ACCEL: &str = "CmdOrCtrl+Shift+S";
 const DEFAULT_QUICK_FIND_ACCEL: &str = "CmdOrCtrl+Shift+O";
+
+/// Desk pins shown in the tray submenu.
+const DESK_MENU_MAX: usize = 8;
+
+#[derive(Clone, Debug)]
+pub struct DeskEntry {
+    pub id: String,
+    pub title: String,
+}
+
+/// Cached Desk pins for the tray submenu. Refreshed on launch, after a
+/// successful save, and on panel focus — never on a background timer.
+pub type DeskState = Mutex<Vec<DeskEntry>>;
+
+/// Reads Desk rows out of either shape: the ItemPage envelope or the bare
+/// array an older instance serves. Mirrors readItemList in src/lib/api.ts.
+fn parse_desk(body: &serde_json::Value) -> Vec<DeskEntry> {
+    let rows = body
+        .get("items")
+        .and_then(|v| v.as_array())
+        .or_else(|| body.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    rows.iter()
+        .filter_map(|row| {
+            let id = row.get("id").and_then(|v| v.as_str())?.to_string();
+            let title = row
+                .get("title")
+                .and_then(|v| v.as_str())
+                .filter(|t| !t.trim().is_empty())
+                .or_else(|| row.get("url").and_then(|v| v.as_str()))
+                .unwrap_or("Untitled")
+                .to_string();
+            Some(DeskEntry { id, title })
+        })
+        .take(DESK_MENU_MAX)
+        .collect()
+}
 
 fn quick_save_shortcut() -> Shortcut {
     Shortcut::new(Some(PRIMARY_MODIFIER | Modifiers::SHIFT), Code::KeyS)
@@ -251,8 +290,13 @@ fn quick_save(app: &AppHandle) {
 
         match response {
             Ok(resp) if resp.status().as_u16() == 201 => {
-                let title = if tab.title.trim().is_empty() { tab.url.clone() } else { tab.title.clone() };
+                let title = if tab.title.trim().is_empty() {
+                    tab.url.clone()
+                } else {
+                    tab.title.clone()
+                };
                 notify(&app, &format!("Saved — {}", truncate(&title, 60)));
+                refresh_desk(app.clone());
 
                 let item_id = resp
                     .json::<serde_json::Value>()
@@ -261,15 +305,40 @@ fn quick_save(app: &AppHandle) {
                     .and_then(|body| body.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()));
 
                 if let Some(item_id) = item_id {
-                    let _ = app.emit_to("panel", "save-confirmed", json!({ "itemId": item_id, "title": title }));
+                    let _ = app.emit_to(
+                        "panel",
+                        "save-confirmed",
+                        json!({ "itemId": item_id, "title": title }),
+                    );
                     show_panel(&app);
                 }
             }
             Ok(resp) => {
-                notify(&app, &format!("Save failed ({})", resp.status().as_u16()));
+                let status = resp.status().as_u16();
+                if queue::disposition(status) == queue::Disposition::Retry {
+                    // Up but broken (5xx / rate limited): queue rather than
+                    // discard, and say so distinctly from an offline save.
+                    queue::enqueue(&app, Some(tab.url.clone()), None);
+                    notify(
+                        &app,
+                        &format!(
+                            "Instance error — queued, will retry ({} pending)",
+                            queue::pending_count(&app)
+                        ),
+                    );
+                } else {
+                    notify(&app, &format!("Save failed ({status})"));
+                }
             }
             Err(_) => {
-                notify(&app, "Save failed (network error)");
+                queue::enqueue(&app, Some(tab.url.clone()), None);
+                notify(
+                    &app,
+                    &format!(
+                        "Saved offline — will retry ({} pending)",
+                        queue::pending_count(&app)
+                    ),
+                );
             }
         }
     });
@@ -289,22 +358,86 @@ fn register_shortcut_or_warn(app: &AppHandle, shortcut: Shortcut, label: &str) {
     }
 }
 
-fn build_tray(app: &tauri::App) -> tauri::Result<()> {
-    let open_panel = MenuItem::with_id(app, "open-panel", "Open panel", true, None::<&str>)?;
-    let save_tab = MenuItem::with_id(app, "save-tab", "Save current tab", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open_panel, &save_tab, &settings_item, &quit])?;
+fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    menu.append(&MenuItem::with_id(app, "open-panel", "Open panel", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "save-tab", "Save current tab", true, None::<&str>)?)?;
 
+    let desk = app.state::<DeskState>().lock().unwrap().clone();
+    let submenu = Submenu::with_id(app, "desk", "Desk", true)?;
+    if desk.is_empty() {
+        // A disabled placeholder, never a vanishing item: a menu entry that
+        // disappears reads as a bug, a greyed one explains itself.
+        let configured = settings::settings_get().ok().flatten().is_some();
+        let label = if configured { "Couldn't load Desk" } else { "Open Settings first" };
+        submenu.append(&MenuItem::with_id(app, "desk-empty", label, false, None::<&str>)?)?;
+    } else {
+        for entry in &desk {
+            submenu.append(&MenuItem::with_id(
+                app,
+                format!("desk:{}", entry.id),
+                truncate(&entry.title, 48),
+                true,
+                None::<&str>,
+            )?)?;
+        }
+    }
+    menu.append(&submenu)?;
+
+    let pending = queue::pending_count(app);
+    if pending > 0 {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+        let label = if pending == 1 {
+            "1 pending save".to_string()
+        } else {
+            format!("{pending} pending saves")
+        };
+        menu.append(&MenuItem::with_id(app, "pending-count", label, false, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            "retry-pending",
+            "Retry pending saves",
+            true,
+            None::<&str>,
+        )?)?;
+    }
+
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+/// Rebuilds the whole tray menu. Tauri v2 has no way to mutate a menu in
+/// place, so both the queue count and the Desk cache come through here.
+pub fn rebuild_tray_menu(app: &AppHandle) {
+    let Some(tray) = app.tray_by_id("main") else { return };
+    match build_menu(app) {
+        Ok(menu) => {
+            if let Err(e) = tray.set_menu(Some(menu)) {
+                log::warn!("tray menu update failed: {e}");
+            }
+        }
+        Err(e) => log::warn!("tray menu build failed: {e}"),
+    }
+}
+
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let menu = build_menu(app.handle())?;
     let mut tray = TrayIconBuilder::with_id("main").menu(&menu);
     if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
 
-    tray
-        .on_menu_event(|app, event| match event.id().as_ref() {
+    tray.on_menu_event(|app, event| {
+        let id = event.id().as_ref().to_string();
+        match id.as_str() {
             "open-panel" => show_panel(app),
             "save-tab" => quick_save(app),
+            "retry-pending" => {
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move { queue::flush(handle).await });
+            }
             "settings" => {
                 show_panel(app);
                 if let Some(window) = app.get_webview_window("panel") {
@@ -312,11 +445,56 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
                 }
             }
             "quit" => app.exit(0),
-            _ => {}
-        })
-        .build(app)?;
+            other => {
+                if let Some(item_id) = other.strip_prefix("desk:") {
+                    open_item(app, item_id);
+                }
+            }
+        }
+    })
+    .build(app)?;
 
     Ok(())
+}
+
+/// Opens an item in the user's browser from the tray.
+fn open_item(_app: &AppHandle, item_id: &str) {
+    let Ok(Some(settings)) = settings::settings_get() else { return };
+    let url = format!("{}/item/{}", settings.instance_url, item_id);
+    if let Err(e) = tauri_plugin_opener::open_url(url, None::<&str>) {
+        log::warn!("couldn't open a Desk item: {e}");
+    }
+}
+
+/// Fetches Desk pins and rebuilds the tray. Silent on failure — the submenu
+/// falls back to its disabled placeholder.
+pub fn refresh_desk(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(Some(settings)) = settings::settings_get() else {
+            rebuild_tray_menu(&app);
+            return;
+        };
+        let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(10)).build() else {
+            return;
+        };
+        let endpoint = format!("{}/api/desk", settings.instance_url);
+        let entries = match client.get(&endpoint).bearer_auth(&settings.token).send().await {
+            Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+                Ok(body) => parse_desk(&body),
+                Err(_) => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
+        *app.state::<DeskState>().lock().unwrap() = entries;
+        rebuild_tray_menu(&app);
+    });
+}
+
+/// Lets the panel refresh the Desk submenu when it regains focus — the
+/// stand-in for background polling.
+#[tauri::command]
+fn desk_refresh(app: AppHandle) {
+    refresh_desk(app);
 }
 
 // Checks CrabNebula Cloud for a newer release on startup and installs it in
@@ -384,6 +562,11 @@ pub fn run() {
             grab::grab_frontmost_tab,
             get_shortcuts,
             rebind_shortcuts,
+            queue::queue_list,
+            queue::queue_enqueue,
+            queue::queue_flush,
+            queue::queue_remove,
+            desk_refresh,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -405,9 +588,23 @@ pub fn run() {
             register_shortcut_or_warn(app.handle(), quick_save, "quick save");
             register_shortcut_or_warn(app.handle(), quick_find, "quick find");
 
+            let pending = queue::load(app.handle());
+            let had_pending = !pending.is_empty();
+            app.manage::<queue::QueueState>(Mutex::new(pending));
+            app.manage::<DeskState>(Mutex::new(Vec::new()));
+
             build_tray(app)?;
 
             check_for_updates(app.handle().clone());
+
+            // Drain anything left over from the last session, then keep a slow
+            // retry loop alive for the rest of this one.
+            if had_pending {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move { queue::flush(handle).await });
+            }
+            queue::spawn_drainer(app.handle().clone());
+            refresh_desk(app.handle().clone());
 
             Ok(())
         })
@@ -435,5 +632,42 @@ mod tests {
         let (quick_save, quick_find) = parse_accelerator_pair("CmdOrCtrl+Shift+S", "also not a shortcut");
         assert_eq!(quick_save, Shortcut::new(Some(PRIMARY_MODIFIER | Modifiers::SHIFT), Code::KeyS));
         assert_eq!(quick_find, toggle_panel_shortcut());
+    }
+
+    #[test]
+    fn desk_entries_read_both_list_shapes() {
+        let envelope = r#"{"items":[{"id":"1","title":"One"},{"id":"2","title":"Two"}]}"#;
+        let bare = r#"[{"id":"1","title":"One"},{"id":"2","title":"Two"}]"#;
+        for raw in [envelope, bare] {
+            let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+            assert_eq!(entries.len(), 2, "{raw}");
+            assert_eq!(entries[0].id, "1");
+            assert_eq!(entries[0].title, "One");
+        }
+    }
+
+    #[test]
+    fn desk_entries_fall_back_to_the_url_when_untitled() {
+        let raw = r#"[{"id":"1","url":"https://www.example.com/a"}]"#;
+        let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+        assert_eq!(entries[0].title, "https://www.example.com/a");
+    }
+
+    #[test]
+    fn desk_entries_ignore_rows_without_an_id() {
+        let raw = r#"[{"title":"no id"},{"id":"2","title":"Two"}]"#;
+        let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, "2");
+    }
+
+    #[test]
+    fn desk_entries_cap_at_eight() {
+        let rows: Vec<String> = (0..20)
+            .map(|i| format!(r#"{{"id":"{i}","title":"T{i}"}}"#))
+            .collect();
+        let raw = format!("[{}]", rows.join(","));
+        let entries = parse_desk(&serde_json::from_str(&raw).unwrap());
+        assert_eq!(entries.len(), DESK_MENU_MAX);
     }
 }

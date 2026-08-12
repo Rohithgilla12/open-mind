@@ -3,6 +3,13 @@
 //! network. Policy mirrors apps/mobile/lib/capture-queue.ts so both clients
 //! behave identically.
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Cap on stored captures. Past this, the oldest are dropped.
 pub const MAX_QUEUE: usize = 100;
@@ -104,6 +111,224 @@ pub fn parse_queue(raw: &str) -> Vec<QueuedCapture> {
             Vec::new()
         }
     }
+}
+
+/// In-memory authority for the queue, loaded from disk at startup. Every
+/// mutation persists inside the same critical section, so the file and this
+/// vector cannot disagree.
+pub type QueueState = Mutex<Vec<QueuedCapture>>;
+
+/// Guarantees a single flush pass at a time. A second caller returns
+/// immediately rather than double-sending an entry.
+static FLUSHING: AtomicBool = AtomicBool::new(false);
+static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Resets `FLUSHING` however `flush` returns, including on an early exit.
+struct FlushGuard;
+
+impl Drop for FlushGuard {
+    fn drop(&mut self) {
+        FLUSHING.store(false, Ordering::SeqCst);
+    }
+}
+
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Unique within a process lifetime without pulling in a uuid dependency:
+/// the clock gives cross-restart uniqueness, the counter gives it within a
+/// millisecond.
+fn new_id() -> String {
+    let millis = now_millis();
+    let n = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{millis:x}-{n:x}")
+}
+
+fn queue_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|dir| dir.join("queue.json"))
+}
+
+/// Writes to a temp file and renames, so a crash mid-write leaves the
+/// previous good queue rather than a truncated one. Must be called with the
+/// state lock held.
+fn persist(app: &AppHandle, items: &[QueuedCapture]) {
+    let Some(path) = queue_path(app) else { return };
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    let Ok(json) = serde_json::to_string_pretty(items) else { return };
+    let tmp = path.with_extension("json.tmp");
+    if fs::write(&tmp, json).is_err() {
+        log::warn!("queue.json temp write failed");
+        return;
+    }
+    if let Err(e) = fs::rename(&tmp, &path) {
+        log::warn!("queue.json rename failed: {e}");
+    }
+}
+
+/// Reads the persisted queue at startup.
+pub fn load(app: &AppHandle) -> Vec<QueuedCapture> {
+    let Some(path) = queue_path(app) else { return Vec::new() };
+    match fs::read_to_string(&path) {
+        Ok(raw) => parse_queue(&raw),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn pending_count(app: &AppHandle) -> usize {
+    app.state::<QueueState>().lock().unwrap().len()
+}
+
+/// Tells the panel and the tray that the queue changed. Call with the lock
+/// released — the tray rebuild reads state itself.
+fn notify_changed(app: &AppHandle, items: Vec<QueuedCapture>) {
+    let _ = app.emit_to("panel", "queue-changed", &items);
+    crate::rebuild_tray_menu(app);
+}
+
+/// Queues a capture. Exactly one of url/note should be set.
+pub fn enqueue(app: &AppHandle, url: Option<String>, note: Option<String>) -> InsertResult {
+    let (result, snapshot) = {
+        let state = app.state::<QueueState>();
+        let mut items = state.lock().unwrap();
+        let entry = QueuedCapture {
+            id: new_id(),
+            url,
+            note,
+            created_at: now_millis(),
+            attempts: 0,
+            last_error: None,
+        };
+        let result = insert(&mut items, entry);
+        if result.dropped > 0 {
+            log::warn!("queue cap {MAX_QUEUE} exceeded; dropped {} oldest", result.dropped);
+        }
+        persist(app, &items);
+        (result, items.clone())
+    };
+    notify_changed(app, snapshot);
+    result
+}
+
+async fn post_capture(
+    client: &reqwest::Client,
+    settings: &crate::settings::Settings,
+    entry: &QueuedCapture,
+) -> u16 {
+    let body = match (&entry.url, &entry.note) {
+        (Some(url), _) => json!({ "url": url }),
+        (None, Some(note)) => json!({ "note": note }),
+        (None, None) => return 400, // nothing to send: drop as permanent
+    };
+    let endpoint = format!("{}/api/items", settings.instance_url);
+    match client.post(&endpoint).bearer_auth(&settings.token).json(&body).send().await {
+        Ok(resp) => resp.status().as_u16(),
+        Err(_) => 0,
+    }
+}
+
+/// Delivers queued captures oldest-first. The state lock is held only for
+/// short synchronous sections, never across the HTTP await — so an enqueue
+/// arriving mid-flush cannot be clobbered.
+pub async fn flush(app: AppHandle) {
+    if FLUSHING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _guard = FlushGuard;
+
+    let settings = match crate::settings::settings_get() {
+        Ok(Some(s)) => s,
+        // Unconfigured or keychain error: leave the queue alone rather than
+        // burning attempts against nothing.
+        _ => return,
+    };
+    let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() else {
+        return;
+    };
+
+    loop {
+        let next = {
+            let state = app.state::<QueueState>();
+            let items = state.lock().unwrap();
+            items.iter().min_by_key(|q| q.created_at).cloned()
+        };
+        let Some(entry) = next else { break };
+
+        let status = post_capture(&client, &settings, &entry).await;
+        let disp = disposition(status);
+
+        let snapshot = {
+            let state = app.state::<QueueState>();
+            let mut items = state.lock().unwrap();
+            match disp {
+                Disposition::Delivered => items.retain(|q| q.id != entry.id),
+                Disposition::DropPermanent => {
+                    log::warn!("dropping a queued capture after permanent HTTP {status}");
+                    items.retain(|q| q.id != entry.id);
+                }
+                Disposition::StopUnauthorized => {}
+                Disposition::Retry => {
+                    if let Some(q) = items.iter_mut().find(|q| q.id == entry.id) {
+                        q.attempts += 1;
+                        q.last_error = Some(error_label(status));
+                    }
+                }
+            }
+            persist(&app, &items);
+            items.clone()
+        };
+        notify_changed(&app, snapshot);
+
+        if matches!(disp, Disposition::StopUnauthorized | Disposition::Retry) {
+            break;
+        }
+    }
+}
+
+#[tauri::command]
+pub fn queue_list(state: tauri::State<QueueState>) -> Vec<QueuedCapture> {
+    state.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn queue_enqueue(app: AppHandle, url: Option<String>, note: Option<String>) -> InsertResult {
+    enqueue(&app, url, note)
+}
+
+#[tauri::command]
+pub async fn queue_flush(app: AppHandle) {
+    flush(app).await;
+}
+
+#[tauri::command]
+pub fn queue_remove(app: AppHandle, id: String) {
+    let snapshot = {
+        let state = app.state::<QueueState>();
+        let mut items = state.lock().unwrap();
+        items.retain(|q| q.id != id);
+        persist(&app, &items);
+        items.clone()
+    };
+    notify_changed(&app, snapshot);
+}
+
+/// Retries the queue every 60s, idling when it is empty so an idle dock makes
+/// no network calls. A plain thread rather than a tokio interval — tokio is in
+/// the tree via tauri but is not a direct dependency.
+pub fn spawn_drainer(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(60));
+        if pending_count(&app) == 0 {
+            continue;
+        }
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move { flush(handle).await });
+    });
 }
 
 #[cfg(test)]
