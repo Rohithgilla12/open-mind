@@ -797,8 +797,8 @@ export function Panel() {
 
 const styles: Record<string, CSSProperties> = {
   shell: {
-    width: 640,
-    height: 420,
+    width: "100%",
+    height: "100vh",
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",

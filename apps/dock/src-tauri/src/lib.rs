@@ -1,6 +1,7 @@
 mod queue;
 mod grab;
 mod settings;
+mod window;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -601,6 +602,29 @@ pub fn run() {
             app.manage::<DeskState>(Mutex::new(Vec::new()));
 
             build_tray(app)?;
+
+            if let Some(panel) = app.get_webview_window("panel") {
+                window::restore(&panel);
+                let handle = panel.clone();
+                panel.on_window_event(move |event| {
+                    use tauri::WindowEvent;
+                    // Only geometry changes are interesting; ignore focus and
+                    // visibility churn, which fire constantly.
+                    if !matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                        return;
+                    }
+                    let (Ok(pos), Ok(size)) = (handle.outer_position(), handle.outer_size()) else {
+                        return;
+                    };
+                    window::record(window::Rect {
+                        x: pos.x,
+                        y: pos.y,
+                        width: size.width,
+                        height: size.height,
+                    });
+                });
+            }
+            window::spawn_persister(app.handle().clone());
 
             check_for_updates(app.handle().clone());
 
