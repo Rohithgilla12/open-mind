@@ -2513,9 +2513,15 @@ None of these can be automated. Each must be confirmed on a real machine before 
 - [ ] Bad-token behaviour: set a junk token, queue two saves, retry — the queue does **not** empty, and both entries survive.
 - [ ] Kill the app with entries queued, relaunch: the entries are still there and drain on launch.
 - [ ] Corrupt `queue.json` by hand (truncate it mid-object), relaunch: the app starts with an empty queue and no crash.
-- [ ] Tray Desk submenu lists pins and opens one in the browser; with no settings configured it shows a disabled "Open Settings first".
+- [ ] **Tray handler survives a menu rebuild.** Queue a save first, so `rebuild_tray_menu` has replaced the menu via `set_menu`, and *then* click a Desk item. `on_menu_event` is registered on the tray **icon**, not the menu, and this was never verifiable headless. If the handler has stopped firing, every Desk item and "Retry pending saves" silently does nothing, and the fix is to move the `match` into `app.on_menu_event(...)` in `setup()`. Checking the *first* menu passes trivially and does not test this.
+- [ ] With no settings configured, the Desk submenu shows a disabled "Open Settings first"; once configured and fetched, it lists pins and opens one in the browser.
 - [ ] Resize and move the panel, quit, relaunch: geometry is restored.
 - [ ] Move the panel to a second display, quit, disconnect it, relaunch: the panel appears centred on the remaining display.
+- [ ] **Retina default geometry.** On a 2× display, delete `window.json` and launch: the panel must open at 640×420 *logical* and centred — not at the 520×360 minimum, and not off-centre. This is the regression test for the logical-vs-physical pixel bug the whole-branch review caught, it reaches every installed dock on first launch after an auto-update, and no test can cover it.
+- [ ] **The panel is genuinely resizable from its edges** with `decorations: false`, and the drag strip still moves it. `resizable` was flipped and `center` dropped in the same change, and neither has been exercised outside a headless build.
+- [ ] **Revoked token is legible.** With entries queued, revoke the token server-side (not just a junk string — that is the case above), wait through two 60 s drainer cycles, and describe what the user can actually see. If the answer is "a gold 'N saves waiting to sync' and nothing else unless I expand the strip", decide whether that ships.
+- [ ] **Duplicate on a committed-but-timed-out save.** Against a slow instance, force a save to exceed the timeout *after* the server has committed, then let the queue retry. Confirm whether a duplicate item appears. Mobile guards this and the dock does not; 60 seconds of manual work confirms or kills it.
+- [ ] **Failed disk write tells the truth.** Make the queue directory unwritable, then save from the panel: the toast must read "Couldn't queue the save — try again", never "Saved offline — will retry". Applies to notes especially, which exist nowhere else.
 - [ ] The pending strip never steals focus from the search input, and ↑/↓ never enters it.
 - [ ] At least one newly-added browser confirmed by hand if installed (`osascript -e 'id of app "Vivaldi"'` to check the bundle id first).
 

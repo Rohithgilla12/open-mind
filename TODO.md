@@ -127,6 +127,38 @@
   Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary — the
   original five have been in production use since the first dock release;
   Chromium's bundle id was additionally confirmed by direct lookup)
+- Dock queue polish, all deliberately deferred from the 2026-08-12 pass and none
+  urgent — a whole-branch review found and triaged each:
+  - **`lib.rs`'s `open_item` logs a `tauri_plugin_opener::Error` whose `Display`
+    interpolates the URL** (`ForbiddenUrl { url, .. }`), i.e. `{instance_url}/item/{id}`.
+    Harmless while it was debug-only, but that pass turned release logging **on**,
+    so a self-hosted instance hostname can now reach a user's log file. No token
+    or body, so not a constraint breach — still worth making content-free.
+  - A revoked token now sets `lastError` on the stalled entry, but `PendingStrip`
+    only renders `lastError` when the strip is **expanded**, and `attempts` is
+    deliberately not bumped (so `stuck` stays false). A user who never clicks the
+    chevron sees a plain gold "N saves waiting to sync" indefinitely. Surfacing
+    it on the collapsed row would finish the job.
+  - At the 100-entry cap, `enqueue_and_notify` reports "N pending" while cap
+    eviction has just silently dropped the oldest capture. Mirrors mobile by
+    design, but it is the last capture-loss path on the Rust side.
+  - `build_menu` calls `settings_get()` on every tray rebuild purely to test a
+    boolean, materialising and discarding the keychain token each time — and the
+    rebuild now runs on every panel focus. A `settings_configured()` that reads
+    only the URL entry would be faster and better secret hygiene.
+  - `insert()` hardcodes `persisted: true` and is correct only because `enqueue`
+    overwrites it; a pessimistic `false` default would fail safe, at the cost of
+    flipping four test assertions.
+  - `spawn_persister` has no force-flush on quit, so quitting within 500 ms of a
+    move loses that geometry (reverts to the previously saved position).
+    `write_saved` also uses a bare `let _ = fs::write`, so disk errors are silent
+    — unlike `queue.rs`, which logs and writes atomically.
+  - `subscribeQueue`'s effect can run its cleanup before the listen promise
+    resolves, leaving the listener attached. It matches three pre-existing
+    effects in `Panel.tsx`; harden all four together or none.
+  - Pre-existing: `lib.rs`'s `shortcuts.json` parse warning interpolates `{e}`
+    (no secret in that file), and a keyring error string is surfaced raw in a
+    user-facing notification.
 - `repo` card type: the reserved-first-segment denylist in
   `apps/api/internal/enrich/classify.go` (and its SQL twin in migration 0021)
   is not exhaustive by construction. When a forge adds a reserved route, URLs
