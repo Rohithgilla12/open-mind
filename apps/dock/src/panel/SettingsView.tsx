@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { tokens } from "@openmind/ui";
 import { checkToken, claimDeviceCode } from "../lib/api";
+import { host } from "../lib/url";
 import { captureToAccelerator, normaliseDisplay, DEFAULT_QUICK_SAVE, DEFAULT_QUICK_FIND } from "../lib/accelerator";
 import { clearSettings, setSettings, DEFAULT_INSTANCE_URL, type Settings } from "../lib/settings";
 import { DragRegion } from "../components/DragRegion";
@@ -275,7 +276,22 @@ export function SettingsView({
             </button>
           ) : null}
         </div>
-        <p style={styles.subtitle}>Connect to your Openmind instance</p>
+        {initial ? (
+          // Being connected needs to be visible without scrolling. The only
+          // previous signal was a Sign out button below the shortcuts section,
+          // so a connected dock and a signed-out one looked identical here.
+          <div style={styles.connectedRow}>
+            <span style={styles.connectedDot} aria-hidden="true" />
+            <span style={styles.connectedText}>
+              Connected to <strong>{host(initial.instanceUrl)}</strong>
+            </span>
+            <button type="button" style={styles.connectedSignOut} onClick={() => void onSignOut()}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <p style={styles.subtitle}>Connect to your Openmind instance</p>
+        )}
 
         <label style={styles.field}>
           <span style={styles.label}>Instance URL</span>
@@ -294,7 +310,9 @@ export function SettingsView({
           />
         </label>
 
-        <h2 style={styles.sectionHeading}>Connect with code</h2>
+        <h2 style={styles.sectionHeading}>
+          {initial ? "Reconnect with a new code" : "Connect with code"}
+        </h2>
         <p style={styles.sectionHint}>
           On the web app, open Settings → Devices & keys, generate a code, then enter it here.
         </p>
@@ -649,6 +667,34 @@ const styles: Record<string, CSSProperties> = {
   },
   switchThumbOn: {
     transform: "translateX(18px)",
+  },
+  connectedRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    margin: "0 0 18px",
+  },
+  connectedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: tokens.color.green,
+    flex: "none",
+  },
+  connectedText: {
+    flex: 1,
+    fontSize: 13,
+    color: tokens.color.inkMuted,
+    minWidth: 0,
+  },
+  connectedSignOut: {
+    border: "none",
+    background: "none",
+    color: tokens.color.danger,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
   },
   signOutButton: {
     border: `1px solid ${tokens.color.hairline}`,
