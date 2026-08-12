@@ -535,13 +535,19 @@ export function Panel() {
       }
       if (res.status === 401) {
         showErrorToast("Token rejected — open Settings");
-      } else if (res.status === 0) {
-        // Never lose the capture — queue it and let the strip explain.
-        await enqueueCapture(body);
-        showErrorToast("Saved offline — will retry");
-      } else if (res.status === 429 || res.status >= 500) {
-        await enqueueCapture(body);
-        showErrorToast("Instance error — queued, will retry");
+      } else if (res.status === 0 || res.status === 429 || res.status >= 500) {
+        const offline = res.status === 0;
+        try {
+          // Never lose the capture — queue it and let the strip explain.
+          await enqueueCapture(body);
+          showErrorToast(
+            offline ? "Saved offline — will retry" : "Instance error — queued, will retry",
+          );
+        } catch {
+          // The queue itself failed, so nothing is holding this capture.
+          // Say so plainly rather than implying it is safe.
+          showErrorToast("Couldn't queue the save — try again");
+        }
       } else {
         showErrorToast(`Save failed (${res.status})`);
       }
