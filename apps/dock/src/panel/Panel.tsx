@@ -11,6 +11,7 @@ import { mergeHomeLists } from "../lib/home-lists";
 import { detectMode } from "../lib/input-mode";
 import { getSettings, type Settings } from "../lib/settings";
 import { confirmReduce, parseTags, type ConfirmState } from "../lib/save-confirm";
+import { host } from "../lib/url";
 import { SettingsView } from "./SettingsView";
 
 type ViewMode = "settings" | "main";
@@ -21,15 +22,6 @@ const SEARCH_DEBOUNCE_MS = 250;
 const HOME_RECENT_FETCH = 16; // fetch extra so merge can still fill 8 after desk dedupe
 const CONFIRM_IDLE_MS = 5_000;
 const CONFIRM_DONE_MS = 800;
-
-/** Best-effort hostname for display; falls back to the raw string. */
-function host(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
 
 function statusMessage(status: number): string {
   if (status === 401) return "Token rejected — open Settings";
