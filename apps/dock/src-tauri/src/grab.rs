@@ -40,18 +40,32 @@ pub fn script_for(bundle_id: &str) -> Option<(&'static str, String)> {
 o"#
         )
     };
-    match bundle_id {
-        "com.apple.Safari" => Some((
-            "Safari",
-            format!(
-                r#"tell application "Safari" to set o to (URL of front document) & "{SEP}" & (name of front document)
+    let safari = |app: &str| {
+        format!(
+            r#"tell application "{app}" to set o to (URL of front document) & "{SEP}" & (name of front document)
 o"#
-            ),
-        )),
+        )
+    };
+    match bundle_id {
+        "com.apple.Safari" => Some(("Safari", safari("Safari"))),
+        "com.apple.SafariTechnologyPreview" => {
+            Some(("Safari Technology Preview", safari("Safari Technology Preview")))
+        }
+        // Orion is WebKit and mirrors Safari's scripting dictionary. Unverified
+        // against a real install — see the README caveat.
+        "com.kagi.kagimacOS" => Some(("Orion", safari("Orion"))),
         "com.google.Chrome" => Some(("Google Chrome", chromium("Google Chrome"))),
+        "com.google.Chrome.beta" => Some(("Google Chrome Beta", chromium("Google Chrome Beta"))),
+        "com.google.Chrome.dev" => Some(("Google Chrome Dev", chromium("Google Chrome Dev"))),
+        "com.google.Chrome.canary" => {
+            Some(("Google Chrome Canary", chromium("Google Chrome Canary")))
+        }
         "com.brave.Browser" => Some(("Brave Browser", chromium("Brave Browser"))),
         "com.microsoft.edgemac" => Some(("Microsoft Edge", chromium("Microsoft Edge"))),
         "company.thebrowser.Browser" => Some(("Arc", chromium("Arc"))),
+        "com.vivaldi.Vivaldi" => Some(("Vivaldi", chromium("Vivaldi"))),
+        "com.operasoftware.Opera" => Some(("Opera", chromium("Opera"))),
+        "org.chromium.Chromium" => Some(("Chromium", chromium("Chromium"))),
         _ => None,
     }
 }
@@ -88,11 +102,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn chromium_bundles_map() {
-        for id in ["com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "company.thebrowser.Browser", "com.apple.Safari"] {
+    fn known_bundles_map_and_unknown_does_not() {
+        for id in [
+            "com.apple.Safari",
+            "com.apple.SafariTechnologyPreview",
+            "com.kagi.kagimacOS",
+            "com.google.Chrome",
+            "com.google.Chrome.beta",
+            "com.google.Chrome.dev",
+            "com.google.Chrome.canary",
+            "com.brave.Browser",
+            "com.microsoft.edgemac",
+            "company.thebrowser.Browser",
+            "com.vivaldi.Vivaldi",
+            "com.operasoftware.Opera",
+            "org.chromium.Chromium",
+        ] {
             assert!(script_for(id).is_some(), "{id}");
         }
         assert!(script_for("com.spotify.client").is_none());
+    }
+
+    #[test]
+    fn safari_shaped_browsers_script_their_own_app_name() {
+        let (name, script) = script_for("com.kagi.kagimacOS").unwrap();
+        assert_eq!(name, "Orion");
+        assert!(script.contains(r#"tell application "Orion""#), "{script}");
+        assert!(script.contains("front document"), "{script}");
+    }
+
+    #[test]
+    fn chromium_shaped_browsers_script_their_own_app_name() {
+        let (name, script) = script_for("com.vivaldi.Vivaldi").unwrap();
+        assert_eq!(name, "Vivaldi");
+        assert!(script.contains(r#"tell application "Vivaldi""#), "{script}");
+        assert!(script.contains("active tab of front window"), "{script}");
     }
 
     #[test]
