@@ -712,4 +712,22 @@ mod tests {
         let entries = parse_desk(&serde_json::from_str(&raw).unwrap());
         assert_eq!(entries.len(), DESK_MENU_MAX);
     }
+
+    /// The panel is `decorations: false`, so the only way to move it is the
+    /// drag strip, which works by `data-tauri-drag-region`. Tauri's injected
+    /// drag script turns that into `invoke("plugin:window|start_dragging")`,
+    /// and that command is **not** part of `core:default` — `core:window`'s
+    /// default permission set is entirely read-only commands. Without an
+    /// explicit grant the ACL rejects the call and the window simply never
+    /// moves, with nothing logged anywhere: the rejection lands in the webview
+    /// console, not the Rust log. That silence is why this shipped broken from
+    /// the initial release, so it gets a guard rather than a comment.
+    #[test]
+    fn capabilities_grant_window_dragging() {
+        let capability = include_str!("../capabilities/default.json");
+        assert!(
+            capability.contains("core:window:allow-start-dragging"),
+            "the panel cannot be dragged without core:window:allow-start-dragging"
+        );
+    }
 }
