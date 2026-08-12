@@ -10,7 +10,7 @@ export type QueuedCapture = {
   lastError?: string;
 };
 
-export type EnqueueResult = { id: string; deduped: boolean; dropped: number };
+export type EnqueueResult = { id: string; deduped: boolean; dropped: number; persisted: boolean };
 
 /** Current queue. Returns [] rather than throwing — the strip is chrome and
  *  must never take the panel down with it. */

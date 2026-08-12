@@ -115,10 +115,17 @@
 - Dock follow-ups: Win/Linux tab grab (no AppleScript equivalent — would need
   per-browser platform work or a bridge through the extension); unify the two
   HTTP paths to `POST /api/items` (Rust reqwest at 15s, TS plugin-http at 12s)
-  behind one Rust `save_item` command so the queue cannot be bypassed; verify
-  the remaining seven newly-added browser bundle ids against real installs
-  (Safari Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary —
-  the original five have been in production use since the first dock release;
+  behind one Rust `save_item` command so the queue cannot be bypassed — that
+  unification is also the natural place to add the duplicate-recovery guard
+  mobile already has (`apps/mobile/app/(tabs)/capture.tsx` checks, after a
+  status-0 failure, whether that exact URL was created since the attempt
+  began before enqueueing; the dock enqueues unconditionally, and the API
+  doesn't dedupe on create, so a POST that times out after the server
+  committed produces a duplicate when the queue retries — needs an extra GET
+  plus a decision about note saves, so not done here); verify the remaining
+  seven newly-added browser bundle ids against real installs (Safari
+  Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary — the
+  original five have been in production use since the first dock release;
   Chromium's bundle id was additionally confirmed by direct lookup)
 - `repo` card type: the reserved-first-segment denylist in
   `apps/api/internal/enrich/classify.go` (and its SQL twin in migration 0021)

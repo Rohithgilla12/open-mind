@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { tokens } from "@openmind/ui";
 import { entryLabel, pendingSummary, relativeAge } from "../lib/pending-summary";
@@ -6,6 +6,9 @@ import type { QueuedCapture } from "../lib/queue";
 
 /** Rows shown when expanded; the rest collapse into a "+N more" line. */
 const VISIBLE_ROWS = 5;
+
+/** How often the relative-age text re-renders while items are pending. */
+const AGE_REFRESH_MS = 30_000;
 
 export function PendingStrip({
   items,
@@ -17,6 +20,15 @@ export function PendingStrip({
   onDiscard: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Forces a re-render so relative ages ("3m ago") advance even when the
+  // queue itself is stalled and no queue-changed event ever arrives.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (items.length === 0) return;
+    const id = setInterval(() => tick((n) => n + 1), AGE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [items.length]);
+
   if (items.length === 0) return null;
 
   const { label, stuck } = pendingSummary(items);
