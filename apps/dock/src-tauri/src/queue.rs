@@ -184,10 +184,17 @@ pub fn pending_count(app: &AppHandle) -> usize {
     app.state::<QueueState>().lock().unwrap().len()
 }
 
+/// Tells the panel the queue changed. Cheap — no tray work, so a caller that
+/// rebuilds the tray itself (e.g. `flush`, once per pass) can use this
+/// per-mutation without paying for a menu rebuild each time.
+fn emit_changed(app: &AppHandle, items: &[QueuedCapture]) {
+    let _ = app.emit_to("panel", "queue-changed", items);
+}
+
 /// Tells the panel and the tray that the queue changed. Call with the lock
 /// released — the tray rebuild reads state itself.
 fn notify_changed(app: &AppHandle, items: Vec<QueuedCapture>) {
-    let _ = app.emit_to("panel", "queue-changed", &items);
+    emit_changed(app, &items);
     crate::rebuild_tray_menu(app);
 }
 
@@ -251,6 +258,12 @@ pub async fn flush(app: AppHandle) {
         return;
     };
 
+    // One rebuild for the whole pass rather than one per entry: draining a
+    // full queue can mean up to MAX_QUEUE round trips through the tray menu
+    // builder otherwise. The panel still gets a per-entry emit for its live
+    // progress strip.
+    let mut mutated = false;
+
     loop {
         let next = {
             let state = app.state::<QueueState>();
@@ -262,6 +275,12 @@ pub async fn flush(app: AppHandle) {
         let status = post_capture(&client, &settings, &entry).await;
         let disp = disposition(status);
 
+        // A bad token: stop the pass with the queue untouched, and touch
+        // neither the disk nor the tray for it — nothing here mutated.
+        if disp == Disposition::StopUnauthorized {
+            break;
+        }
+
         let snapshot = {
             let state = app.state::<QueueState>();
             let mut items = state.lock().unwrap();
@@ -271,22 +290,27 @@ pub async fn flush(app: AppHandle) {
                     log::warn!("dropping a queued capture after permanent HTTP {status}");
                     items.retain(|q| q.id != entry.id);
                 }
-                Disposition::StopUnauthorized => {}
                 Disposition::Retry => {
                     if let Some(q) = items.iter_mut().find(|q| q.id == entry.id) {
                         q.attempts += 1;
                         q.last_error = Some(error_label(status));
                     }
                 }
+                Disposition::StopUnauthorized => unreachable!("handled above"),
             }
             persist(&app, &items);
             items.clone()
         };
-        notify_changed(&app, snapshot);
+        mutated = true;
+        emit_changed(&app, &snapshot);
 
-        if matches!(disp, Disposition::StopUnauthorized | Disposition::Retry) {
+        if disp == Disposition::Retry {
             break;
         }
+    }
+
+    if mutated {
+        crate::rebuild_tray_menu(&app);
     }
 }
 

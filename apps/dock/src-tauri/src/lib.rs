@@ -37,7 +37,9 @@ pub struct DeskEntry {
 }
 
 /// Cached Desk pins for the tray submenu. Refreshed on launch, after a
-/// successful save, and on panel focus — never on a background timer.
+/// successful save, and on panel focus — never on a background timer. Only
+/// ever overwritten by a successful fetch, so a transient failure keeps
+/// serving the last-known-good pins instead of emptying the submenu.
 pub type DeskState = Mutex<Vec<DeskEntry>>;
 
 /// Reads Desk rows out of either shape: the ItemPage envelope or the bare
@@ -466,8 +468,11 @@ fn open_item(_app: &AppHandle, item_id: &str) {
     }
 }
 
-/// Fetches Desk pins and rebuilds the tray. Silent on failure — the submenu
-/// falls back to its disabled placeholder.
+/// Fetches Desk pins and rebuilds the tray. A failed or unconfigured fetch
+/// leaves the cache untouched — the last-known-good pins keep serving the
+/// submenu rather than being wiped by a transient blip. The disabled
+/// placeholder is only ever seen on a cold start, before the first fetch
+/// succeeds.
 pub fn refresh_desk(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let Ok(Some(settings)) = settings::settings_get() else {
@@ -478,14 +483,16 @@ pub fn refresh_desk(app: AppHandle) {
             return;
         };
         let endpoint = format!("{}/api/desk", settings.instance_url);
-        let entries = match client.get(&endpoint).bearer_auth(&settings.token).send().await {
-            Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
-                Ok(body) => parse_desk(&body),
-                Err(_) => Vec::new(),
-            },
-            _ => Vec::new(),
-        };
-        *app.state::<DeskState>().lock().unwrap() = entries;
+        match client.get(&endpoint).bearer_auth(&settings.token).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    *app.state::<DeskState>().lock().unwrap() = parse_desk(&body);
+                }
+            }
+            // Keep the last-known-good pins: a transient failure must not
+            // empty the submenu the cache exists to keep serving.
+            _ => {}
+        }
         rebuild_tray_menu(&app);
     });
 }
