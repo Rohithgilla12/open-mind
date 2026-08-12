@@ -1,5 +1,6 @@
 import { Component, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ErrorInfo, KeyboardEvent, ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -9,9 +10,12 @@ import { IconButton, SettingsIcon } from "../components/SettingsIcon";
 import { saveItem, searchItems, setUserTags, listDesk, listRecent, type Item, type SearchResult } from "../lib/api";
 import { mergeHomeLists } from "../lib/home-lists";
 import { detectMode } from "../lib/input-mode";
+import { enqueueCapture, flushQueue, listQueue, removeQueued, subscribeQueue, type QueuedCapture } from "../lib/queue";
 import { getSettings, type Settings } from "../lib/settings";
 import { confirmReduce, parseTags, type ConfirmState } from "../lib/save-confirm";
 import { host } from "../lib/url";
+import { ConfirmStrip } from "./ConfirmStrip";
+import { PendingStrip } from "./PendingStrip";
 import { SettingsView } from "./SettingsView";
 
 type ViewMode = "settings" | "main";
@@ -116,6 +120,7 @@ export function Panel() {
   const [homeEpoch, setHomeEpoch] = useState(0);
   const [confirm, setConfirm] = useState<ConfirmState>({ kind: "hidden" });
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [pending, setPending] = useState<QueuedCapture[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmInputRef = useRef<HTMLInputElement>(null);
@@ -199,6 +204,11 @@ export function Panel() {
             inputRef.current?.focus();
           }
           bumpHome();
+          // Coming back to the panel is a good moment to retry: it usually
+          // means the machine woke or the network came back. It is also when
+          // the tray Desk submenu is refreshed, in place of a background timer.
+          void flushQueue();
+          void invoke("desk_refresh").catch(() => {});
         }
       })
       .then((fn) => {
@@ -218,6 +228,16 @@ export function Panel() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void listen("open-settings", () => setView("settings")).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  // Rust owns the queue; mirror it here for the strip.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listQueue().then(setPending);
+    void subscribeQueue(setPending).then((fn) => {
       unlisten = fn;
     });
     return () => unlisten?.();
@@ -516,7 +536,12 @@ export function Panel() {
       if (res.status === 401) {
         showErrorToast("Token rejected — open Settings");
       } else if (res.status === 0) {
-        showErrorToast("Instance unreachable");
+        // Never lose the capture — queue it and let the strip explain.
+        await enqueueCapture(body);
+        showErrorToast("Saved offline — will retry");
+      } else if (res.status === 429 || res.status >= 500) {
+        await enqueueCapture(body);
+        showErrorToast("Instance error — queued, will retry");
       } else {
         showErrorToast(`Save failed (${res.status})`);
       }
@@ -656,35 +681,23 @@ export function Panel() {
         <div style={styles.understood}>Understood as “{understood}”</div>
       ) : null}
 
-      {confirm.kind !== "hidden" ? (
-        <div style={styles.confirmStrip}>
-          <span style={styles.confirmTitle}>Saved — {confirmTitleRef.current}</span>
-          {confirm.kind === "done" ? (
-            <span style={styles.confirmDone}>Tagged ✓</span>
-          ) : (
-            <>
-              <input
-                ref={confirmInputRef}
-                style={styles.confirmInput}
-                value={confirm.kind === "confirming" || confirm.kind === "saving-tags" ? confirm.tags : ""}
-                onChange={(e) => {
-                  setConfirmError(null);
-                  dispatchConfirm({ type: "type-tags", tags: e.target.value });
-                }}
-                onKeyDown={onConfirmTagKeyDown}
-                placeholder="Add tags…"
-                disabled={confirm.kind === "saving-tags"}
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              <span style={{ ...styles.confirmHint, ...(confirmError ? { color: tokens.color.danger } : {}) }}>
-                {confirmError ?? (confirm.kind === "saving-tags" ? "Saving…" : "Enter to tag · Esc to skip")}
-              </span>
-            </>
-          )}
-        </div>
-      ) : null}
+      <ConfirmStrip
+        confirm={confirm}
+        title={confirmTitleRef.current}
+        error={confirmError}
+        inputRef={confirmInputRef}
+        onChangeTags={(value) => {
+          setConfirmError(null);
+          dispatchConfirm({ type: "type-tags", tags: value });
+        }}
+        onKeyDown={onConfirmTagKeyDown}
+      />
+
+      <PendingStrip
+        items={pending}
+        onRetry={() => void flushQueue()}
+        onDiscard={(id) => void removeQueued(id)}
+      />
 
       <div style={styles.body}>
         {toast?.kind === "saved" ? (
@@ -818,45 +831,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 18,
     fontFamily: tokens.font.sans,
     color: tokens.color.ink,
-  },
-  confirmStrip: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 16px",
-    borderBottom: `1px solid ${tokens.color.hairline}`,
-    background: tokens.color.noteSurface,
-  },
-  confirmTitle: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: tokens.color.ink,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    maxWidth: "40%",
-  },
-  confirmInput: {
-    flex: 1,
-    border: `1px solid ${tokens.color.hairline}`,
-    borderRadius: 8,
-    background: tokens.color.cardSurface,
-    color: tokens.color.ink,
-    fontSize: 13,
-    fontFamily: tokens.font.sans,
-    padding: "6px 10px",
-    minWidth: 0,
-  },
-  confirmHint: {
-    fontFamily: tokens.font.mono,
-    fontSize: 10,
-    color: tokens.color.inkFaint,
-    whiteSpace: "nowrap",
-  },
-  confirmDone: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: tokens.color.green,
   },
   understood: {
     fontFamily: tokens.font.mono,
