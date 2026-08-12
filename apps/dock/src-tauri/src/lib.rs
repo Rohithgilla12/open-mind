@@ -369,9 +369,21 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let submenu = Submenu::with_id(app, "desk", "Desk", true)?;
     if desk.is_empty() {
         // A disabled placeholder, never a vanishing item: a menu entry that
-        // disappears reads as a bug, a greyed one explains itself.
-        let configured = settings::settings_get().ok().flatten().is_some();
-        let label = if configured { "Couldn't load Desk" } else { "Open Settings first" };
+        // disappears reads as a bug, a greyed one explains itself. All three
+        // outcomes get their own label — collapsing a keychain *error* into
+        // "not configured" tells the user to re-enter settings they already
+        // have, which is the one instruction guaranteed not to help.
+        let label = match settings::settings_get() {
+            Ok(Some(_)) => "Couldn't load Desk",
+            Ok(None) => "Open Settings first",
+            Err(e) => {
+                // keyring::Error never carries the secret itself, so this is
+                // safe to log — and it is the only trace of why the dock
+                // cannot see settings that are demonstrably present.
+                log::warn!("keychain read failed while building the tray menu: {e}");
+                "Keychain unavailable"
+            }
+        };
         submenu.append(&MenuItem::with_id(app, "desk-empty", label, false, None::<&str>)?)?;
     } else {
         for entry in &desk {
