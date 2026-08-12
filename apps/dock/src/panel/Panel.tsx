@@ -539,10 +539,16 @@ export function Panel() {
         const offline = res.status === 0;
         try {
           // Never lose the capture — queue it and let the strip explain.
-          await enqueueCapture(body);
-          showErrorToast(
-            offline ? "Saved offline — will retry" : "Instance error — queued, will retry",
-          );
+          const result = await enqueueCapture(body);
+          if (!result.persisted) {
+            // The queue accepted it in memory but the disk write failed, so
+            // it will not survive a quit. Do not promise a retry.
+            showErrorToast("Couldn't queue the save — try again");
+          } else {
+            showErrorToast(
+              offline ? "Saved offline — will retry" : "Instance error — queued, will retry",
+            );
+          }
         } catch {
           // The queue itself failed, so nothing is holding this capture.
           // Say so plainly rather than implying it is safe.
