@@ -1,3 +1,4 @@
+mod queue;
 mod grab;
 mod settings;
 
