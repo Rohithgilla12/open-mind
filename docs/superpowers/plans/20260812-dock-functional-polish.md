@@ -398,23 +398,33 @@ git commit -m "feat(dock): offline queue data model and delivery policy"
 
 ---
 
-### Task 3: Persist, wire, and drain the queue
+### Task 3: Persist and drain the queue, and rebuild the tray around it
+
+This task covers both the queue's stateful half and the whole tray menu. They
+are one task because `queue.rs` notifies the tray on every mutation and the tray
+reads the queue for its pending count — splitting them would mean shipping a
+temporary no-op stub for `rebuild_tray_menu`, i.e. mandated dead code.
+
+It is the largest task in the plan (roughly 400 lines of Rust across two files).
+Work through the steps in order; each has its own test or build gate.
 
 **Files:**
 - Modify: `apps/dock/src-tauri/src/queue.rs` (append the stateful half)
-- Modify: `apps/dock/src-tauri/src/lib.rs` (managed state, commands, `quick_save` arms, drainer)
+- Modify: `apps/dock/src-tauri/src/lib.rs` (managed state, commands, `quick_save` arms, drainer, Desk cache, tray rebuild)
 
 **Interfaces:**
 - Consumes from Task 2: `QueuedCapture`, `InsertResult`, `Disposition`, `disposition`, `error_label`, `insert`, `parse_queue`, `MAX_QUEUE`.
-- Produces, used by Task 4 and Task 6:
+- Produces, used by Tasks 5, 6, and 7:
   - `pub type QueueState = std::sync::Mutex<Vec<QueuedCapture>>`
   - `pub fn load(app: &AppHandle) -> Vec<QueuedCapture>`
   - `pub fn pending_count(app: &AppHandle) -> usize`
   - `pub fn enqueue(app: &AppHandle, url: Option<String>, note: Option<String>) -> InsertResult`
   - `pub async fn flush(app: AppHandle)`
-  - Commands `queue_list`, `queue_enqueue`, `queue_flush`, `queue_remove`
+  - `pub fn rebuild_tray_menu(app: &AppHandle)`
+  - `pub type DeskState = std::sync::Mutex<Vec<DeskEntry>>` where `pub struct DeskEntry { pub id: String, pub title: String }`
+  - `pub fn refresh_desk(app: AppHandle)`
+  - Commands `queue_list`, `queue_enqueue`, `queue_flush`, `queue_remove`, `desk_refresh`
   - Event `queue-changed`, payload `Vec<QueuedCapture>`, emitted to the `panel` window
-- **Depends on Task 4** for `crate::rebuild_tray_menu`. Implement Task 3 first with a temporary no-op `pub fn rebuild_tray_menu(_app: &AppHandle) {}` in `lib.rs`, which Task 4 replaces with the real one. This keeps each task independently compilable and testable.
 
 - [ ] **Step 1: Append the stateful half of `queue.rs`**
 
@@ -652,23 +662,262 @@ pub fn spawn_drainer(app: AppHandle) {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles and the Task 2 tests still pass**
+At this point `queue.rs` calls `crate::rebuild_tray_menu`, which does not exist
+yet — the crate will not compile until Step 4 adds it. That is expected; do not
+add a stub, and do not run `cargo test` until Step 5.
 
-Run: `cd apps/dock/src-tauri && cargo test`
-Expected: FAIL to compile — `cannot find function rebuild_tray_menu in the crate root`. That is the Task 4 dependency; fix it in the next step.
+**Steps 2 to 4 build the tray half.** `parse_desk` is the only part with real
+logic risk, because `/api/desk` may return either the `ItemPage` envelope or the
+bare array an older instance serves, so it gets tests first.
 
-- [ ] **Step 3: Wire `lib.rs`**
+- [ ] **Step 2: Write the failing Desk tests**
+
+Add to the `#[cfg(test)] mod tests` at the bottom of `apps/dock/src-tauri/src/lib.rs`:
+
+```rust
+    #[test]
+    fn desk_entries_read_both_list_shapes() {
+        let envelope = r#"{"items":[{"id":"1","title":"One"},{"id":"2","title":"Two"}]}"#;
+        let bare = r#"[{"id":"1","title":"One"},{"id":"2","title":"Two"}]"#;
+        for raw in [envelope, bare] {
+            let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+            assert_eq!(entries.len(), 2, "{raw}");
+            assert_eq!(entries[0].id, "1");
+            assert_eq!(entries[0].title, "One");
+        }
+    }
+
+    #[test]
+    fn desk_entries_fall_back_to_the_url_when_untitled() {
+        let raw = r#"[{"id":"1","url":"https://www.example.com/a"}]"#;
+        let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+        assert_eq!(entries[0].title, "https://www.example.com/a");
+    }
+
+    #[test]
+    fn desk_entries_ignore_rows_without_an_id() {
+        let raw = r#"[{"title":"no id"},{"id":"2","title":"Two"}]"#;
+        let entries = parse_desk(&serde_json::from_str(raw).unwrap());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, "2");
+    }
+
+    #[test]
+    fn desk_entries_cap_at_eight() {
+        let rows: Vec<String> = (0..20)
+            .map(|i| format!(r#"{{"id":"{i}","title":"T{i}"}}"#))
+            .collect();
+        let raw = format!("[{}]", rows.join(","));
+        let entries = parse_desk(&serde_json::from_str(&raw).unwrap());
+        assert_eq!(entries.len(), DESK_MENU_MAX);
+    }
+```
+
+- [ ] **Step 3: Confirm the tests cannot yet pass**
+
+Run: `cd apps/dock/src-tauri && cargo test desk`
+Expected: FAIL to compile — `cannot find function parse_desk`, `cannot find value DESK_MENU_MAX`, and `cannot find function rebuild_tray_menu` from Step 1.
+
+- [ ] **Step 4: Add the Desk cache and the tray menu**
+
+In `apps/dock/src-tauri/src/lib.rs`, extend the menu imports:
+
+```rust
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+```
+
+Add near the other constants:
+
+```rust
+/// Desk pins shown in the tray submenu.
+const DESK_MENU_MAX: usize = 8;
+
+#[derive(Clone, Debug)]
+pub struct DeskEntry {
+    pub id: String,
+    pub title: String,
+}
+
+/// Cached Desk pins for the tray submenu. Refreshed on launch, after a
+/// successful save, and on panel focus — never on a background timer.
+pub type DeskState = Mutex<Vec<DeskEntry>>;
+
+/// Reads Desk rows out of either shape: the ItemPage envelope or the bare
+/// array an older instance serves. Mirrors readItemList in src/lib/api.ts.
+fn parse_desk(body: &serde_json::Value) -> Vec<DeskEntry> {
+    let rows = body
+        .get("items")
+        .and_then(|v| v.as_array())
+        .or_else(|| body.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    rows.iter()
+        .filter_map(|row| {
+            let id = row.get("id").and_then(|v| v.as_str())?.to_string();
+            let title = row
+                .get("title")
+                .and_then(|v| v.as_str())
+                .filter(|t| !t.trim().is_empty())
+                .or_else(|| row.get("url").and_then(|v| v.as_str()))
+                .unwrap_or("Untitled")
+                .to_string();
+            Some(DeskEntry { id, title })
+        })
+        .take(DESK_MENU_MAX)
+        .collect()
+}
+```
+
+Then replace `build_tray` (currently lines 291-319) with the menu builder, the
+rebuild, the new `build_tray`, the item opener, and the Desk refresh:
+
+```rust
+fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    menu.append(&MenuItem::with_id(app, "open-panel", "Open panel", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "save-tab", "Save current tab", true, None::<&str>)?)?;
+
+    let desk = app.state::<DeskState>().lock().unwrap().clone();
+    let submenu = Submenu::with_id(app, "desk", "Desk", true)?;
+    if desk.is_empty() {
+        // A disabled placeholder, never a vanishing item: a menu entry that
+        // disappears reads as a bug, a greyed one explains itself.
+        let configured = settings::settings_get().ok().flatten().is_some();
+        let label = if configured { "Couldn't load Desk" } else { "Open Settings first" };
+        submenu.append(&MenuItem::with_id(app, "desk-empty", label, false, None::<&str>)?)?;
+    } else {
+        for entry in &desk {
+            submenu.append(&MenuItem::with_id(
+                app,
+                format!("desk:{}", entry.id),
+                truncate(&entry.title, 48),
+                true,
+                None::<&str>,
+            )?)?;
+        }
+    }
+    menu.append(&submenu)?;
+
+    let pending = queue::pending_count(app);
+    if pending > 0 {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+        let label = if pending == 1 {
+            "1 pending save".to_string()
+        } else {
+            format!("{pending} pending saves")
+        };
+        menu.append(&MenuItem::with_id(app, "pending-count", label, false, None::<&str>)?)?;
+        menu.append(&MenuItem::with_id(
+            app,
+            "retry-pending",
+            "Retry pending saves",
+            true,
+            None::<&str>,
+        )?)?;
+    }
+
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+/// Rebuilds the whole tray menu. Tauri v2 has no way to mutate a menu in
+/// place, so both the queue count and the Desk cache come through here.
+pub fn rebuild_tray_menu(app: &AppHandle) {
+    let Some(tray) = app.tray_by_id("main") else { return };
+    match build_menu(app) {
+        Ok(menu) => {
+            if let Err(e) = tray.set_menu(Some(menu)) {
+                log::warn!("tray menu update failed: {e}");
+            }
+        }
+        Err(e) => log::warn!("tray menu build failed: {e}"),
+    }
+}
+
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let menu = build_menu(app.handle())?;
+    let mut tray = TrayIconBuilder::with_id("main").menu(&menu);
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+
+    tray.on_menu_event(|app, event| {
+        let id = event.id().as_ref().to_string();
+        match id.as_str() {
+            "open-panel" => show_panel(app),
+            "save-tab" => quick_save(app),
+            "retry-pending" => {
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move { queue::flush(handle).await });
+            }
+            "settings" => {
+                show_panel(app);
+                if let Some(window) = app.get_webview_window("panel") {
+                    let _ = window.emit("open-settings", ());
+                }
+            }
+            "quit" => app.exit(0),
+            other => {
+                if let Some(item_id) = other.strip_prefix("desk:") {
+                    open_item(app, item_id);
+                }
+            }
+        }
+    })
+    .build(app)?;
+
+    Ok(())
+}
+
+/// Opens an item in the user's browser from the tray.
+fn open_item(app: &AppHandle, item_id: &str) {
+    let Ok(Some(settings)) = settings::settings_get() else { return };
+    let url = format!("{}/item/{}", settings.instance_url, item_id);
+    if let Err(e) = tauri_plugin_opener::open_url(url, None::<&str>) {
+        log::warn!("couldn't open a Desk item: {e}");
+    }
+}
+
+/// Fetches Desk pins and rebuilds the tray. Silent on failure — the submenu
+/// falls back to its disabled placeholder.
+pub fn refresh_desk(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(Some(settings)) = settings::settings_get() else {
+            rebuild_tray_menu(&app);
+            return;
+        };
+        let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(10)).build() else {
+            return;
+        };
+        let endpoint = format!("{}/api/desk", settings.instance_url);
+        let entries = match client.get(&endpoint).bearer_auth(&settings.token).send().await {
+            Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+                Ok(body) => parse_desk(&body),
+                Err(_) => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
+        *app.state::<DeskState>().lock().unwrap() = entries;
+        rebuild_tray_menu(&app);
+    });
+}
+
+/// Lets the panel refresh the Desk submenu when it regains focus — the
+/// stand-in for background polling.
+#[tauri::command]
+pub fn desk_refresh(app: AppHandle) {
+    refresh_desk(app);
+}
+```
+
+- [ ] **Step 5: Wire `lib.rs`**
 
 In `apps/dock/src-tauri/src/lib.rs`:
 
-a. Add the temporary tray stub (Task 4 replaces it):
-
-```rust
-/// Placeholder until Task 4 lands the real tray rebuild.
-pub fn rebuild_tray_menu(_app: &AppHandle) {}
-```
-
-b. Replace `quick_save`'s response `match` (currently lines 251-273) with:
+a. Replace `quick_save`'s response `match` (currently lines 251-273) with:
 
 ```rust
         match response {
@@ -725,6 +974,12 @@ b. Replace `quick_save`'s response `match` (currently lines 251-273) with:
         }
 ```
 
+b. In `quick_save`, inside the `201` arm immediately after the `notify` call, refresh the Desk cache so a just-pinned item can appear:
+
+```rust
+                refresh_desk(app.clone());
+```
+
 c. Register the commands — extend the `tauri::generate_handler!` list with:
 
 ```rust
@@ -732,14 +987,16 @@ c. Register the commands — extend the `tauri::generate_handler!` list with:
             queue::queue_enqueue,
             queue::queue_flush,
             queue::queue_remove,
+            desk_refresh,
 ```
 
-d. In `setup()`, immediately after the `register_shortcut_or_warn` calls and **before** `build_tray(app)?`:
+d. In `setup()`, immediately after the `register_shortcut_or_warn` calls and **before** `build_tray(app)?` — the menu builder reads both of these states, so both must be managed first:
 
 ```rust
             let pending = queue::load(app.handle());
             let had_pending = !pending.is_empty();
             app.manage::<queue::QueueState>(Mutex::new(pending));
+            app.manage::<DeskState>(Mutex::new(Vec::new()));
 ```
 
 e. In `setup()`, after `check_for_updates(...)`:
@@ -752,27 +1009,42 @@ e. In `setup()`, after `check_for_updates(...)`:
                 tauri::async_runtime::spawn(async move { queue::flush(handle).await });
             }
             queue::spawn_drainer(app.handle().clone());
+            refresh_desk(app.handle().clone());
 ```
 
-- [ ] **Step 4: Run tests and a release build**
+- [ ] **Step 6: Run tests and a build**
 
 Run: `cd apps/dock/src-tauri && cargo test && cargo build`
-Expected: PASS, and a clean build with no warnings about unused items.
+Expected: PASS — the 8 queue tests from Task 2, the 4 new desk tests, grab and accelerator tests. Clean build with no unused-item warnings.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Verify the tray by hand before committing**
+
+`tray.set_menu()` replaces the menu that `TrayIconBuilder` was given, but `on_menu_event` is registered on the *tray icon*, not on the menu. Run `pnpm exec tauri dev`, trigger a rebuild (save something, or queue one), then click a Desk item and confirm it still opens. If the handler stops firing after a rebuild, move the whole `match` into an `app.on_menu_event(...)` call inside `setup()`; the arms are unchanged.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add apps/dock/src-tauri/src/queue.rs apps/dock/src-tauri/src/lib.rs
-git commit -m "feat(dock): persist, drain, and enqueue failed saves
+git commit -m "feat(dock): persist and drain failed saves, and rebuild the tray around the queue
 
 quick_save no longer discards a capture on a network error. A network
 failure queues it as 'Saved offline'; a 5xx or 429 queues it as
-'Instance error' so an up-but-broken instance is distinguishable."
+'Instance error' so an up-but-broken instance is distinguishable. The
+tray gains a Desk submenu and a pending-save count, both served by one
+rebuild helper."
 ```
 
 ---
 
-### Task 4: Tray Desk submenu and pending-save items
+### Task 4: MERGED INTO TASK 3 — do not implement
+
+The tray work below was originally its own task. It is now Steps 2, 4, 5b, 5d and
+5e of Task 3, because splitting it would have required shipping a temporary no-op
+`rebuild_tray_menu` stub — mandated dead code. **Skip this section entirely; it is
+retained only so the step numbering of Tasks 5-9 stays stable.**
+
+<details>
+<summary>Superseded original Task 4 (do not implement)</summary>
 
 **Files:**
 - Modify: `apps/dock/src-tauri/src/lib.rs` (replace `build_tray`, replace the `rebuild_tray_menu` stub, add the Desk cache)
@@ -1068,6 +1340,8 @@ Expected: PASS, 4 new desk tests.
 git add apps/dock/src-tauri/src/lib.rs
 git commit -m "feat(dock): tray Desk submenu and pending-save items"
 ```
+
+</details>
 
 ---
 
