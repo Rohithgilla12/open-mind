@@ -377,7 +377,17 @@ pub fn parse_queue(raw: &str) -> Vec<QueuedCapture> {
     match serde_json::from_str::<Vec<QueuedCapture>>(raw) {
         Ok(items) => items,
         Err(e) => {
-            log::warn!("queue.json failed to parse: {e}");
+            // Never interpolate `{e}` here: serde_json's Display quotes the
+            // offending value on a type mismatch, which would put a fragment
+            // of a queued URL or note in the log. classify/line/column carry
+            // no document content.
+            log::warn!(
+                "queue.json failed to parse ({:?} at line {}, column {}; {} bytes) — treating the queue as empty",
+                e.classify(),
+                e.line(),
+                e.column(),
+                raw.len()
+            );
             Vec::new()
         }
     }
@@ -893,14 +903,19 @@ pub fn refresh_desk(app: AppHandle) {
             return;
         };
         let endpoint = format!("{}/api/desk", settings.instance_url);
-        let entries = match client.get(&endpoint).bearer_auth(&settings.token).send().await {
-            Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
-                Ok(body) => parse_desk(&body),
-                Err(_) => Vec::new(),
-            },
-            _ => Vec::new(),
-        };
-        *app.state::<DeskState>().lock().unwrap() = entries;
+        match client.get(&endpoint).bearer_auth(&settings.token).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    // Single statement on purpose: the guard must drop before
+                    // rebuild_tray_menu locks DeskState again.
+                    *app.state::<DeskState>().lock().unwrap() = parse_desk(&body);
+                }
+            }
+            // Keep the last-known-good pins. A transient failure must not empty
+            // the submenu the cache exists to keep serving — the disabled
+            // placeholder is for a cold start, not for going offline.
+            _ => {}
+        }
         rebuild_tray_menu(&app);
     });
 }
@@ -1279,14 +1294,19 @@ pub fn refresh_desk(app: AppHandle) {
             return;
         };
         let endpoint = format!("{}/api/desk", settings.instance_url);
-        let entries = match client.get(&endpoint).bearer_auth(&settings.token).send().await {
-            Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
-                Ok(body) => parse_desk(&body),
-                Err(_) => Vec::new(),
-            },
-            _ => Vec::new(),
-        };
-        *app.state::<DeskState>().lock().unwrap() = entries;
+        match client.get(&endpoint).bearer_auth(&settings.token).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    // Single statement on purpose: the guard must drop before
+                    // rebuild_tray_menu locks DeskState again.
+                    *app.state::<DeskState>().lock().unwrap() = parse_desk(&body);
+                }
+            }
+            // Keep the last-known-good pins. A transient failure must not empty
+            // the submenu the cache exists to keep serving — the disabled
+            // placeholder is for a cold start, not for going offline.
+            _ => {}
+        }
         rebuild_tray_menu(&app);
     });
 }
@@ -2509,7 +2529,14 @@ git commit -m "chore(dock): bump version to 0.4.0"
 - **The 60s drainer thread never exits.** It is a daemon thread on a tray app that
   lives until quit; that is fine, but do not copy the pattern anywhere that
   expects clean shutdown.
-- **`notify_changed` calls into the tray on every mutation.** During a flush of 50
-  entries that is 50 menu rebuilds. Acceptable at the cap of 100 and worth leaving
-  simple; if it ever shows up as a stall, coalesce by rebuilding once after the
-  loop instead of inside it.
+- **The tray rebuild is coalesced in `flush`.** A rebuild is not cheap: it is
+  roughly 20 blocking main-thread round-trips, and while the Desk cache is empty
+  `build_menu` also reads the keychain twice. Doing that once per entry meant up
+  to 100 rebuilds per drain, so `flush` emits `queue-changed` per entry (the
+  panel strip needs live progress) but rebuilds the tray once after the pass, and
+  only when something actually changed. Single mutations — `enqueue`,
+  `queue_remove` — still do both at once via `notify_changed`. The
+  `StopUnauthorized` arm skips the persist and the emit entirely, since it
+  mutates nothing.
+  This supersedes an earlier note in this plan that deferred the coalescing;
+  the maintainer chose to do it during Task 3's review, 2026-08-12.
