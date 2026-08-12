@@ -94,7 +94,13 @@ pub fn parse_queue(raw: &str) -> Vec<QueuedCapture> {
     match serde_json::from_str::<Vec<QueuedCapture>>(raw) {
         Ok(items) => items,
         Err(e) => {
-            log::warn!("queue.json failed to parse: {e}");
+            log::warn!(
+                "queue.json failed to parse ({:?} at line {}, column {}; {} bytes) — treating the queue as empty",
+                e.classify(),
+                e.line(),
+                e.column(),
+                raw.len()
+            );
             Vec::new()
         }
     }
@@ -195,5 +201,13 @@ mod tests {
         assert!(parse_queue(r#"{"id":"a"}"#).is_empty(), "an object is not an array");
         // Truncated by a crash mid-write.
         assert!(parse_queue(r#"[{"id":"a","createdAt":1,"att"#).is_empty());
+    }
+
+    #[test]
+    fn parse_queue_rejects_a_type_mismatched_field() {
+        // createdAt is a string where an integer is required: serde reports
+        // this as a Data error whose Display would quote the offending value.
+        let raw = r#"[{"id":"a","url":"https://one.example","createdAt":"nope","attempts":0}]"#;
+        assert!(parse_queue(raw).is_empty());
     }
 }
