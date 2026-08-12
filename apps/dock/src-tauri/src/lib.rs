@@ -232,6 +232,19 @@ fn toggle_panel(app: &AppHandle) {
     }
 }
 
+/// Queues a capture and notifies accordingly — but only promises a retry
+/// when the queue actually wrote it to disk. An entry that failed to persist
+/// might still drain later this session, but the user must not be told it
+/// is safe: it dies at quit like anything else that never made it to disk.
+fn enqueue_and_notify(app: &AppHandle, url: String, ok_prefix: &str) {
+    let result = queue::enqueue(app, Some(url), None);
+    if result.persisted {
+        notify(app, &format!("{ok_prefix} ({} pending)", queue::pending_count(app)));
+    } else {
+        notify(app, "Couldn't save or queue — try again");
+    }
+}
+
 /// Grabs the frontmost browser tab and saves it without opening the panel,
 /// falling back to notifications (and, for missing settings, the panel
 /// itself) when something goes wrong. Never logs the token.
@@ -278,7 +291,7 @@ fn quick_save(app: &AppHandle) {
         let client = match reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
             Ok(c) => c,
             Err(_) => {
-                notify(&app, "Save failed (couldn't start request)");
+                enqueue_and_notify(&app, tab.url.clone(), "Saved offline — will retry");
                 return;
             }
         };
@@ -321,27 +334,13 @@ fn quick_save(app: &AppHandle) {
                 if queue::disposition(status) == queue::Disposition::Retry {
                     // Up but broken (5xx / rate limited): queue rather than
                     // discard, and say so distinctly from an offline save.
-                    queue::enqueue(&app, Some(tab.url.clone()), None);
-                    notify(
-                        &app,
-                        &format!(
-                            "Instance error — queued, will retry ({} pending)",
-                            queue::pending_count(&app)
-                        ),
-                    );
+                    enqueue_and_notify(&app, tab.url.clone(), "Instance error — queued, will retry");
                 } else {
                     notify(&app, &format!("Save failed ({status})"));
                 }
             }
             Err(_) => {
-                queue::enqueue(&app, Some(tab.url.clone()), None);
-                notify(
-                    &app,
-                    &format!(
-                        "Saved offline — will retry ({} pending)",
-                        queue::pending_count(&app)
-                    ),
-                );
+                enqueue_and_notify(&app, tab.url.clone(), "Saved offline — will retry");
             }
         }
     });
@@ -481,6 +480,8 @@ pub fn refresh_desk(app: AppHandle) {
             return;
         };
         let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(10)).build() else {
+            log::warn!("refresh_desk: couldn't build the HTTP client — skipping this refresh");
+            rebuild_tray_menu(&app);
             return;
         };
         let endpoint = format!("{}/api/desk", settings.instance_url);
@@ -577,13 +578,15 @@ pub fn run() {
             desk_refresh,
         ])
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Attached unconditionally: release builds need this too, since
+            // the log line is the only field diagnosis available for the
+            // stateful half of the queue (failed persists, cap eviction,
+            // rename failures). Warn keeps a release build quiet; the
+            // plugin's default targets already include the log directory,
+            // so this is enough for a user to send us a file.
+            let log_level =
+                if cfg!(debug_assertions) { log::LevelFilter::Info } else { log::LevelFilter::Warn };
+            app.handle().plugin(tauri_plugin_log::Builder::default().level(log_level).build())?;
             // Background utility: no Dock icon, no app-switcher entry. The
             // panel is toggled by a global shortcut and the tray menu.
             #[cfg(target_os = "macos")]
@@ -613,9 +616,17 @@ pub fn run() {
                     if !matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                         return;
                     }
-                    let (Ok(pos), Ok(size)) = (handle.outer_position(), handle.outer_size()) else {
+                    // outer_position/outer_size report physical pixels;
+                    // window.json (and the constants it's clamped against)
+                    // are logical, so convert with this window's own scale
+                    // factor before recording.
+                    let (Ok(pos), Ok(size), Ok(scale)) =
+                        (handle.outer_position(), handle.outer_size(), handle.scale_factor())
+                    else {
                         return;
                     };
+                    let pos = pos.to_logical::<i32>(scale);
+                    let size = size.to_logical::<u32>(scale);
                     window::record(window::Rect {
                         x: pos.x,
                         y: pos.y,

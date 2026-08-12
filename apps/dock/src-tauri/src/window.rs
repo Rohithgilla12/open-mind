@@ -1,15 +1,25 @@
 //! Panel geometry: remembered across restarts, and clamped so a position
 //! saved on a since-disconnected display cannot come back offscreen.
+//!
+//! Everything in this module — the constants, `Rect`, the on-disk
+//! `window.json` — is in **logical** pixels, matching `tauri.conf.json`'s
+//! window dimensions. The Tauri APIs that touch monitors and window frames
+//! (`Monitor::work_area`, `outer_position`/`outer_size`) all report
+//! **physical** pixels, so callers convert at the boundary with that
+//! monitor's or window's own `scale_factor()` before anything reaches
+//! `Rect`.
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager};
 
+/// Logical pixels, matching `tauri.conf.json`'s `minWidth`/`minHeight`.
 pub const MIN_W: u32 = 520;
 pub const MIN_H: u32 = 360;
+/// Logical pixels, matching `tauri.conf.json`'s `width`/`height`.
 pub const DEFAULT_W: u32 = 640;
 pub const DEFAULT_H: u32 = 420;
 
@@ -127,19 +137,23 @@ pub fn spawn_persister(app: AppHandle) {
 }
 
 /// Applies the remembered geometry, or centres at the default size on first
-/// run. Uses physical pixels throughout, which is what both the monitor
-/// query and the setters report.
+/// run. Monitor rects come back from Tauri in physical pixels, so each is
+/// converted to logical with **that monitor's own** scale factor before
+/// `clamp_rect` sees it — mixed-DPI setups can have a different factor per
+/// display. The work area (rather than the full monitor bounds) is used so a
+/// clamp cannot park the panel with its top under the macOS menu bar.
 pub fn restore(window: &tauri::WebviewWindow) {
     let app = window.app_handle();
     let monitors: Vec<Rect> = window
         .available_monitors()
         .unwrap_or_default()
         .iter()
-        .map(|m| Rect {
-            x: m.position().x,
-            y: m.position().y,
-            width: m.size().width,
-            height: m.size().height,
+        .map(|m| {
+            let scale = m.scale_factor();
+            let work_area = m.work_area();
+            let position = work_area.position.to_logical::<i32>(scale);
+            let size = work_area.size.to_logical::<u32>(scale);
+            Rect { x: position.x, y: position.y, width: size.width, height: size.height }
         })
         .collect();
 
@@ -154,8 +168,8 @@ pub fn restore(window: &tauri::WebviewWindow) {
     });
 
     let rect = clamp_rect(saved, &monitors);
-    let _ = window.set_size(PhysicalSize::new(rect.width, rect.height));
-    let _ = window.set_position(PhysicalPosition::new(rect.x, rect.y));
+    let _ = window.set_size(LogicalSize::new(rect.width, rect.height));
+    let _ = window.set_position(LogicalPosition::new(rect.x, rect.y));
 }
 
 #[cfg(test)]
@@ -212,6 +226,21 @@ mod tests {
         let got = clamp_rect(saved, &one_screen());
         assert_eq!(got.width, 1920);
         assert_eq!(got.height, 1080);
+    }
+
+    #[test]
+    fn an_oversized_rect_positioned_offscreen_recentres_without_underflow() {
+        // Both larger than the monitor *and* positioned where it overlaps
+        // no monitor by MIN_VISIBLE: this is the only combination that
+        // reaches `centre_on` with a width/height bigger than the monitor,
+        // which is exactly the case `centre_on`'s `.min()` clamp-before-
+        // subtract guards against a u32 underflow panic in a debug build.
+        let saved = Rect { x: 5000, y: 5000, width: 4000, height: 3000 };
+        let got = clamp_rect(saved, &one_screen());
+        assert_eq!(got.width, 1920);
+        assert_eq!(got.height, 1080);
+        assert_eq!(got.x, 0);
+        assert_eq!(got.y, 0);
     }
 
     #[test]

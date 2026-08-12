@@ -1,10 +1,14 @@
 //! Durable offline capture queue. A save that fails for a transient reason
 //! lands here and is retried later, so a capture is never lost to a flaky
-//! network. Policy mirrors apps/mobile/lib/capture-queue.ts so both clients
-//! behave identically.
+//! network. The delivery policy (what to do with each HTTP outcome) mirrors
+//! apps/mobile/lib/capture-queue.ts exactly; the enqueue trigger does not —
+//! the dock also queues a fresh 429/5xx save, where mobile only queues a
+//! network error (status 0). That is a deliberate maintainer decision, not
+//! drift to fix.
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -35,6 +39,10 @@ pub struct InsertResult {
     pub id: String,
     pub deduped: bool,
     pub dropped: usize,
+    /// Whether the queue file on disk was actually updated to include this
+    /// call's outcome. `insert` alone (no disk access) always sets this to
+    /// `true`; `enqueue` overwrites it with the real result of `persist`.
+    pub persisted: bool,
 }
 
 /// What to do with an entry after one delivery attempt.
@@ -78,7 +86,7 @@ pub fn error_label(status: u16) -> String {
 pub fn insert(items: &mut Vec<QueuedCapture>, entry: QueuedCapture) -> InsertResult {
     if let Some(url) = entry.url.as_deref() {
         if let Some(existing) = items.iter().find(|q| q.url.as_deref() == Some(url)) {
-            return InsertResult { id: existing.id.clone(), deduped: true, dropped: 0 };
+            return InsertResult { id: existing.id.clone(), deduped: true, dropped: 0, persisted: true };
         }
     }
     let id = entry.id.clone();
@@ -88,7 +96,7 @@ pub fn insert(items: &mut Vec<QueuedCapture>, entry: QueuedCapture) -> InsertRes
         dropped = items.len() - MAX_QUEUE;
         items.drain(0..dropped);
     }
-    InsertResult { id, deduped: false, dropped }
+    InsertResult { id, deduped: false, dropped, persisted: true }
 }
 
 /// Reads the persisted queue. Anything unparsable — including a file
@@ -154,21 +162,30 @@ fn queue_path(app: &AppHandle) -> Option<PathBuf> {
 
 /// Writes to a temp file and renames, so a crash mid-write leaves the
 /// previous good queue rather than a truncated one. Must be called with the
-/// state lock held.
-fn persist(app: &AppHandle, items: &[QueuedCapture]) {
-    let Some(path) = queue_path(app) else { return };
+/// state lock held. Returns `Err` when the write did not durably land —
+/// callers that promised the user a retry must not do so on that path.
+fn persist(app: &AppHandle, items: &[QueuedCapture]) -> Result<(), io::Error> {
+    let Some(path) = queue_path(app) else {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "no app config dir"));
+    };
     if let Some(dir) = path.parent() {
         let _ = fs::create_dir_all(dir);
     }
-    let Ok(json) = serde_json::to_string_pretty(items) else { return };
+    // Serialising a Vec<QueuedCapture> cannot fail in practice (no NaN
+    // floats, no non-string keys); treat a failure as opaque and unlogged
+    // rather than risk ever interpolating serde_json's error text.
+    let json = serde_json::to_string_pretty(items)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "queue serialisation failed"))?;
     let tmp = path.with_extension("json.tmp");
-    if fs::write(&tmp, json).is_err() {
-        log::warn!("queue.json temp write failed");
-        return;
+    if let Err(e) = fs::write(&tmp, json) {
+        log::warn!("queue.json temp write failed: {e}");
+        return Err(e);
     }
     if let Err(e) = fs::rename(&tmp, &path) {
         log::warn!("queue.json rename failed: {e}");
+        return Err(e);
     }
+    Ok(())
 }
 
 /// Reads the persisted queue at startup.
@@ -198,7 +215,10 @@ fn notify_changed(app: &AppHandle, items: Vec<QueuedCapture>) {
     crate::rebuild_tray_menu(app);
 }
 
-/// Queues a capture. Exactly one of url/note should be set.
+/// Queues a capture. Exactly one of url/note should be set. `persisted` on
+/// the result tells the caller whether the write actually landed on disk —
+/// an in-memory-only entry might still drain this session, but the caller
+/// must not promise the user a retry that survives a quit.
 pub fn enqueue(app: &AppHandle, url: Option<String>, note: Option<String>) -> InsertResult {
     let (result, snapshot) = {
         let state = app.state::<QueueState>();
@@ -211,11 +231,11 @@ pub fn enqueue(app: &AppHandle, url: Option<String>, note: Option<String>) -> In
             attempts: 0,
             last_error: None,
         };
-        let result = insert(&mut items, entry);
+        let mut result = insert(&mut items, entry);
         if result.dropped > 0 {
             log::warn!("queue cap {MAX_QUEUE} exceeded; dropped {} oldest", result.dropped);
         }
-        persist(app, &items);
+        result.persisted = persist(app, &items).is_ok();
         (result, items.clone())
     };
     notify_changed(app, snapshot);
@@ -248,6 +268,13 @@ pub async fn flush(app: AppHandle) {
     }
     let _guard = FlushGuard;
 
+    // The 60s drainer already skips an empty queue before calling in; the
+    // panel-focus path does not, so check here too rather than paying for a
+    // keychain read on every focus.
+    if pending_count(&app) == 0 {
+        return;
+    }
+
     let settings = match crate::settings::settings_get() {
         Ok(Some(s)) => s,
         // Unconfigured or keychain error: leave the queue alone rather than
@@ -255,6 +282,7 @@ pub async fn flush(app: AppHandle) {
         _ => return,
     };
     let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() else {
+        log::warn!("flush: couldn't build the HTTP client — skipping this pass");
         return;
     };
 
@@ -275,9 +303,24 @@ pub async fn flush(app: AppHandle) {
         let status = post_capture(&client, &settings, &entry).await;
         let disp = disposition(status);
 
-        // A bad token: stop the pass with the queue untouched, and touch
-        // neither the disk nor the tray for it — nothing here mutated.
+        // A bad token: stop the pass rather than burning the whole queue
+        // against a rejected token, but still say so — otherwise a revoked
+        // token leaves "N pending" showing forever with no explanation.
+        // Deliberately does not bump `attempts`: that count means "delivery
+        // attempts that could plausibly have worked", and this one never
+        // could.
         if disp == Disposition::StopUnauthorized {
+            let snapshot = {
+                let state = app.state::<QueueState>();
+                let mut items = state.lock().unwrap();
+                if let Some(q) = items.iter_mut().find(|q| q.id == entry.id) {
+                    q.last_error = Some("Token rejected — open Settings".to_string());
+                }
+                persist(&app, &items).ok();
+                items.clone()
+            };
+            mutated = true;
+            emit_changed(&app, &snapshot);
             break;
         }
 
@@ -296,9 +339,11 @@ pub async fn flush(app: AppHandle) {
                         q.last_error = Some(error_label(status));
                     }
                 }
-                Disposition::StopUnauthorized => unreachable!("handled above"),
+                // Not reached in practice: the early `break` above already
+                // stops the pass on this disposition before we get here.
+                Disposition::StopUnauthorized => {}
             }
-            persist(&app, &items);
+            persist(&app, &items).ok();
             items.clone()
         };
         mutated = true;
@@ -335,7 +380,7 @@ pub fn queue_remove(app: AppHandle, id: String) {
         let state = app.state::<QueueState>();
         let mut items = state.lock().unwrap();
         items.retain(|q| q.id != id);
-        persist(&app, &items);
+        persist(&app, &items).ok();
         items.clone()
     };
     notify_changed(&app, snapshot);
@@ -396,7 +441,7 @@ mod tests {
     fn insert_appends_and_reports_the_new_id() {
         let mut items = vec![];
         let r = insert(&mut items, entry("a", Some("https://one.example"), 1));
-        assert_eq!(r, InsertResult { id: "a".into(), deduped: false, dropped: 0 });
+        assert_eq!(r, InsertResult { id: "a".into(), deduped: false, dropped: 0, persisted: true });
         assert_eq!(items.len(), 1);
     }
 
@@ -404,7 +449,7 @@ mod tests {
     fn insert_dedupes_a_pending_url_and_returns_the_existing_id() {
         let mut items = vec![entry("a", Some("https://one.example"), 1)];
         let r = insert(&mut items, entry("b", Some("https://one.example"), 2));
-        assert_eq!(r, InsertResult { id: "a".into(), deduped: true, dropped: 0 });
+        assert_eq!(r, InsertResult { id: "a".into(), deduped: true, dropped: 0, persisted: true });
         assert_eq!(items.len(), 1, "the duplicate must not be stored");
     }
 
