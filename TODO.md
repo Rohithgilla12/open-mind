@@ -112,7 +112,13 @@
   discards the map on error; separately, `ListRecentTickets` `LIMIT 5000`
   without `ORDER BY` makes reconciliation arbitrary above 5000 tickets/hour —
   add `ORDER BY sent_at`.
-- Dock follow-ups: tray Desk submenu, Win/Linux tab-grab, hotkey rebinding, DMG/notarisation
+- Dock follow-ups: Win/Linux tab grab (no AppleScript equivalent — would need
+  per-browser platform work or a bridge through the extension); unify the two
+  HTTP paths to `POST /api/items` (Rust reqwest at 15s, TS plugin-http at 12s)
+  behind one Rust `save_item` command so the queue cannot be bypassed; verify
+  the remaining seven newly-added browser bundle ids against real installs
+  (Safari Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary —
+  the original five plus Chromium are confirmed)
 - `repo` card type: the reserved-first-segment denylist in
   `apps/api/internal/enrich/classify.go` (and its SQL twin in migration 0021)
   is not exhaustive by construction. When a forge adds a reserved route, URLs
@@ -137,6 +143,14 @@
   seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
+- Dock functional polish (2026-08-12) — durable offline save queue (Rust-owned,
+  policy mirrored from mobile's `capture-queue.ts`: cap 100, URL dedupe,
+  oldest-first flush, 401 stops the pass, permanent 4xx dropped, transient
+  bumps attempts and stops), pending strip in the panel, tray Desk submenu +
+  pending count, resizable panel with clamped size/position memory, and eight
+  more browsers in the tab grab. Spec:
+  `docs/superpowers/specs/20260811-dock-functional-polish-design.md`.
+  **⌘⇧S previously discarded a capture outright on a network error.**
 - **Deployed to prod 2026-08-11 (third deploy) — card-click navigation.** The
   first deploy fixed *sidebar* navigation and left the app's most travelled
   navigation untouched: clicking a card in the grid. `/item/[id]` sits outside

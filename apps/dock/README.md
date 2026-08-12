@@ -9,7 +9,13 @@ mind from anywhere, without opening the web app. Tauri v2, macOS-only for now.
   it instantly. A notification confirms, and the panel pops up with a small
   **quick-tag strip**: type comma-separated tags and press Enter to file the
   save, or Esc (or just wait 5 seconds) to skip — the save has already
-  happened either way. Supported browsers: Safari, Chrome, Brave, Edge, Arc.
+  happened either way. Supported browsers: Safari, Chrome, Brave, Edge, and Arc
+  (all verified), plus Chromium (also verified), and Safari Technology
+  Preview, Orion, Vivaldi, Opera, and Chrome Beta/Dev/Canary (bundle ids
+  follow vendor convention and are **not yet verified against a real
+  install** — if one of these is your front app and the grab reports "Front
+  app isn't a supported browser", please open an issue with the output of
+  `osascript -e 'id of app "<Name>"'`).
   Firefox exposes no AppleScript tab access — use the panel instead.
 - **⌘⇧O — Quick Find.** A Spotlight-style panel: type to search your library
   (↑/↓ to pick, Enter opens the item in your browser), or paste/type a URL and
@@ -57,4 +63,16 @@ Rust unit tests: `cd apps/dock/src-tauri && cargo test`.
 
 - The instance must be reachable over HTTPS; search goes through the web app's
   `/api/search` proxy (needs a server running the 2026-07-06 web build or later).
-- Not yet: Windows/Linux, offline save queue.
+- **Offline saves are never lost.** A save that fails on a network error — or
+  on a 5xx/429 from the instance — is queued to disk and retried: on launch,
+  every 60 seconds, whenever the panel regains focus, and on demand from the
+  tray ("Retry pending saves") or the panel strip ("Retry now"). Pending saves
+  show in a strip at the top of the panel, where each can be discarded. A
+  rejected token stops the queue rather than burning it, and the cap is 100
+  captures (oldest dropped).
+- **The panel is resizable** and remembers its size and position across
+  restarts. A position saved on a display you have since disconnected is
+  recentred rather than restored offscreen.
+- The tray menu has a **Desk** submenu of your pinned items — refreshed on
+  launch, after a save, and when the panel regains focus.
+- Not yet: Windows/Linux tab grab.

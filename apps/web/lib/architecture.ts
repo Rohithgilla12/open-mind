@@ -5,7 +5,7 @@
 // Keeping content as data — rather than buried in JSX — is what makes the page
 // cheap to maintain, and lets us unit-test it without a DOM.
 
-export const LAST_UPDATED = "2026-08-11";
+export const LAST_UPDATED = "2026-08-12";
 
 export type Principle = { title: string; body: string };
 export type PipelineStage = { name: string; note: string };
@@ -50,7 +50,7 @@ export const clients: Client[] = [
   { name: "Web", stack: "Next.js 16 · React 19", role: "Full reader & library UI; talks only through the generated API client." },
   { name: "Extension", stack: "WXT · React", role: "One-click capture from any page. Thin — no business logic." },
   { name: "Mobile", stack: "Expo", role: "Share-sheet-first capture with an offline queue." },
-  { name: "Dock", stack: "Tauri", role: "Floating desktop capture + Desk/Recents, global hotkey." },
+  { name: "Dock", stack: "Tauri", role: "Floating desktop capture + Desk/Recents, global hotkey, offline queue." },
 ];
 
 export const stack: StackRow[] = [

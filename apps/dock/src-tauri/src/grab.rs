@@ -31,8 +31,10 @@ pub fn frontmost_bundle_id() -> Result<String, String> {
     osascript(r#"tell application "System Events" to get bundle identifier of first process whose frontmost is true"#)
 }
 
-// Maps a bundle id to (display name, tab-grab script). Chromium browsers share
-// one scripting dictionary shape; Safari differs. Firefox exposes no URL.
+// Maps a bundle id to (display name, tab-grab script). Two scripting
+// dictionary shapes cover every supported browser: Chromium-based browsers
+// share one (`chromium` below), and Safari, Safari Technology Preview, and
+// Orion share the other (`safari` below). Firefox exposes no URL.
 pub fn script_for(bundle_id: &str) -> Option<(&'static str, String)> {
     let chromium = |app: &str| {
         format!(
