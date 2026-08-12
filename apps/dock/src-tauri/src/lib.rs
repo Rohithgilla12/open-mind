@@ -366,6 +366,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     menu.append(&MenuItem::with_id(app, "save-tab", "Save current tab", true, None::<&str>)?)?;
 
     let desk = app.state::<DeskState>().lock().unwrap().clone();
+    log::info!("build_menu: {} cached pins", desk.len());
     let submenu = Submenu::with_id(app, "desk", "Desk", true)?;
     if desk.is_empty() {
         // A disabled placeholder, never a vanishing item: a menu entry that
@@ -500,15 +501,29 @@ pub fn refresh_desk(app: AppHandle) {
         match client.get(&endpoint).bearer_auth(&settings.token).send().await {
             Ok(resp) if resp.status().is_success() => {
                 if let Ok(body) = resp.json::<serde_json::Value>().await {
-                    *app.state::<DeskState>().lock().unwrap() = parse_desk(&body);
+                    let entries = parse_desk(&body);
+                    log::info!("refresh_desk: 2xx, parsed {} pins", entries.len());
+                    *app.state::<DeskState>().lock().unwrap() = entries;
                 }
             }
             // Keep the last-known-good pins: a transient failure must not
             // empty the submenu the cache exists to keep serving.
-            _ => {}
+            Ok(resp) => {
+                log::info!("refresh_desk: HTTP {} — keeping cached pins", resp.status().as_u16());
+            }
+            Err(_) => {
+                log::info!("refresh_desk: request failed — keeping cached pins");
+            }
         }
         rebuild_tray_menu(&app);
     });
+}
+
+/// Empties the cached Desk pins and rebuilds the tray. Used on sign-out, where
+/// keeping the previous account's pins on screen would be a small leak.
+pub fn clear_desk_cache(app: &AppHandle) {
+    app.state::<DeskState>().lock().unwrap().clear();
+    rebuild_tray_menu(app);
 }
 
 /// Lets the panel refresh the Desk submenu when it regains focus — the
