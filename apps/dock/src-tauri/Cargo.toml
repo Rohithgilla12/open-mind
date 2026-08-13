@@ -29,7 +29,11 @@ tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-http = "2"
 tauri-plugin-process = "2"
-keyring = "3"
+# keyring 3.x silently no-ops its write on macOS 26: set_password returns Ok
+# and nothing lands in any keychain API, so the dock forgot its settings on
+# every quit. 4.x restructured the Apple backend and round-trips correctly.
+keyring = { version = "4", default-features = false, features = ["v1", "apple-native-keyring-store"] }
+apple-native-keyring-store = { version = "0.*", features = ["keychain", "protected"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

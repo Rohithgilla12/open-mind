@@ -57,8 +57,15 @@ pub fn settings_set(
     token: String,
 ) -> Result<(), String> {
     let url = instance_url.trim().trim_end_matches('/').to_string();
+    log::info!("settings_set: writing url ({} chars) and token ({} chars)", url.len(), token.trim().len());
     entry(ACCOUNT_URL)?.set_password(&url).map_err(|e| e.to_string())?;
     entry(ACCOUNT_TOKEN)?.set_password(token.trim()).map_err(|e| e.to_string())?;
+    // Read straight back: a write that reports success but cannot be read is
+    // the failure this is chasing, and it is otherwise completely silent.
+    match entry(ACCOUNT_URL).and_then(|e| e.get_password().map_err(|e| e.to_string())) {
+        Ok(v) => log::info!("settings_set: read-back ok ({} chars)", v.len()),
+        Err(e) => log::warn!("settings_set: WROTE BUT CANNOT READ BACK: {e}"),
+    }
     // Fetches with the new credential and rebuilds the menu on completion.
     crate::refresh_desk(app);
     Ok(())
