@@ -20,14 +20,23 @@ export function DragRegion({
   );
 }
 
-/** Shared top chrome: terracotta rule + wordmark — the primary drag handle. */
-export function PanelDragStrip() {
+/** Shared top chrome: terracotta rule + wordmark — the primary drag handle.
+ *  `onClose` adds an × at the right. It re-enables pointer events on itself,
+ *  since DragRegion disables them for children; and because Tauri's drag
+ *  script treats a BUTTON as clickable, it blocks dragging rather than
+ *  starting one, so no extra guard is needed. */
+export function PanelDragStrip({ onClose }: { onClose?: () => void }) {
   return (
     <DragRegion style={styles.strip}>
       <div style={styles.accent} />
       <div style={styles.row}>
         <LogoMark size={16} />
         <span style={styles.wordmark}>Openmind</span>
+        {onClose ? (
+          <button type="button" style={styles.close} aria-label="Close panel" onClick={onClose}>
+            ×
+          </button>
+        ) : null}
       </div>
     </DragRegion>
   );
@@ -48,6 +57,18 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 8,
     padding: "8px 16px 10px",
+  },
+  close: {
+    // DragRegion disables pointer events for children; re-enable for this one.
+    pointerEvents: "auto",
+    marginLeft: "auto",
+    border: "none",
+    background: "none",
+    color: tokens.color.inkFaint,
+    fontSize: 16,
+    lineHeight: 1,
+    cursor: "pointer",
+    padding: "0 2px",
   },
   wordmark: {
     fontFamily: tokens.font.quote,

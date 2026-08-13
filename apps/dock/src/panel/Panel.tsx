@@ -667,7 +667,7 @@ export function Panel() {
 
   return (
     <div style={styles.shell}>
-      <PanelDragStrip />
+      <PanelDragStrip onClose={() => void getCurrentWindow().hide()} />
       <div style={styles.inputRow}>
         <input
           ref={inputRef}
