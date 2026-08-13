@@ -127,6 +127,22 @@
   Technology Preview, Orion, Vivaldi, Opera, Chrome Beta/Dev/Canary — the
   original five have been in production use since the first dock release;
   Chromium's bundle id was additionally confirmed by direct lookup)
+- **Dock: three pre-existing bugs found by running the app on 2026-08-13, all
+  shipped in 0.3.0 and none from the offline-queue work.** Recorded because the
+  shape of them recurs:
+  - **`core:default` grants no mutating window command.** `core:window`'s default
+    permission set is 28 read-only commands, so `start_dragging`, `hide`, `show`,
+    and `set_focus` each needed granting by name. Consequence: the panel could
+    never be dragged (broken since the initial public release) and never hid
+    itself — `hide` has five call sites, including Esc, and none worked. These
+    fail with **no Rust-side trace at all**: the ACL rejection goes to the webview
+    console, so the only symptom is "the button does nothing". A test in `lib.rs`
+    now asserts all four by name. **Any new `getCurrentWindow().<verb>()` call
+    needs a matching permission — check before assuming it works.**
+  - **keyring 3.x cannot persist on macOS 26.** `set_password` returns `Ok` and
+    nothing lands in any keychain API. Fixed by bumping to keyring 4 (the `v1`
+    feature keeps the API identical). Worth re-testing persistence after any
+    future macOS major upgrade.
 - Dock queue polish, all deliberately deferred from the 2026-08-12 pass and none
   urgent — a whole-branch review found and triaged each:
   - **`lib.rs`'s `open_item` logs a `tauri_plugin_opener::Error` whose `Display`

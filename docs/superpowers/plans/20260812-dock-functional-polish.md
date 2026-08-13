@@ -2522,6 +2522,37 @@ None of these can be automated. Each must be confirmed on a real machine before 
 - [ ] **Revoked token is legible.** With entries queued, revoke the token server-side (not just a junk string — that is the case above), wait through two 60 s drainer cycles, and describe what the user can actually see. If the answer is "a gold 'N saves waiting to sync' and nothing else unless I expand the strip", decide whether that ships.
 - [ ] **Duplicate on a committed-but-timed-out save.** Against a slow instance, force a save to exceed the timeout *after* the server has committed, then let the queue retry. Confirm whether a duplicate item appears. Mobile guards this and the dock does not; 60 seconds of manual work confirms or kills it.
 - [ ] **Failed disk write tells the truth.** Make the queue directory unwritable, then save from the panel: the toast must read "Couldn't queue the save — try again", never "Saved offline — will retry". Applies to notes especially, which exist nowhere else.
+- [ ] **Settings survive a quit.** Connect, quit, relaunch: the dock must come back connected. keyring 3.x silently failed this on macOS 26 — `set_password` returned `Ok` and nothing persisted — so this is now a standing check, not a given.
+- [ ] **Esc and the × both hide the panel**, and the panel still hides after opening an item. Every one of `hide`'s five call sites was silently denied by the ACL until `core:window:allow-hide` was granted, so these need eyes rather than assumption.
+
+### How to run this checklist — non-obvious and it cost a session to learn
+
+**Test from a signed `.app` bundle in `/Applications`, never from `tauri dev` or a bare `cargo` binary.** Two independent reasons:
+
+- macOS keychain ACLs bind to the code signature. A bare `target/debug/app` is ad-hoc, linker-signed, with `Info.plist=not bound` and an identifier that changes on every rebuild — so it cannot read items written by a Developer-ID-signed build, and every rebuild looks like a new app. Keychain-backed settings are simply untestable that way.
+- `tauri dev` competes for the cargo lock with any other cargo build on the machine (a 3m24s stall was traced to two unrelated builds in other sessions), and its app process can die without restarting.
+
+The working recipe:
+
+```bash
+pnpm exec tauri build --debug --bundles app
+codesign --force --deep -s "Developer ID Application: <you> (<TEAMID>)" \
+  src-tauri/target/debug/bundle/macos/openmind-dock.app
+# do NOT pass --options runtime: the hardened runtime needs entitlements
+# (WebKit JIT) that a local build does not carry
+cp -R src-tauri/target/debug/bundle/macos/openmind-dock.app /Applications/
+open /Applications/openmind-dock.app
+```
+
+**Check for a second installation first.** A released dock already in `/Applications` shares the bundle id *and* the keychain service, so both fight over the tray and the hotkeys, and it is easy to spend an hour testing the wrong one:
+
+```bash
+mdfind "kMDItemCFBundleIdentifier == 'fun.gilla.openmind.dock'"
+ps ax | grep "openmind-dock.app/Contents/MacOS"   # expect exactly one
+```
+
+**Read the log from disk, not a terminal** — a bundled app has no attached stdout:
+`~/Library/Logs/fun.gilla.openmind.dock/openmind-dock.log`
 - [ ] The pending strip never steals focus from the search input, and ↑/↓ never enters it.
 - [ ] At least one newly-added browser confirmed by hand if installed (`osascript -e 'id of app "Vivaldi"'` to check the bundle id first).
 
