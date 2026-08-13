@@ -750,11 +750,26 @@ mod tests {
     /// console, not the Rust log. That silence is why this shipped broken from
     /// the initial release, so it gets a guard rather than a comment.
     #[test]
-    fn capabilities_grant_window_dragging() {
+    fn capabilities_grant_every_window_command_the_panel_uses() {
+        // `core:window`'s default permission set is 28 commands and every one is
+        // read-only, so each mutating command the webview calls needs granting
+        // by name. Miss one and the ACL rejects the call with nothing logged —
+        // the rejection lands in the webview console, not the Rust log. That
+        // silence is why dragging never worked from the initial release, and why
+        // hide() failed at all five of its call sites (Esc, opening an item, the
+        // confirm strip's auto-hide, the close button) without a single symptom
+        // beyond "the button does nothing".
         let capability = include_str!("../capabilities/default.json");
-        assert!(
-            capability.contains("core:window:allow-start-dragging"),
-            "the panel cannot be dragged without core:window:allow-start-dragging"
-        );
+        for permission in [
+            "core:window:allow-start-dragging",
+            "core:window:allow-hide",
+            "core:window:allow-show",
+            "core:window:allow-set-focus",
+        ] {
+            assert!(
+                capability.contains(permission),
+                "missing {permission} — the matching window call will be silently denied"
+            );
+        }
     }
 }
