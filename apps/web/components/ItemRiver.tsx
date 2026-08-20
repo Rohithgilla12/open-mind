@@ -18,10 +18,13 @@ export function ItemRiver({
   initialItems,
   initialCursor,
   colorActive,
+  morph,
 }: {
   initialItems: Item[];
   initialCursor?: string;
   colorActive?: boolean;
+  /** Forwarded to every page's Grid — see Grid's `morph`. */
+  morph?: boolean;
 }) {
   // `router.refresh()` (fired by QuickAdd/ImageDrop after a save) re-renders
   // the server tree but preserves this client component's state, so a
@@ -86,7 +89,7 @@ export function ItemRiver({
         // Index keys are safe here: pages are appended, or replaced wholesale by
         // a re-seed — never reordered or spliced. Cards themselves are keyed by
         // id inside Grid, so a re-seed reconciles on identity, not position.
-        <Grid key={i} items={page} colorActive={colorActive} />
+        <Grid key={i} items={page} colorActive={colorActive} morph={morph} />
       ))}
       {state.cursor ? (
         <LoadMore

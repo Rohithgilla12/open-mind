@@ -157,3 +157,13 @@ export function fallbackTitle(url: string | undefined): string | null {
     .trim();
   return words || null;
 }
+
+/**
+ * An item that came through a feed and has not been kept: searchable, but not
+ * part of the Mind until the reader keeps it. Both the server-rendered search
+ * and the live one show these below a divider rather than among library
+ * matches, so the distinction survives however the results arrived.
+ */
+export function isFeedOnly(item: Item): boolean {
+  return Boolean(item.feedId) && !item.keptAt;
+}

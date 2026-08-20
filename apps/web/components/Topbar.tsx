@@ -6,17 +6,16 @@ const { color, font } = tokens;
 
 /**
  * Editorial topbar: terracotta hairline, title + live count subline, the search
- * pill (SearchBox), a "Save something" affordance that jumps to the capture row,
+ * pill (SearchBox, which reads and writes the live-search context), a "Save
+ * something" affordance that jumps to the capture row,
  * and an Export JSON link. Server component — the only interactive piece is the
  * client SearchBox; the Save button is an in-page anchor (no client needed).
  */
 export function Topbar({
   count,
-  q,
   hasMore,
 }: {
   count: number;
-  q?: string;
   hasMore?: boolean;
 }) {
   // A "+" total is always more than one, so force the plural even when only
@@ -69,7 +68,7 @@ export function Topbar({
           </div>
         </div>
 
-        <SearchBox initial={q} />
+        <SearchBox />
 
         <a href="#capture" className="savebtn" style={{ flex: "none", textDecoration: "none" }}>
           Save something

@@ -1,24 +1,48 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { tokens } from "@openmind/ui";
+import { useLiveSearch } from "./LiveSearch";
 
 const { color, font } = tokens;
 
-export function SearchBox({ initial }: { initial?: string }) {
-  const router = useRouter();
-  const [q, setQ] = useState(initial ?? "");
+/**
+ * The Mind's search pill.
+ *
+ * Typing does not navigate: each keystroke is answered from the local index
+ * (see LiveSearch), and the server's ranking replaces that answer when it
+ * arrives. Enter promotes the query to a real ?q= URL — the shareable,
+ * server-rendered version with the understood-query echo — and Escape steps
+ * back out of a live query, or out of a committed one when there is nothing
+ * live to drop.
+ */
+export function SearchBox() {
+  const { query, setQuery, commit, clear, warm } = useLiveSearch();
+  const input = useRef<HTMLInputElement | null>(null);
   const [focused, setFocused] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = q.trim();
-    router.push(trimmed ? `/?q=${encodeURIComponent(trimmed)}` : "/");
-  }
+  // The ⌘K badge in this pill was decorative for a long time. It isn't now.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        warm();
+        input.current?.focus();
+        input.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [warm]);
 
   return (
-    <form onSubmit={handleSubmit} style={{ flex: "1 1 150px", minWidth: 130, maxWidth: 400 }}>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit();
+      }}
+      style={{ flex: "1 1 150px", minWidth: 130, maxWidth: 400 }}
+    >
       <div
         style={{
           display: "flex",
@@ -36,11 +60,23 @@ export function SearchBox({ initial }: { initial?: string }) {
           ⌕
         </span>
         <input
+          ref={input}
           type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onFocus={() => setFocused(true)}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => {
+            setFocused(true);
+            // Search intent: build the worker and start indexing now, so the
+            // first keystroke has more than the visible page to match against.
+            warm();
+          }}
           onBlur={() => setFocused(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              clear();
+            }
+          }}
           placeholder="Search a colour, a word, a vibe…"
           aria-label="Search your library"
           className="search-input"

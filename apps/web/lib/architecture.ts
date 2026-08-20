@@ -5,7 +5,7 @@
 // Keeping content as data — rather than buried in JSX — is what makes the page
 // cheap to maintain, and lets us unit-test it without a DOM.
 
-export const LAST_UPDATED = "2026-08-12";
+export const LAST_UPDATED = "2026-08-20";
 
 export type Principle = { title: string; body: string };
 export type PipelineStage = { name: string; note: string };
@@ -47,7 +47,7 @@ export const pipelineStages: PipelineStage[] = [
 ];
 
 export const clients: Client[] = [
-  { name: "Web", stack: "Next.js 16 · React 19", role: "Full reader & library UI; talks only through the generated API client." },
+  { name: "Web", stack: "Next.js 16 · React 19", role: "Full reader & library UI; talks only through the generated API client. Keeps a local index of the library so search answers each keystroke without a round trip." },
   { name: "Extension", stack: "WXT · React", role: "One-click capture from any page. Thin — no business logic." },
   { name: "Mobile", stack: "Expo", role: "Share-sheet-first capture with an offline queue." },
   { name: "Dock", stack: "Tauri", role: "Floating desktop capture + Desk/Recents, global hotkey, offline queue." },
@@ -71,5 +71,6 @@ export const stack: StackRow[] = [
   { layer: "Reel media", choice: "yt-dlp + ffmpeg (opt-in build)", why: "Samples video frames for on-screen place names; off unless the image is built with it." },
   { layer: "Agents", choice: "MCP (go-sdk)", why: "Openmind exposes an MCP server so assistants can read your library." },
   { layer: "Web", choice: "Next.js 16 · React 19", why: "App Router; warm design tokens from @openmind/ui." },
+  { layer: "Search (client)", choice: "Local index + View Transitions", why: "Every keystroke is scored against an in-memory index of the library, so filtering never waits on the network; the server's hybrid ranking replaces that answer when it lands, and the grid morphs rather than snapping." },
   { layer: "Tasks", choice: "Taskfile", why: "dev, generate, test, lint, migrate — codegen no-ops when inputs are unchanged." },
 ];

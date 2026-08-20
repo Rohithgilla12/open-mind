@@ -1,13 +1,17 @@
 import { tokens } from "@openmind/ui";
 import { apiFetch } from "../../lib/api";
 import type { Item, ItemPage, SearchResponse, UnderstoodQuery } from "../../lib/types";
+import { FeedDivider } from "../../components/FeedDivider";
 import { Grid } from "../../components/Grid";
 import { ItemRiver } from "../../components/ItemRiver";
+import { LiveResults } from "../../components/LiveResults";
+import { LiveSearchProvider } from "../../components/LiveSearch";
 import { QuickAdd } from "../../components/QuickAdd";
 import { ImageDrop } from "../../components/ImageDrop";
 import { Topbar } from "../../components/Topbar";
 import { FilterStrip } from "../../components/FilterStrip";
 import { SearchContext } from "../../components/SearchContext";
+import { isFeedOnly } from "../../lib/cards";
 
 async function getRecents(): Promise<ItemPage> {
   try {
@@ -58,26 +62,6 @@ async function getSearch(opts: {
   }
 }
 
-// An unkept feed-river item: searchable, but not part of the Mind until kept,
-// so search shows it below the divider rather than among library matches.
-function isFeedOnly(item: Item): boolean {
-  return Boolean(item.feedId) && !item.keptAt;
-}
-
-function FeedDivider({ count }: { count: number }) {
-  return (
-    <div
-      role="separator"
-      aria-label="Matches from your feeds"
-      style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 20px" }}
-    >
-      <span aria-hidden style={{ flex: 1, height: 1, background: tokens.color.hairline }} />
-      <span className="meta">From your feeds · {count} — not yet in your Mind</span>
-      <span aria-hidden style={{ flex: 1, height: 1, background: tokens.color.hairline }} />
-    </div>
-  );
-}
-
 export default async function Page({
   searchParams,
 }: {
@@ -102,8 +86,8 @@ export default async function Page({
   const feedItems = items.filter(isFeedOnly);
 
   return (
-    <>
-      <Topbar count={items.length} q={q} hasMore={Boolean(recents?.nextCursor)} />
+    <LiveSearchProvider committedQ={q} seed={libraryItems}>
+      <Topbar count={items.length} hasMore={Boolean(recents?.nextCursor)} />
       <FilterStrip active={active} q={q} color={color} domains={domains} />
       <SearchContext
         q={q}
@@ -137,37 +121,50 @@ export default async function Page({
               <ImageDrop />
             </div>
           </div>
-          {searching ? (
-            libraryItems.length > 0 || feedItems.length === 0 ? (
-              <Grid items={libraryItems} colorActive={Boolean(color)} />
-            ) : (
-              <p
-                style={{
-                  fontFamily: tokens.font.quote,
-                  fontStyle: "italic",
-                  fontSize: "1.25rem",
-                  color: tokens.color.inkMuted,
-                  marginTop: "2rem",
-                }}
-              >
-                Nothing in your Mind matches — these came through your feeds.
-              </p>
-            )
-          ) : (
-            <ItemRiver
-              initialItems={libraryItems}
-              initialCursor={recents?.nextCursor}
-              colorActive={Boolean(color)}
-            />
-          )}
-          {feedItems.length > 0 && (
-            <>
-              <FeedDivider count={feedItems.length} />
-              <Grid items={feedItems} colorActive={Boolean(color)} />
-            </>
-          )}
+          {/* The server tree is handed to LiveResults as the fallback: it owns
+              the results area only while the reader is typing something the
+              server has not answered yet, and hands it straight back
+              otherwise. Both trees pass `morph`, so a card that survives a
+              live filter glides out of the river into its new column rather
+              than being replaced by a copy of itself. */}
+          <LiveResults
+            fallback={
+              <>
+                {searching ? (
+                  libraryItems.length > 0 || feedItems.length === 0 ? (
+                    <Grid items={libraryItems} colorActive={Boolean(color)} morph />
+                  ) : (
+                    <p
+                      style={{
+                        fontFamily: tokens.font.quote,
+                        fontStyle: "italic",
+                        fontSize: "1.25rem",
+                        color: tokens.color.inkMuted,
+                        marginTop: "2rem",
+                      }}
+                    >
+                      Nothing in your Mind matches — these came through your feeds.
+                    </p>
+                  )
+                ) : (
+                  <ItemRiver
+                    initialItems={libraryItems}
+                    initialCursor={recents?.nextCursor}
+                    colorActive={Boolean(color)}
+                    morph
+                  />
+                )}
+                {feedItems.length > 0 && (
+                  <>
+                    <FeedDivider count={feedItems.length} />
+                    <Grid items={feedItems} colorActive={Boolean(color)} morph />
+                  </>
+                )}
+              </>
+            }
+          />
         </div>
       </div>
-    </>
+    </LiveSearchProvider>
   );
 }

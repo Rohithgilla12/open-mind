@@ -444,3 +444,27 @@ body{-webkit-font-smoothing:antialiased}
 .lp-grid2>*,.lp-grid3>*,.lp-grid4>*,.lp-feature>*{min-width:0}
 
 .lp-pre{max-width:100%}
+
+/* ---- Live search: the Mind's result grid, rearranging ----
+   Filtering the Mind moves cards between masonry columns. Applied plainly that
+   reads as a snap; inside a view transition (lib/view-transition.ts) each card
+   animates from where it was to where it belongs, so narrowing a search reads
+   as the same saves rearranging rather than a new list arriving. Cards are
+   named per item id by Grid's `morph` prop.
+
+   The group animation carries position and size and gets the longer, more
+   decelerated curve; old/new carry only the cross-fade and stay short, so a
+   card that merely moved never looks like it blinked. Browsers without the `*`
+   selector for these pseudo-elements fall back to the UA's own timing, which
+   is the same idea slightly faster. */
+::view-transition-group(*){animation-duration:.34s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+
+::view-transition-old(*),::view-transition-new(*){animation-duration:.2s}
+
+/* morph() already declines to start a transition at all under reduced motion;
+   this is here for the case where the preference flips mid-flight. */
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*){animation:none!important}
+}

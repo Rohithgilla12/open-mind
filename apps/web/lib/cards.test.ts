@@ -3,12 +3,14 @@ import {
   cardKind,
   chipLabel,
   fallbackTitle,
+  isFeedOnly,
   isTextForward,
   typeAccent,
   typeFilters,
   typeGradient,
   typeLabel,
 } from "./cards";
+import type { Item } from "./types";
 
 describe("typeFilters", () => {
   const kinds = Object.keys(typeLabel);
@@ -116,4 +118,16 @@ describe("isTextForward", () => {
   it("excludes non-text-forward kinds, e.g. image", () => {
     expect(isTextForward("image")).toBe(false);
   });
+});
+
+describe("isFeedOnly", () => {
+  const base = { id: "a", url: "https://example.com", status: "enriched", createdAt: "2026-01-01T00:00:00Z" };
+  const cases: [string, Partial<Item>, boolean][] = [
+    ["a plain save is not feed-only", {}, false],
+    ["an unkept feed item is feed-only", { feedId: "f1" }, true],
+    ["a kept feed item is not", { feedId: "f1", keptAt: "2026-02-01T00:00:00Z" }, false],
+  ];
+  for (const [name, over, want] of cases) {
+    it(name, () => expect(isFeedOnly({ ...base, ...over } as Item)).toBe(want));
+  }
 });

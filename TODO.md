@@ -61,6 +61,12 @@
 - (see Issues)
 
 ## Later
+- Instant-search follow-up: Enter still navigates, so committing a live query
+  pays the `(app)/loading.tsx` skeleton even though the results are already on
+  screen. Keeping the overlay alive across that navigation means hoisting it out
+  of the page's Suspense boundary, or shallow `history.pushState` with
+  hand-rolled back/forward semantics — neither is worth it until the skeleton
+  actually annoys someone.
 - Mobile offline photo queue follow-ups (PR #44): verify iOS Part B end-to-end
   on a fresh dev build (extension→app manifest round-trip; foreground drain
   lands the image in Library); add direct unit tests for `queueFileExists`
@@ -199,6 +205,35 @@
   seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
+- **Instant search in the Mind (2026-08-20)** — every keystroke is answered from
+  a local index of the library rather than a round trip, and the server's hybrid
+  ranking replaces that answer when it lands. Measured against a mock API
+  carrying the production 310 ms delay: local answer **11 ms**, server answer
+  **539 ms** (220 ms debounce + 310 ms). ⌘K focuses the search pill — that badge
+  had been decorative since it was drawn. Results morph between states with
+  same-document View Transitions: React 19.2 stable exports no
+  `<ViewTransition>`, so it is `document.startViewTransition` + `flushSync`, one
+  transition at a time (a fast typist gets instant updates instead of a
+  stutter), and none at all under `prefers-reduced-motion`.
+  **No Web Worker, deliberately:** Turbopack resolves
+  `new Worker(new URL("./x.worker.ts", import.meta.url))` to a static asset and
+  serves the raw TypeScript as `video/mp2t`, which a module worker refuses to
+  execute — verified against a real production build, so local search would
+  simply never have worked in prod. The index runs on the main thread, paged in
+  200 items at a time and only on search intent.
+  Two bugs found while driving it under Playwright, both fixed here:
+  - **A zero-result server answer wiped good local matches.** `/search` matches
+    whole lexemes (`websearch_to_tsquery` in `search.sql`), so *every* mid-word
+    query legitimately returns nothing, and on the `noop` provider there is no
+    vector half to rescue it: "postg" showed 3 matches instantly and then
+    emptied 310 ms later. A server answer with no results no longer replaces a
+    non-empty local one — the server wins on ranking and reach, never on
+    emptiness.
+  - **Colour queries reached the server as literal words.** "cobalt" went out as
+    an FTS search for that word and returned nothing, wiping 48 local palette
+    matches. A whole-query colour term is now also sent as `&color=`, which the
+    API fuses with the text signal via RRF (`RunQuery`), so the server answer
+    becomes a superset instead of a contradiction.
 - Dock functional polish (2026-08-12) — durable offline save queue (Rust-owned,
   policy mirrored from mobile's `capture-queue.ts`: cap 100, URL dedupe,
   oldest-first flush, 401 stops the pass, permanent 4xx dropped, transient
