@@ -16,7 +16,7 @@
  * sync as pages stream in. If a library ever grows past ~50k items, revisit —
  * the seam is `queryLocal`, and nothing outside this file assumes a scan.
  */
-import { resolveColor } from "./colors";
+import { colourTerm, resolveColor } from "./colors";
 import type { Item } from "./types";
 
 /**
@@ -97,6 +97,24 @@ export function normalise(raw: string | undefined): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * Colour targets for a query, keyed by the normalised term they belong to.
+ *
+ * Derived from the RAW tokens, because `normalise` strips '#' — so by the time
+ * a term reaches the scorer, "#1b3fd1" and the word "facade" are both bare hex
+ * and indistinguishable. `colourTerm` is applied before that happens.
+ */
+function colourTargets(raw: string): Map<string, Lab> {
+  const out = new Map<string, Lab>();
+  for (const token of raw.trim().split(/\s+/)) {
+    const term = colourTerm(token);
+    if (!term) continue;
+    const lab = hexToLab(term);
+    if (lab) out.set(normalise(token), lab);
+  }
+  return out;
 }
 
 /** Split a raw query into normalised terms. */
@@ -215,7 +233,7 @@ export function queryLocal(
 ): Item[] {
   const terms = queryTerms(raw);
   if (terms.length === 0) return [];
-  const targets = terms.map((t) => hexToLab(t));
+  const targets = colourTargets(raw);
   const phrase = terms.join(" ");
 
   const hits: { entry: Indexed; score: number }[] = [];
@@ -223,7 +241,7 @@ export function queryLocal(
     let total = 0;
     let matchedAll = true;
     for (let i = 0; i < terms.length; i++) {
-      const s = scoreTerm(entry, terms[i], targets[i]);
+      const s = scoreTerm(entry, terms[i], targets.get(terms[i]) ?? null);
       if (s === 0) {
         matchedAll = false;
         break;

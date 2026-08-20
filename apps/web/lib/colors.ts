@@ -64,6 +64,24 @@ export function resolveColor(term: string | undefined): string | null {
   return NAMED_COLORS[t] ?? null;
 }
 
+/**
+ * The term if it should be read as a colour, else null.
+ *
+ * Stricter than `resolveColor` on purpose: that accepts a bare hex string, and
+ * enough English words are spelled entirely in [a-f0-9] — facade, decade,
+ * defaced, effaced — that treating bare hex as a colour turns a plain text
+ * search into a palette search. Hex therefore has to be written with a leading
+ * '#'; names are matched exactly. Both search paths (the local index and the
+ * `color=` parameter sent to /search) use this, so they agree on what counts.
+ */
+export function colourTerm(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.trim().toLowerCase();
+  if (!t) return null;
+  if (t.startsWith("#")) return HEX_RE.test(t) ? t : null;
+  return t in NAMED_COLORS ? t : null;
+}
+
 // Home href that runs a colour search for the given term (hex like "#1B3FD1"
 // or a named colour). Encoded so "#" and spaces survive the query string.
 export function colorSearchHref(term: string): string {

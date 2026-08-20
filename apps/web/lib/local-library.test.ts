@@ -78,6 +78,40 @@ describe("createLocalLibrary", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("stops when the cursor does not advance", async () => {
+    // add() dedupes by id, so a repeated cursor adds nothing and the item cap
+    // never trips — without the guard this re-fetched the same page forever.
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ items: [item("a", "One")], nextCursor: "same" }),
+    } as unknown as Response));
+    vi.stubGlobal("fetch", fetchMock);
+    const { onProgress, done } = crawled();
+    const lib = createLocalLibrary(onProgress);
+    lib.crawl();
+    expect(await done).toEqual({ indexed: 1, done: true });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stop() halts an in-flight crawl and refuses to start another", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ items: [item(`a${fetchMock.mock.calls.length}`, "One")], nextCursor: `c${fetchMock.mock.calls.length}` }),
+    } as unknown as Response));
+    vi.stubGlobal("fetch", fetchMock);
+    const lib = createLocalLibrary(() => {});
+    lib.crawl();
+    await new Promise((r) => setTimeout(r, 20));
+    lib.stop();
+    const callsAtStop = fetchMock.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 250));
+    expect(fetchMock.mock.calls.length).toBe(callsAtStop);
+    lib.crawl();
+    await new Promise((r) => setTimeout(r, 120));
+    expect(fetchMock.mock.calls.length).toBe(callsAtStop);
+  });
+
   it("keeps answering from what it has when a page fails", async () => {
     let call = 0;
     vi.stubGlobal(

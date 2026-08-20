@@ -51,6 +51,12 @@ export interface LocalLibrary {
   /** Best local matches for a query, most relevant first. */
   query: (q: string) => Item[];
   progress: () => LibraryProgress;
+  /**
+   * Abort an in-flight crawl and refuse to start another. The library is held
+   * in a ref by its owner, so without this the fetch loop keeps paging after
+   * the component that started it has gone.
+   */
+  stop: () => void;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,6 +71,8 @@ export function createLocalLibrary(onProgress: (p: LibraryProgress) => void): Lo
   const seen = new Set<string>();
   let crawling = false;
   let done = false;
+  let stopped = false;
+  let inFlight: AbortController | null = null;
 
   function add(items: Item[]): void {
     const room = MAX_INDEXED - index.length;
@@ -85,29 +93,42 @@ export function createLocalLibrary(onProgress: (p: LibraryProgress) => void): Lo
     let cursor: string | undefined;
     try {
       for (;;) {
+        if (stopped) return;
         const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
         if (cursor) params.set("cursor", cursor);
-        const res = await fetch(`/api/items?${params.toString()}`);
+        inFlight = new AbortController();
+        const res = await fetch(`/api/items?${params.toString()}`, { signal: inFlight.signal });
         if (!res.ok) throw new Error(`items page failed: ${res.status}`);
         const page = (await res.json()) as ItemPage;
+        if (stopped) return;
         add(page.items ?? []);
-        cursor = page.nextCursor;
-        if (!cursor || index.length >= MAX_INDEXED) {
+        const next = page.nextCursor;
+        // A cursor that fails to advance has to end the crawl, not just the
+        // page: `add` dedupes by id, so a repeated cursor contributes nothing,
+        // `index.length` never reaches MAX_INDEXED, and the item cap never
+        // stops it — the loop would re-fetch the same page every pause,
+        // forever.
+        if (!next || next === cursor || index.length >= MAX_INDEXED) {
           done = true;
           onProgress(progress());
           return;
         }
+        cursor = next;
         onProgress(progress());
         await sleep(PAGE_PAUSE_MS);
       }
     } catch {
-      // A failed crawl is not a failed search: whatever was indexed still
-      // answers, and the server search is untouched. Stop and report done so
-      // the interface stops promising more.
+      // Cancellation is not a failure and has nothing to report: the owner is
+      // going away.
+      if (stopped) return;
+      // A failed crawl is not a failed search either: whatever was indexed
+      // still answers, and the server search is untouched. Stop and report
+      // done so the interface stops promising more of the library.
       done = true;
       onProgress(progress());
     } finally {
       crawling = false;
+      inFlight = null;
     }
   }
 
@@ -117,7 +138,7 @@ export function createLocalLibrary(onProgress: (p: LibraryProgress) => void): Lo
       onProgress(progress());
     },
     crawl() {
-      if (crawling || done) return;
+      if (crawling || done || stopped) return;
       crawling = true;
       void run();
     },
@@ -125,5 +146,9 @@ export function createLocalLibrary(onProgress: (p: LibraryProgress) => void): Lo
       return queryLocal(index, q, LOCAL_RESULT_LIMIT);
     },
     progress,
+    stop() {
+      stopped = true;
+      inFlight?.abort();
+    },
   };
 }

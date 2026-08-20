@@ -1,4 +1,4 @@
-import { resolveColor } from "./colors";
+import { colourTerm } from "./colors";
 
 /**
  * Query string for the live server search.
@@ -17,11 +17,13 @@ import { resolveColor } from "./colors";
  *
  * Only a whole-query colour term is forwarded. "cobalt print" is left to the
  * provider's parser, which is the thing that can actually tell which word was
- * meant as a colour.
+ * meant as a colour. Hex needs its '#' (see colourTerm): the API's parseColor
+ * accepts a bare hex string too, so sending "facade" as a colour would hand it
+ * an unbounded palette ranking for what was a plain text search.
  */
 export function serverSearchParams(raw: string): URLSearchParams {
   const q = raw.trim();
   const params = new URLSearchParams({ q, parse: "true" });
-  if (resolveColor(q)) params.set("color", q);
+  if (colourTerm(q)) params.set("color", q);
   return params;
 }

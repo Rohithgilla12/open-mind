@@ -127,6 +127,16 @@ describe("queryLocal colour terms", () => {
     expect(queryLocal(index, "cobalt").map((i) => i.id)).not.toContain("bare");
   });
 
+  it("does not read a hex-shaped word as a colour", () => {
+    // "facade" is spelled entirely in hex digits. Before colourTerm it was
+    // treated as #facade and matched items by palette, so a plain text search
+    // silently became a palette search.
+    const pale = item({ id: "pal", title: "A thing", palette: ["#FACADE"] });
+    const worded = item({ id: "txt", title: "The facade of the building" });
+    const ranked = queryLocal(indexItems([pale, worded]), "facade").map((i) => i.id);
+    expect(ranked).toEqual(["txt"]);
+  });
+
   it("still matches a colour word found in text", () => {
     const named = item({ id: "word", title: "The Cobalt Notebook" });
     expect(queryLocal(indexItems([named]), "cobalt").map((i) => i.id)).toEqual(["word"]);

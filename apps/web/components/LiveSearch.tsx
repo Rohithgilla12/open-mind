@@ -169,6 +169,19 @@ export function LiveSearchProvider({
     library.crawl();
   }, [apply]);
 
+  // The crawl outlives this component otherwise: the library sits in a ref and
+  // its fetch loop would keep paging after the reader has navigated away. The
+  // ref is cleared as well as stopped because React runs an extra
+  // cleanup/setup cycle in development, and a non-null ref holding a stopped
+  // library would make `warm` a no-op for the rest of the session.
+  useEffect(
+    () => () => {
+      libraryRef.current?.stop();
+      libraryRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!active) {
       abortRef.current?.abort();
