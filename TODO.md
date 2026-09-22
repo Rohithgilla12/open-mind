@@ -209,10 +209,10 @@
   seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
-- **Jev Phase 0 client (2026-09-22).** Hand-rolled `apps/api/internal/jev`:
-  `POST /v1/systemone`, question set and provisional thresholds in
-  `questions.go`. Not wired into ingest, search, or Drift. Saves still return
-  before any model call.
+- **Jev Phase 0 client (2026-09-22, PR #70).** Hand-rolled
+  `apps/api/internal/jev`: `POST /v1/systemone`, question set and provisional
+  thresholds in `questions.go`. Not wired into ingest, search, or Drift. Saves
+  still return before any model call.
 - **Deployed to prod 2026-08-21 (fourth deploy) — instant search (PR #69).**
   Web-only rebuild plus the mandatory `cloudflared` restart; the api image was
   not touched. Verified from outside: `/architecture` serves the new
