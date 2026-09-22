@@ -114,18 +114,21 @@ type ItemPlace struct {
 }
 
 type JevDecision struct {
-	ID          int64
-	UserID      uuid.UUID
-	ItemID      pgtype.UUID
-	Surface     string
-	Model       string
-	QuestionsV  string
-	Answers     []byte
-	Action      string
-	UserVerdict pgtype.Text
-	LatencyMs   pgtype.Int4
-	InputTokens pgtype.Int4
-	CreatedAt   pgtype.Timestamptz
+	ID            int64
+	UserID        uuid.UUID
+	ItemID        pgtype.UUID
+	Surface       string
+	Model         string
+	QuestionsV    string
+	Answers       []byte
+	Action        string
+	UserVerdict   pgtype.Text
+	LatencyMs     pgtype.Int4
+	InputTokens   pgtype.Int4
+	CreatedAt     pgtype.Timestamptz
+	AppliedTags   []string
+	SuggestedTags []string
+	DismissedTags []string
 }
 
 type Lense struct {

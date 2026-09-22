@@ -687,6 +687,25 @@ func (q *Queries) SetItemBodyMarkdown(ctx context.Context, arg SetItemBodyMarkdo
 	return err
 }
 
+const setItemCardType = `-- name: SetItemCardType :execrows
+UPDATE items SET card_type = $3, updated_at = now() WHERE user_id = $1 AND id = $2
+`
+
+type SetItemCardTypeParams struct {
+	UserID   uuid.UUID
+	ID       uuid.UUID
+	CardType string
+}
+
+// Optional Phase-2 Jev override of card_type after thresholds. User-scoped.
+func (q *Queries) SetItemCardType(ctx context.Context, arg SetItemCardTypeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setItemCardType, arg.UserID, arg.ID, arg.CardType)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setItemKept = `-- name: SetItemKept :execrows
 UPDATE items SET kept_at = $3, updated_at = now() WHERE user_id = $1 AND id = $2
 `

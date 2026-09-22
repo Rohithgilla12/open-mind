@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -30,19 +31,22 @@ func pgUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
 }
 
-func TestShadowCapture_Table(t *testing.T) {
+func TestLiveCapture_Table(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
 	type want struct {
-		calls  int64
-		action string // empty = no row
+		calls     int64
+		action    string // empty = no row
+		userTags  []string
+		cardType  string // empty = don't assert
 	}
 	cases := []struct {
 		name      string
 		settingOn bool
 		apiKey    string
 		handler   http.HandlerFunc
+		seedTags  []string // vocabulary on another item so tag Nouls fire
 		want      want
 	}{
 		{
@@ -63,33 +67,70 @@ func TestShadowCapture_Table(t *testing.T) {
 				t.Error("Jev must not be called without API key")
 				http.Error(w, "no", 500)
 			},
-			// Evaluate returns ErrDisabled before any request; we still log skipped.
 			want: want{calls: 0, action: "skipped"},
 		},
 		{
-			name:      "API error → skipped, item still enriched",
+			name:      "API error → skipped, item still enriched, tags unchanged",
 			settingOn: true,
 			apiKey:    "test-key",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "boom", http.StatusInternalServerError)
 			},
-			want: want{calls: 1, action: "skipped"},
+			want: want{calls: 1, action: "skipped", userTags: []string{}},
 		},
 		{
-			name:      "success → shadow",
+			name:      "high-confidence tag → applied",
+			settingOn: true,
+			apiKey:    "test-key",
+			seedTags:  []string{"go", "rust", "search", "postgres", "ai"},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"model": "jev-1.13.0",
+					"answers": {
+						"content_type": {"type": "choice", "choice": "article", "confidence": 0.9},
+						"tag:go": {"type": "noul", "noul": 0.91},
+						"tag:rust": {"type": "noul", "noul": 0.2}
+					},
+					"usage": {"input_tokens": 42, "output_tokens": 1}
+				}`))
+			},
+			want: want{calls: 1, action: "applied", userTags: []string{"go"}},
+		},
+		{
+			name:      "mid-confidence tag → suggested, no user tag write",
+			settingOn: true,
+			apiKey:    "test-key",
+			seedTags:  []string{"go", "rust", "search", "postgres", "ai"},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"model": "jev-1.13.0",
+					"answers": {
+						"tag:go": {"type": "noul", "noul": 0.7},
+						"tag:rust": {"type": "noul", "noul": 0.1}
+					},
+					"usage": {"input_tokens": 10, "output_tokens": 0}
+				}`))
+			},
+			want: want{calls: 1, action: "suggested", userTags: []string{}},
+		},
+		{
+			name:      "tool content_type → product card",
 			settingOn: true,
 			apiKey:    "test-key",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
 					"model": "jev-1.13.0",
-					"answers": {"content_type": {"type": "choice", "choice": "article", "confidence": 0.9},
-						"depth": {"type": "score", "score": 1.0},
-						"is_evergreen": {"type": "noul", "noul": 0.8}},
-					"usage": {"input_tokens": 42, "output_tokens": 1}
+					"answers": {
+						"content_type": {"type": "choice", "choice": "tool", "confidence": 0.8},
+						"is_evergreen": {"type": "noul", "noul": 0.5}
+					},
+					"usage": {"input_tokens": 8, "output_tokens": 0}
 				}`))
 			},
-			want: want{calls: 1, action: "shadow"},
+			want: want{calls: 1, action: "applied", userTags: []string{}, cardType: "product"},
 		},
 	}
 
@@ -104,6 +145,17 @@ func TestShadowCapture_Table(t *testing.T) {
 			}
 			if tc.settingOn {
 				enableAIAssisted(t, s.Queries, userID)
+			}
+			if len(tc.seedTags) > 0 {
+				seed, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://vocab.example/seed", Body: ""})
+				if err != nil {
+					t.Fatalf("seed item: %v", err)
+				}
+				if _, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{
+					UserID: userID, ID: seed.ID, UserTags: tc.seedTags,
+				}); err != nil {
+					t.Fatalf("seed tags: %v", err)
+				}
 			}
 
 			var calls atomic.Int64
@@ -143,6 +195,18 @@ func TestShadowCapture_Table(t *testing.T) {
 				t.Fatalf("jev calls = %d, want %d", gotCalls, tc.want.calls)
 			}
 
+			if tc.want.userTags != nil {
+				if got.UserTags == nil {
+					got.UserTags = []string{}
+				}
+				if !slices.Equal(got.UserTags, tc.want.userTags) {
+					t.Fatalf("user_tags = %v, want %v", got.UserTags, tc.want.userTags)
+				}
+			}
+			if tc.want.cardType != "" && got.CardType != tc.want.cardType {
+				t.Fatalf("card_type = %q, want %q", got.CardType, tc.want.cardType)
+			}
+
 			dec, err := s.Queries.GetJevCaptureDecision(ctx, db.GetJevCaptureDecisionParams{
 				UserID: userID,
 				ItemID: pgUUID(item.ID),
@@ -162,23 +226,30 @@ func TestShadowCapture_Table(t *testing.T) {
 			if dec.Surface != jev.SurfaceCapture {
 				t.Fatalf("surface = %q", dec.Surface)
 			}
-			if dec.QuestionsV != jev.QuestionsVersion {
-				t.Fatalf("questions_v = %q", dec.QuestionsV)
-			}
-			if tc.want.action == "shadow" {
+			if tc.want.action == "applied" || tc.want.action == "suggested" {
 				var answers map[string]json.RawMessage
 				if err := json.Unmarshal(dec.Answers, &answers); err != nil || len(answers) == 0 {
 					t.Fatalf("answers = %s, err=%v", dec.Answers, err)
 				}
-				if !dec.InputTokens.Valid || dec.InputTokens.Int32 != 42 {
-					t.Fatalf("input_tokens = %+v, want 42", dec.InputTokens)
+			}
+			if tc.want.action == "suggested" {
+				if !slices.Contains(dec.SuggestedTags, "go") {
+					t.Fatalf("suggested_tags = %v, want go", dec.SuggestedTags)
+				}
+				if len(dec.AppliedTags) != 0 {
+					t.Fatalf("applied_tags = %v, want empty", dec.AppliedTags)
+				}
+			}
+			if tc.want.action == "applied" && slices.Equal(tc.want.userTags, []string{"go"}) {
+				if !slices.Contains(dec.AppliedTags, "go") {
+					t.Fatalf("applied_tags = %v, want go", dec.AppliedTags)
 				}
 			}
 		})
 	}
 }
 
-func TestShadowCapture_IdempotentOnReEnrich(t *testing.T) {
+func TestLiveCapture_IdempotentOnReEnrich(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	if _, err := s.Pool.Exec(ctx, `TRUNCATE items, item_embeddings, jev_decisions, user_settings CASCADE`); err != nil {
@@ -190,6 +261,17 @@ func TestShadowCapture_IdempotentOnReEnrich(t *testing.T) {
 	}
 	enableAIAssisted(t, s.Queries, userID)
 
+	// Seed vocabulary so tag Nouls are asked.
+	seed, err := s.Queries.CreateItem(ctx, db.CreateItemParams{UserID: userID, Url: "https://vocab.example/x", Body: ""})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if _, err := s.Queries.SetUserTags(ctx, db.SetUserTagsParams{
+		UserID: userID, ID: seed.ID, UserTags: []string{"go", "rust", "search", "postgres", "ai"},
+	}); err != nil {
+		t.Fatalf("seed tags: %v", err)
+	}
+
 	var calls atomic.Int64
 	jevSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -197,7 +279,7 @@ func TestShadowCapture_IdempotentOnReEnrich(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"model": "jev-1.13.0",
-			"answers": {"is_evergreen": {"type": "noul", "noul": 0.5}},
+			"answers": {"tag:go": {"type": "noul", "noul": 0.95}},
 			"usage": {"input_tokens": 10, "output_tokens": 0}
 		}`))
 	}))
@@ -222,6 +304,9 @@ func TestShadowCapture_IdempotentOnReEnrich(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
+	if !slices.Equal(first.UserTags, []string{"go"}) {
+		t.Fatalf("first user_tags = %v, want [go]", first.UserTags)
+	}
 	if err := p.Run(ctx, userID, item.ID); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -231,6 +316,9 @@ func TestShadowCapture_IdempotentOnReEnrich(t *testing.T) {
 	}
 	if first.Summary != second.Summary || first.Title != second.Title {
 		t.Fatalf("re-enrich corrupted item")
+	}
+	if !slices.Equal(second.UserTags, []string{"go"}) {
+		t.Fatalf("second user_tags = %v (must not duplicate)", second.UserTags)
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("jev calls = %d, want 1 (second enrich must not re-call)", calls.Load())

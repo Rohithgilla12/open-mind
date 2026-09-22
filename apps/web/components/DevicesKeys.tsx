@@ -949,7 +949,8 @@ function AIOrganisationSection() {
       >
         When on (and the server has <code>OPENMIND_TYPESAFE_API_KEY</code>), each save may send the URL,
         title, site, and a short excerpt (~1.5–2k characters) to TypeSafe Jev for tagging judgments.
-        Never the full document. Phase 1 only logs decisions — nothing user-visible changes yet.
+        Never the full document. High-confidence tags may be auto-applied (one-tap undo); mid-confidence
+        tags show as suggestion chips on the item.
       </p>
       {loadFailed && !loaded ? (
         <button type="button" onClick={() => setLoadAttempt((n) => n + 1)} style={{ cursor: "pointer" }}>

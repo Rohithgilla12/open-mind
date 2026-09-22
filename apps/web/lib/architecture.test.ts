@@ -20,7 +20,7 @@ describe("architecture content", () => {
     expect(pipelineStages.map((s) => s.name)).toEqual([
       "extract",
       "classify",
-      "jev shadow",
+      "jev capture",
       "summarise",
       "embed",
     ]);

@@ -72,6 +72,10 @@ WHERE user_id = $1 AND id = $2;
 -- name: SetUserTags :execrows
 UPDATE items SET user_tags = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 
+-- name: SetItemCardType :execrows
+-- Optional Phase-2 Jev override of card_type after thresholds. User-scoped.
+UPDATE items SET card_type = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
+
 -- name: SetItemPinned :execrows
 UPDATE items SET pinned_at = $3, updated_at = now() WHERE user_id = $1 AND id = $2;
 

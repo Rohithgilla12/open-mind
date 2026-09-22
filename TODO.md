@@ -61,9 +61,8 @@
 - (see Issues)
 
 ## Later
-- Jev phases 2–5 (live chips, rerank, Drift, write-up). Phase 1 shadow
-  capture is in `apps/api/internal/enrich/shadow.go` behind
-  `OPENMIND_TYPESAFE_API_KEY` + the "AI-assisted organisation" user setting.
+- Jev phases 3–5 (rerank, Drift, write-up). Phase 2 live capture (chips +
+  auto-apply + verdict backfill) is shipping; thresholds stay provisional.
 - Instant-search follow-up: Enter still navigates, so committing a live query
   pays the `(app)/loading.tsx` skeleton even though the results are already on
   screen. Keeping the overlay alive across that navigation means hoisting it out

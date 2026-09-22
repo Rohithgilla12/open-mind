@@ -42,7 +42,7 @@ type Pipeline struct {
 	// Markdown. When nil, uploading one enriches to a failed item rather than
 	// silently producing an empty card.
 	Doc DocConverter
-	// Jev is the optional TypeSafe decision client. When nil, Phase 1 shadow
+	// Jev is the optional TypeSafe decision client. When nil, Phase 2 live
 	// capture is a no-op. Wired from jev.FromEnv() in cmd/openmind; never on
 	// the POST /items path — only after extract on the enrich worker.
 	Jev JevClient
@@ -235,12 +235,12 @@ func assetIDFromURL(leadImageURL string) (uuid.UUID, bool) {
 // and note paths. Every stage is idempotent; the ErrNotSupported and dimension
 // guards keep the noop provider and mismatched embeddings from failing the job.
 //
-// Phase 1 Jev shadow capture runs first (best-effort, never fails the job):
-// the item is already written; we only log judgments. itemURL is the saved
-// source URL (may be empty for notes).
+// Phase 2 Jev live capture runs first (best-effort, never fails the job):
+// the item is already written; judgments may auto-apply tags / suggest chips.
+// itemURL is the saved source URL (may be empty for notes).
 func (p *Pipeline) enrichText(ctx context.Context, userID, itemID uuid.UUID, itemURL, title, body string) error {
 	q := p.Store.Queries
-	p.shadowCapture(ctx, userID, itemID, itemURL, title, body)
+	p.liveCapture(ctx, userID, itemID, itemURL, title, body)
 
 	summary, err := p.AI.Summarise(ctx, title, body)
 	if err != nil {

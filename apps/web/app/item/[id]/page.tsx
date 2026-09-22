@@ -17,6 +17,7 @@ import { KeepButton } from "../../../components/KeepButton";
 import { KindleButton } from "../../../components/KindleButton";
 import { PinButton } from "../../../components/PinButton";
 import { DeleteButton } from "./DeleteButton";
+import { JevSuggestionChips } from "./JevSuggestionChips";
 import { PlacesSection } from "./PlacesSection";
 import { TagEditor } from "./TagEditor";
 
@@ -309,6 +310,7 @@ function Rail({ item, places }: { item: ItemDetail; places: Place[] }) {
         ) : null}
         <Rule />
         <TagEditor itemId={item.id} userTags={item.userTags ?? []} />
+        <JevSuggestionChips itemId={item.id} suggestions={item.jevSuggestions} />
         <PlacesSection itemId={item.id} places={places} />
         <Rule />
         <RailLinks itemId={item.id} />

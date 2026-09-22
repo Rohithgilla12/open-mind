@@ -60,6 +60,14 @@ const (
 	ItemDetailStatusPending  ItemDetailStatus = "pending"
 )
 
+// Defines values for JevVerdictRequestAction.
+const (
+	Accept  JevVerdictRequestAction = "accept"
+	Dismiss JevVerdictRequestAction = "dismiss"
+	Keep    JevVerdictRequestAction = "keep"
+	Undo    JevVerdictRequestAction = "undo"
+)
+
 // Defines values for LensRuleScope.
 const (
 	LensRuleScopeAll     LensRuleScope = "all"
@@ -368,8 +376,9 @@ type ItemDetail struct {
 	CreatedAt time.Time           `json:"createdAt"`
 
 	// FeedId The feed this item originated from; null if not feed-sourced.
-	FeedId *openapi_types.UUID `json:"feedId"`
-	Id     openapi_types.UUID  `json:"id"`
+	FeedId         *openapi_types.UUID `json:"feedId"`
+	Id             openapi_types.UUID  `json:"id"`
+	JevSuggestions *JevSuggestions     `json:"jevSuggestions,omitempty"`
 
 	// KeptAt When the item was kept in the library from its feed; null if not kept.
 	KeptAt       *time.Time `json:"keptAt"`
@@ -400,6 +409,33 @@ type ItemPage struct {
 	Items      []Item  `json:"items"`
 	NextCursor *string `json:"nextCursor,omitempty"`
 }
+
+// JevSuggestions defines model for JevSuggestions.
+type JevSuggestions struct {
+	// Action Row-level capture action: applied | suggested | skipped | shadow
+	Action string `json:"action"`
+
+	// AppliedTags Auto-applied tags still on the item (one-tap undo)
+	AppliedTags []string `json:"appliedTags"`
+
+	// SuggestedTags Mid-confidence tags not yet accepted, dismissed, or present on the item
+	SuggestedTags []string `json:"suggestedTags"`
+
+	// UserVerdict kept | changed | removed when the user has reacted
+	UserVerdict *string `json:"userVerdict"`
+}
+
+// JevVerdictRequest defines model for JevVerdictRequest.
+type JevVerdictRequest struct {
+	// Action accept adds a suggested tag (verdict kept); dismiss hides a suggestion (verdict removed); undo removes an auto-applied tag (verdict removed); keep confirms an auto-apply without changing tags (verdict kept).
+	Action JevVerdictRequestAction `json:"action"`
+
+	// Tag The tag the user reacted to
+	Tag string `json:"tag"`
+}
+
+// JevVerdictRequestAction accept adds a suggested tag (verdict kept); dismiss hides a suggestion (verdict removed); undo removes an auto-applied tag (verdict removed); keep confirms an auto-apply without changing tags (verdict kept).
+type JevVerdictRequestAction string
 
 // Lens defines model for Lens.
 type Lens struct {
@@ -696,6 +732,9 @@ type PatchItemJSONRequestBody = UpdateItemRequest
 // CreateItemHighlightJSONRequestBody defines body for CreateItemHighlight for application/json ContentType.
 type CreateItemHighlightJSONRequestBody = CreateHighlightRequest
 
+// PostJevVerdictJSONRequestBody defines body for PostJevVerdict for application/json ContentType.
+type PostJevVerdictJSONRequestBody = JevVerdictRequest
+
 // CreateItemLinkJSONRequestBody defines body for CreateItemLink for application/json ContentType.
 type CreateItemLinkJSONRequestBody CreateItemLinkJSONBody
 
@@ -797,6 +836,9 @@ type ServerInterface interface {
 
 	// (POST /items/{id}/highlights)
 	CreateItemHighlight(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Record a user reaction to a Jev capture suggestion or auto-applied tag
+	// (POST /items/{id}/jev-verdict)
+	PostJevVerdict(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Send this item to Kindle as an EPUB
 	// (POST /items/{id}/kindle)
 	SendItemToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -995,6 +1037,12 @@ func (_ Unimplemented) ListItemHighlights(w http.ResponseWriter, r *http.Request
 
 // (POST /items/{id}/highlights)
 func (_ Unimplemented) CreateItemHighlight(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Record a user reaction to a Jev capture suggestion or auto-applied tag
+// (POST /items/{id}/jev-verdict)
+func (_ Unimplemented) PostJevVerdict(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1803,6 +1851,37 @@ func (siw *ServerInterfaceWrapper) CreateItemHighlight(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// PostJevVerdict operation middleware
+func (siw *ServerInterfaceWrapper) PostJevVerdict(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostJevVerdict(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SendItemToKindle operation middleware
 func (siw *ServerInterfaceWrapper) SendItemToKindle(w http.ResponseWriter, r *http.Request) {
 
@@ -2599,6 +2678,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/items/{id}/highlights", wrapper.CreateItemHighlight)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/items/{id}/jev-verdict", wrapper.PostJevVerdict)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/items/{id}/kindle", wrapper.SendItemToKindle)

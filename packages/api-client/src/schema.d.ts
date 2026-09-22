@@ -53,6 +53,26 @@ export interface paths {
         patch: operations["patchItem"];
         trace?: never;
     };
+    "/items/{id}/jev-verdict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a user reaction to a Jev capture suggestion or auto-applied tag
+         * @description Backfills jev_decisions.user_verdict when the user accepts a mid-confidence suggestion chip, dismisses one, undoes an auto-applied tag, or confirms an auto-apply. Accept also adds the tag to userTags; undo removes it. Idempotent for the same tag+action. No-op (404) when the item has no capture decision.
+         */
+        post: operations["postJevVerdict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/items/{id}/links": {
         parameters: {
             query?: never;
@@ -679,6 +699,27 @@ export interface components {
         };
         ItemDetail: components["schemas"]["Item"] & {
             body: string;
+            /** @description Phase 2 capture chips for this item when AI-assisted organisation produced applied/suggested tags. Absent when there is no capture decision or nothing left to show. */
+            jevSuggestions?: components["schemas"]["JevSuggestions"];
+        };
+        JevSuggestions: {
+            /** @description Row-level capture action: applied | suggested | skipped | shadow */
+            action: string;
+            /** @description Mid-confidence tags not yet accepted, dismissed, or present on the item */
+            suggestedTags: string[];
+            /** @description Auto-applied tags still on the item (one-tap undo) */
+            appliedTags: string[];
+            /** @description kept | changed | removed when the user has reacted */
+            userVerdict?: string | null;
+        };
+        JevVerdictRequest: {
+            /**
+             * @description accept adds a suggested tag (verdict kept); dismiss hides a suggestion (verdict removed); undo removes an auto-applied tag (verdict removed); keep confirms an auto-apply without changing tags (verdict kept).
+             * @enum {string}
+             */
+            action: "accept" | "dismiss" | "undo" | "keep";
+            /** @description The tag the user reacted to */
+            tag: string;
         };
         RelatedItem: {
             item: components["schemas"]["Item"];
@@ -1108,6 +1149,46 @@ export interface operations {
         };
         responses: {
             /** @description updated item detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemDetail"];
+                };
+            };
+            /** @description bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postJevVerdict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JevVerdictRequest"];
+            };
+        };
+        responses: {
+            /** @description updated item detail (includes refreshed jevSuggestions) */
             200: {
                 headers: {
                     [name: string]: unknown;

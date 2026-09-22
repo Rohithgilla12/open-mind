@@ -12,8 +12,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addJevDismissedTag = `-- name: AddJevDismissedTag :execrows
+UPDATE jev_decisions
+SET dismissed_tags = (
+    SELECT COALESCE(array_agg(DISTINCT t), '{}')
+    FROM unnest(dismissed_tags || ARRAY[$1::text]) AS t
+)
+WHERE user_id = $2 AND id = $3
+`
+
+type AddJevDismissedTagParams struct {
+	Tag    string
+	UserID uuid.UUID
+	ID     int64
+}
+
+// Append a dismissed suggestion tag (idempotent via DISTINCT).
+func (q *Queries) AddJevDismissedTag(ctx context.Context, arg AddJevDismissedTagParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addJevDismissedTag, arg.Tag, arg.UserID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getJevCaptureDecision = `-- name: GetJevCaptureDecision :one
-SELECT id, user_id, item_id, surface, model, questions_v, answers, action, user_verdict, latency_ms, input_tokens, created_at
+SELECT id, user_id, item_id, surface, model, questions_v, answers, action,
+       user_verdict, latency_ms, input_tokens, created_at,
+       applied_tags, suggested_tags, dismissed_tags
 FROM jev_decisions
 WHERE user_id = $1 AND item_id = $2 AND surface = 'capture'
 LIMIT 1
@@ -40,29 +66,38 @@ func (q *Queries) GetJevCaptureDecision(ctx context.Context, arg GetJevCaptureDe
 		&i.LatencyMs,
 		&i.InputTokens,
 		&i.CreatedAt,
+		&i.AppliedTags,
+		&i.SuggestedTags,
+		&i.DismissedTags,
 	)
 	return i, err
 }
 
 const insertJevDecision = `-- name: InsertJevDecision :one
 INSERT INTO jev_decisions (
-    user_id, item_id, surface, model, questions_v, answers, action, latency_ms, input_tokens
+    user_id, item_id, surface, model, questions_v, answers, action,
+    latency_ms, input_tokens, applied_tags, suggested_tags, dismissed_tags
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
-RETURNING id, user_id, item_id, surface, model, questions_v, answers, action, user_verdict, latency_ms, input_tokens, created_at
+RETURNING id, user_id, item_id, surface, model, questions_v, answers, action,
+          user_verdict, latency_ms, input_tokens, created_at,
+          applied_tags, suggested_tags, dismissed_tags
 `
 
 type InsertJevDecisionParams struct {
-	UserID      uuid.UUID
-	ItemID      pgtype.UUID
-	Surface     string
-	Model       string
-	QuestionsV  string
-	Answers     []byte
-	Action      string
-	LatencyMs   pgtype.Int4
-	InputTokens pgtype.Int4
+	UserID        uuid.UUID
+	ItemID        pgtype.UUID
+	Surface       string
+	Model         string
+	QuestionsV    string
+	Answers       []byte
+	Action        string
+	LatencyMs     pgtype.Int4
+	InputTokens   pgtype.Int4
+	AppliedTags   []string
+	SuggestedTags []string
+	DismissedTags []string
 }
 
 func (q *Queries) InsertJevDecision(ctx context.Context, arg InsertJevDecisionParams) (JevDecision, error) {
@@ -76,6 +111,9 @@ func (q *Queries) InsertJevDecision(ctx context.Context, arg InsertJevDecisionPa
 		arg.Action,
 		arg.LatencyMs,
 		arg.InputTokens,
+		arg.AppliedTags,
+		arg.SuggestedTags,
+		arg.DismissedTags,
 	)
 	var i JevDecision
 	err := row.Scan(
@@ -91,6 +129,9 @@ func (q *Queries) InsertJevDecision(ctx context.Context, arg InsertJevDecisionPa
 		&i.LatencyMs,
 		&i.InputTokens,
 		&i.CreatedAt,
+		&i.AppliedTags,
+		&i.SuggestedTags,
+		&i.DismissedTags,
 	)
 	return i, err
 }
@@ -121,4 +162,24 @@ func (q *Queries) ListUserTagVocabulary(ctx context.Context, userID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const setJevUserVerdict = `-- name: SetJevUserVerdict :execrows
+UPDATE jev_decisions
+SET user_verdict = $1
+WHERE user_id = $2 AND id = $3
+`
+
+type SetJevUserVerdictParams struct {
+	UserVerdict pgtype.Text
+	UserID      uuid.UUID
+	ID          int64
+}
+
+func (q *Queries) SetJevUserVerdict(ctx context.Context, arg SetJevUserVerdictParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setJevUserVerdict, arg.UserVerdict, arg.UserID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

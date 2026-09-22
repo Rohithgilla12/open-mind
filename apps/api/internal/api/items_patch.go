@@ -81,10 +81,22 @@ func (s *Server) PatchItem(w http.ResponseWriter, r *http.Request, id openapi_ty
 	}
 
 	if req.UserTags != nil {
+		cur, err := s.store.Queries.GetItem(ctx, db.GetItemParams{UserID: uid, ID: id})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "item not found")
+				return
+			}
+			slog.Error("getting item before tag update", "err", err)
+			writeError(w, http.StatusInternalServerError, "could not update item")
+			return
+		}
+		before := cur.UserTags
+		canon := canonicalTags(*req.UserTags)
 		rows, err := s.store.Queries.SetUserTags(ctx, db.SetUserTagsParams{
 			UserID:   uid,
 			ID:       id,
-			UserTags: canonicalTags(*req.UserTags),
+			UserTags: canon,
 		})
 		if err != nil {
 			slog.Error("setting user tags", "err", err)
@@ -95,6 +107,7 @@ func (s *Server) PatchItem(w http.ResponseWriter, r *http.Request, id openapi_ty
 			writeError(w, http.StatusNotFound, "item not found")
 			return
 		}
+		s.maybeBackfillJevTagEdit(ctx, uid, id, before, canon)
 	}
 
 	item, err := s.store.Queries.GetItem(ctx, db.GetItemParams{UserID: uid, ID: id})
@@ -107,5 +120,5 @@ func (s *Server) PatchItem(w http.ResponseWriter, r *http.Request, id openapi_ty
 		writeError(w, http.StatusInternalServerError, "could not fetch item")
 		return
 	}
-	writeJSON(w, http.StatusOK, toAPIItemDetail(item))
+	writeJSON(w, http.StatusOK, s.itemDetailWithJev(ctx, uid, item))
 }

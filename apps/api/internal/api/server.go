@@ -216,7 +216,7 @@ func (s *Server) GetItem(w http.ResponseWriter, r *http.Request, id openapi_type
 		writeError(w, http.StatusInternalServerError, "could not fetch item")
 		return
 	}
-	writeJSON(w, http.StatusOK, toAPIItemDetail(item))
+	writeJSON(w, http.StatusOK, s.itemDetailWithJev(ctx, userID(ctx), item))
 }
 
 // DeleteItem removes an item owned by the caller and returns 204. A delete that

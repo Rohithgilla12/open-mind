@@ -79,6 +79,31 @@ paths:
       responses:
         "204": { description: deleted }
         "404": { description: not found }
+  /items/{id}/jev-verdict:
+    post:
+      operationId: postJevVerdict
+      summary: Record a user reaction to a Jev capture suggestion or auto-applied tag
+      description: >
+        Backfills jev_decisions.user_verdict when the user accepts a mid-confidence
+        suggestion chip, dismisses one, undoes an auto-applied tag, or confirms
+        an auto-apply. Accept also adds the tag to userTags; undo removes it.
+        Idempotent for the same tag+action. No-op (404) when the item has no
+        capture decision.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JevVerdictRequest" }
+      responses:
+        "200":
+          description: updated item detail (includes refreshed jevSuggestions)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemDetail" }
+        "400": { description: bad request }
+        "404": { description: not found }
   /items/{id}/links:
     get:
       operationId: listItemLinks
@@ -763,6 +788,45 @@ components:
           required: [body]
           properties:
             body: { type: string }
+            jevSuggestions:
+              $ref: "#/components/schemas/JevSuggestions"
+              description: >
+                Phase 2 capture chips for this item when AI-assisted organisation
+                produced applied/suggested tags. Absent when there is no capture
+                decision or nothing left to show.
+    JevSuggestions:
+      type: object
+      required: [action, suggestedTags, appliedTags]
+      properties:
+        action:
+          type: string
+          description: "Row-level capture action: applied | suggested | skipped | shadow"
+        suggestedTags:
+          type: array
+          items: { type: string }
+          description: Mid-confidence tags not yet accepted, dismissed, or present on the item
+        appliedTags:
+          type: array
+          items: { type: string }
+          description: Auto-applied tags still on the item (one-tap undo)
+        userVerdict:
+          type: string
+          nullable: true
+          description: kept | changed | removed when the user has reacted
+    JevVerdictRequest:
+      type: object
+      required: [action, tag]
+      properties:
+        action:
+          type: string
+          enum: [accept, dismiss, undo, keep]
+          description: >
+            accept adds a suggested tag (verdict kept); dismiss hides a suggestion
+            (verdict removed); undo removes an auto-applied tag (verdict removed);
+            keep confirms an auto-apply without changing tags (verdict kept).
+        tag:
+          type: string
+          description: The tag the user reacted to
     RelatedItem:
       type: object
       required: [item, distance]

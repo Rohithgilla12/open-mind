@@ -41,7 +41,7 @@ func testDeps(t *testing.T) (*store.Store, *river.Client[pgx.Tx], *pgxpool.Pool)
 	if err := store.Migrate(ctx, pool); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, feeds, river_job, api_keys, device_links, user_settings CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE items, item_embeddings, lenses, feeds, river_job, api_keys, device_links, user_settings, jev_decisions CASCADE`); err != nil {
 		t.Fatalf("truncating: %v", err)
 	}
 	s := store.New(pool)

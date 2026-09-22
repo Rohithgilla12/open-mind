@@ -54,21 +54,27 @@ func TestInsertJevDecisionAndTagVocabulary(t *testing.T) {
 	}
 
 	dec, err := s.Queries.InsertJevDecision(ctx, db.InsertJevDecisionParams{
-		UserID:     userID,
-		ItemID:     pgtype.UUID{Bytes: item.ID, Valid: true},
-		Surface:    jev.SurfaceCapture,
-		Model:      jev.DefaultModel,
-		QuestionsV: jev.QuestionsVersion,
-		Answers:    []byte(`{"is_evergreen":{"type":"noul","noul":0.9}}`),
-		Action:     string(jev.ActionShadow),
-		LatencyMs:  pgtype.Int4{Int32: 12, Valid: true},
-		InputTokens: pgtype.Int4{Int32: 100, Valid: true},
+		UserID:        userID,
+		ItemID:        pgtype.UUID{Bytes: item.ID, Valid: true},
+		Surface:       jev.SurfaceCapture,
+		Model:         jev.DefaultModel,
+		QuestionsV:    jev.QuestionsVersion,
+		Answers:       []byte(`{"is_evergreen":{"type":"noul","noul":0.9}}`),
+		Action:        string(jev.ActionSuggested),
+		LatencyMs:     pgtype.Int4{Int32: 12, Valid: true},
+		InputTokens:   pgtype.Int4{Int32: 100, Valid: true},
+		AppliedTags:   []string{},
+		SuggestedTags: []string{"go"},
+		DismissedTags: []string{},
 	})
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	if dec.Action != string(jev.ActionShadow) || dec.ID == 0 {
+	if dec.Action != string(jev.ActionSuggested) || dec.ID == 0 {
 		t.Fatalf("bad decision: %+v", dec)
+	}
+	if len(dec.SuggestedTags) != 1 || dec.SuggestedTags[0] != "go" {
+		t.Fatalf("suggested_tags = %v", dec.SuggestedTags)
 	}
 
 	got, err := s.Queries.GetJevCaptureDecision(ctx, db.GetJevCaptureDecisionParams{
