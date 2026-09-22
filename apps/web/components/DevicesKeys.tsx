@@ -884,8 +884,100 @@ export function DevicesKeys() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 720 }}>
       <ConnectDeviceSection />
       <KeysSection />
+      <AIOrganisationSection />
       <NotificationsSection />
       <KindleSection />
+    </div>
+  );
+}
+
+function AIOrganisationSection() {
+  const [on, setOn] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadFailed(false);
+    fetch("/api/settings")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: Settings) => {
+        if (cancelled) return;
+        setOn(Boolean(data.aiAssistedOrganisation));
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaved(false);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ aiAssistedOrganisation: on }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const data = (await res.json()) as Settings;
+      setOn(Boolean(data.aiAssistedOrganisation));
+      setSaved(true);
+    } catch {
+      setError("Couldn't save. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={card}>
+      <div style={sectionTitle}>AI-assisted organisation</div>
+      <p
+        className="meta"
+        style={{ textTransform: "none", letterSpacing: ".02em", color: color.inkFaintAlt, margin: "6px 0 14px" }}
+      >
+        When on (and the server has <code>OPENMIND_TYPESAFE_API_KEY</code>), each save may send the URL,
+        title, site, and a short excerpt (~1.5–2k characters) to TypeSafe Jev for tagging judgments.
+        Never the full document. Phase 1 only logs decisions — nothing user-visible changes yet.
+      </p>
+      {loadFailed && !loaded ? (
+        <button type="button" onClick={() => setLoadAttempt((n) => n + 1)} style={{ cursor: "pointer" }}>
+          Couldn&apos;t load settings — retry
+        </button>
+      ) : (
+        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: font.sans, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={on}
+              disabled={!loaded || busy}
+              onChange={(e) => setOn(e.target.checked)}
+            />
+            Enable AI-assisted organisation
+          </label>
+          <button type="submit" className="savebtn" disabled={!loaded || busy} style={{ alignSelf: "flex-start", opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+          {error ? (
+            <p role="alert" style={errorStyle}>
+              {error}
+            </p>
+          ) : saved ? (
+            <p style={{ fontFamily: font.mono, fontSize: 12, color: color.green, margin: 0 }}>Saved.</p>
+          ) : null}
+        </form>
+      )}
     </div>
   );
 }

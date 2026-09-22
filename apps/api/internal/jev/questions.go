@@ -70,14 +70,27 @@ const (
 )
 
 // TagDecision is what code does with one tag Noul. The strings match the
-// planned jev_decisions.action values.
+// jev_decisions.action values (Phase 1 also uses ActionShadow for log-only).
 type TagDecision string
 
 const (
 	ActionApplied   TagDecision = "applied"
 	ActionSuggested TagDecision = "suggested"
 	ActionSkipped   TagDecision = "skipped"
+	// ActionShadow is Phase 1 log-only: answers were recorded, item untouched.
+	ActionShadow TagDecision = "shadow"
 )
+
+// Decision surfaces written to jev_decisions.surface.
+const (
+	SurfaceCapture = "capture"
+	SurfaceRerank  = "rerank"
+	SurfaceDrift   = "drift"
+)
+
+// SettingKeyAIAssisted is the user_settings key for "AI-assisted organisation".
+// Absent or any value other than "true" means off (default).
+const SettingKeyAIAssisted = "ai_assisted_organisation"
 
 // DecideTag maps a tag Noul to an action. NaN and values below TagSuggestMin
 // are skipped.

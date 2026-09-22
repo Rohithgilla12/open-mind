@@ -443,13 +443,14 @@ type LensRuleTypes string
 
 // PatchSettingsRequest defines model for PatchSettingsRequest.
 type PatchSettingsRequest struct {
-	KindleEmail      *openapi_types.Email                 `json:"kindleEmail,omitempty"`
-	NotifyDailyCap   *int                                 `json:"notifyDailyCap,omitempty"`
-	NotifyDigest     *PatchSettingsRequestNotifyDigest    `json:"notifyDigest,omitempty"`
-	NotifyFeedRiver  *PatchSettingsRequestNotifyFeedRiver `json:"notifyFeedRiver,omitempty"`
-	NotifyLifecycle  *PatchSettingsRequestNotifyLifecycle `json:"notifyLifecycle,omitempty"`
-	NotifyQuietHours *string                              `json:"notifyQuietHours,omitempty"`
-	NotifyTimezone   *string                              `json:"notifyTimezone,omitempty"`
+	AiAssistedOrganisation *bool                                `json:"aiAssistedOrganisation,omitempty"`
+	KindleEmail            *openapi_types.Email                 `json:"kindleEmail,omitempty"`
+	NotifyDailyCap         *int                                 `json:"notifyDailyCap,omitempty"`
+	NotifyDigest           *PatchSettingsRequestNotifyDigest    `json:"notifyDigest,omitempty"`
+	NotifyFeedRiver        *PatchSettingsRequestNotifyFeedRiver `json:"notifyFeedRiver,omitempty"`
+	NotifyLifecycle        *PatchSettingsRequestNotifyLifecycle `json:"notifyLifecycle,omitempty"`
+	NotifyQuietHours       *string                              `json:"notifyQuietHours,omitempty"`
+	NotifyTimezone         *string                              `json:"notifyTimezone,omitempty"`
 }
 
 // PatchSettingsRequestNotifyDigest defines model for PatchSettingsRequest.NotifyDigest.
@@ -529,6 +530,9 @@ type SearchResult struct {
 
 // Settings defines model for Settings.
 type Settings struct {
+	// AiAssistedOrganisation Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server.
+	AiAssistedOrganisation *bool `json:"aiAssistedOrganisation,omitempty"`
+
 	// KindleEmail Destination e-mail for Send-to-Kindle digests; absent if not configured.
 	KindleEmail *openapi_types.Email `json:"kindleEmail,omitempty"`
 

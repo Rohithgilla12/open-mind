@@ -5,7 +5,7 @@
 // Keeping content as data — rather than buried in JSX — is what makes the page
 // cheap to maintain, and lets us unit-test it without a DOM.
 
-export const LAST_UPDATED = "2026-08-20";
+export const LAST_UPDATED = "2026-09-22";
 
 export type Principle = { title: string; body: string };
 export type PipelineStage = { name: string; note: string };
@@ -42,6 +42,7 @@ export const principles: Principle[] = [
 export const pipelineStages: PipelineStage[] = [
   { name: "extract", note: "readability · trafilatura · domdistiller; PDF via go-pdfium and documents via anydoc, both on wazero WASM" },
   { name: "classify", note: "card type — article, product, book, recipe, video, tweet, image, note, quote, repo" },
+  { name: "jev shadow", note: "optional TypeSafe Jev — log-only capture judgments behind OPENMIND_TYPESAFE_API_KEY + user opt-in; never mutates the item" },
   { name: "summarise", note: "AI adapter — short summary + tags, cheap tier only" },
   { name: "embed", note: "pgvector embedding for semantic + colour search" },
 ];
@@ -65,6 +66,7 @@ export const stack: StackRow[] = [
   { layer: "PDF", choice: "go-pdfium + wazero", why: "PDFium compiled to WASM — no C toolchain at build time." },
   { layer: "Documents", choice: "anydoc + wazero", why: ".docx/.odt/.rtf/.epub to Markdown; Rust compiled to WASM, committed as an artefact so no Rust toolchain is needed to build." },
   { layer: "AI", choice: "Gemini · OpenAI-compatible · noop", why: "Ordered fallback chain behind one adapter interface." },
+  { layer: "Decisions (optional)", choice: "TypeSafe Jev", why: "Calibrated judgments on capture; Phase 1 shadow-logs only after the item is written." },
   { layer: "Auth", choice: "Clerk or bearer device keys", why: "AUTH_MODE picks one; token mode keeps self-hosting free of any third party." },
   { layer: "Notifications", choice: "Postgres outbox · Expo push · e-mail", why: "At-least-once delivery with no broker; every channel is opt-in." },
   { layer: "Geocoding", choice: "Google Places or Nominatim (optional)", why: "Turns places named in a video into map pins; unset means places store by name only." },

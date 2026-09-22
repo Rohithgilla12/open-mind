@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/rohithgilla12/openmind/api/internal/jev"
 	"github.com/rohithgilla12/openmind/api/internal/notify"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
@@ -53,6 +54,9 @@ func (s *Server) currentSettings(w http.ResponseWriter, r *http.Request) (Settin
 		case kindleSettingKey:
 			email := openapi_types.Email(row.Value)
 			out.KindleEmail = &email
+		case jev.SettingKeyAIAssisted:
+			v := strings.EqualFold(strings.TrimSpace(row.Value), "true")
+			out.AiAssistedOrganisation = &v
 		case notify.KeyDigest:
 			v := SettingsNotifyDigest(row.Value)
 			out.NotifyDigest = &v
@@ -100,13 +104,14 @@ func (s *Server) PatchSettings(w http.ResponseWriter, r *http.Request) {
 	// which would turn the "empty string clears the setting" case into a 400
 	// before validKindleEmail ever runs.
 	var req struct {
-		KindleEmail      *string `json:"kindleEmail"`
-		NotifyDigest     *string `json:"notifyDigest"`
-		NotifyFeedRiver  *string `json:"notifyFeedRiver"`
-		NotifyLifecycle  *string `json:"notifyLifecycle"`
-		NotifyQuietHours *string `json:"notifyQuietHours"`
-		NotifyTimezone   *string `json:"notifyTimezone"`
-		NotifyDailyCap   *int    `json:"notifyDailyCap"`
+		KindleEmail             *string `json:"kindleEmail"`
+		AiAssistedOrganisation  *bool   `json:"aiAssistedOrganisation"`
+		NotifyDigest            *string `json:"notifyDigest"`
+		NotifyFeedRiver         *string `json:"notifyFeedRiver"`
+		NotifyLifecycle         *string `json:"notifyLifecycle"`
+		NotifyQuietHours        *string `json:"notifyQuietHours"`
+		NotifyTimezone          *string `json:"notifyTimezone"`
+		NotifyDailyCap          *int    `json:"notifyDailyCap"`
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -167,6 +172,25 @@ func (s *Server) PatchSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if !applyPref(ctx, w, q, uid, pref.key, *pref.value) {
 			return
+		}
+	}
+	if req.AiAssistedOrganisation != nil {
+		if *req.AiAssistedOrganisation {
+			if err := q.UpsertUserSetting(ctx, db.UpsertUserSettingParams{
+				UserID: uid, Key: jev.SettingKeyAIAssisted, Value: "true",
+			}); err != nil {
+				slog.Error("upserting ai-assisted setting", "err", err)
+				writeError(w, http.StatusInternalServerError, "could not update settings")
+				return
+			}
+		} else {
+			if _, err := q.DeleteUserSetting(ctx, db.DeleteUserSettingParams{
+				UserID: uid, Key: jev.SettingKeyAIAssisted,
+			}); err != nil {
+				slog.Error("clearing ai-assisted setting", "err", err)
+				writeError(w, http.StatusInternalServerError, "could not update settings")
+				return
+			}
 		}
 	}
 	if req.NotifyDailyCap != nil {

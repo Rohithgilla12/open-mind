@@ -42,6 +42,10 @@ type Pipeline struct {
 	// Markdown. When nil, uploading one enriches to a failed item rather than
 	// silently producing an empty card.
 	Doc DocConverter
+	// Jev is the optional TypeSafe decision client. When nil, Phase 1 shadow
+	// capture is a no-op. Wired from jev.FromEnv() in cmd/openmind; never on
+	// the POST /items path — only after extract on the enrich worker.
+	Jev JevClient
 }
 
 // httpClient returns the pipeline's HTTP client, defaulting to a SafeHTTPClient
@@ -113,7 +117,7 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		}); err != nil {
 			return fmt.Errorf("saving image extraction: %w", err)
 		}
-		return p.enrichText(ctx, userID, itemID, title, title)
+		return p.enrichText(ctx, userID, itemID, item.Url, title, title)
 	}
 
 	// PDF URLs also bypass the article extractor: fetch, store as an asset,
@@ -139,7 +143,7 @@ func (p *Pipeline) Run(ctx context.Context, userID, itemID uuid.UUID) error {
 		return fmt.Errorf("saving extraction: %w", err)
 	}
 
-	return p.enrichText(ctx, userID, itemID, ex.Title, ex.Body)
+	return p.enrichText(ctx, userID, itemID, item.Url, ex.Title, ex.Body)
 }
 
 // runNote enriches a note item (no URL): it skips extraction, classifies as a
@@ -154,7 +158,7 @@ func (p *Pipeline) runNote(ctx context.Context, userID uuid.UUID, item db.Item) 
 	}); err != nil {
 		return fmt.Errorf("saving note metadata: %w", err)
 	}
-	return p.enrichText(ctx, userID, item.ID, title, item.Body)
+	return p.enrichText(ctx, userID, item.ID, item.Url, title, item.Body)
 }
 
 // runUploadedImage enriches a locally-uploaded image (no source URL): it skips
@@ -174,7 +178,7 @@ func (p *Pipeline) runUploadedImage(ctx context.Context, userID uuid.UUID, item 
 		return fmt.Errorf("saving uploaded-image metadata: %w", err)
 	}
 	p.extractPalette(ctx, userID, item.ID, item.LeadImageUrl)
-	return p.enrichText(ctx, userID, item.ID, title, title)
+	return p.enrichText(ctx, userID, item.ID, item.Url, title, title)
 }
 
 // extractPalette reads the uploaded asset blob referenced by an "/assets/<uuid>"
@@ -230,8 +234,14 @@ func assetIDFromURL(leadImageURL string) (uuid.UUID, bool) {
 // enrichText runs the summarise → tag → embed → status tail shared by the URL
 // and note paths. Every stage is idempotent; the ErrNotSupported and dimension
 // guards keep the noop provider and mismatched embeddings from failing the job.
-func (p *Pipeline) enrichText(ctx context.Context, userID, itemID uuid.UUID, title, body string) error {
+//
+// Phase 1 Jev shadow capture runs first (best-effort, never fails the job):
+// the item is already written; we only log judgments. itemURL is the saved
+// source URL (may be empty for notes).
+func (p *Pipeline) enrichText(ctx context.Context, userID, itemID uuid.UUID, itemURL, title, body string) error {
 	q := p.Store.Queries
+	p.shadowCapture(ctx, userID, itemID, itemURL, title, body)
+
 	summary, err := p.AI.Summarise(ctx, title, body)
 	if err != nil {
 		return fmt.Errorf("summarising: %w", err) // River retries; save stays intact

@@ -61,10 +61,9 @@
 - (see Issues)
 
 ## Later
-- Jev phases 1–5 (TypeSafe decision layer). Phase 0 is only the client in
-  `apps/api/internal/jev` — do not call it from ingest, search, or Drift, and
-  do not make a save wait on it. Next is shadow-logged capture behind
-  `OPENMIND_TYPESAFE_API_KEY`, then suggestions, rerank, Drift, and a write-up.
+- Jev phases 2–5 (live chips, rerank, Drift, write-up). Phase 1 shadow
+  capture is in `apps/api/internal/enrich/shadow.go` behind
+  `OPENMIND_TYPESAFE_API_KEY` + the "AI-assisted organisation" user setting.
 - Instant-search follow-up: Enter still navigates, so committing a live query
   pays the `(app)/loading.tsx` skeleton even though the results are already on
   screen. Keeping the overlay alive across that navigation means hoisting it out

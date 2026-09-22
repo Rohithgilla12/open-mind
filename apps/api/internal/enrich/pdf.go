@@ -92,7 +92,7 @@ func (p *Pipeline) persistPDF(ctx context.Context, userID uuid.UUID, item db.Ite
 	}); err != nil {
 		return fmt.Errorf("saving pdf page count: %w", err)
 	}
-	return p.enrichText(ctx, userID, item.ID, title, res.Text)
+	return p.enrichText(ctx, userID, item.ID, item.Url, title, res.Text)
 }
 
 // runUploadedPDF enriches an uploaded PDF item (url = "/assets/<uuid>"): read

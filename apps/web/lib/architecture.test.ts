@@ -16,10 +16,11 @@ describe("architecture content", () => {
     expect(principles).toHaveLength(6);
   });
 
-  it("lists the four core pipeline stages in order", () => {
+  it("lists the core pipeline stages in order", () => {
     expect(pipelineStages.map((s) => s.name)).toEqual([
       "extract",
       "classify",
+      "jev shadow",
       "summarise",
       "embed",
     ]);

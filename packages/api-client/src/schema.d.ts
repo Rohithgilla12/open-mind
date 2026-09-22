@@ -894,6 +894,8 @@ export interface components {
              * @description Destination e-mail for Send-to-Kindle digests; absent if not configured.
              */
             kindleEmail?: string;
+            /** @description Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server. */
+            aiAssistedOrganisation?: boolean;
             /**
              * @description Channels for Lens digest notifications. Default push.
              * @enum {string}
@@ -919,6 +921,7 @@ export interface components {
         PatchSettingsRequest: {
             /** Format: email */
             kindleEmail?: string;
+            aiAssistedOrganisation?: boolean;
             /** @enum {string} */
             notifyDigest?: "off" | "push" | "email" | "both";
             /** @enum {string} */

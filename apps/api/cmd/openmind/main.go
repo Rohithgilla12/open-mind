@@ -28,6 +28,7 @@ import (
 	"github.com/rohithgilla12/openmind/api/internal/enrich"
 	"github.com/rohithgilla12/openmind/api/internal/feeds"
 	"github.com/rohithgilla12/openmind/api/internal/geo"
+	"github.com/rohithgilla12/openmind/api/internal/jev"
 	"github.com/rohithgilla12/openmind/api/internal/jobs"
 	"github.com/rohithgilla12/openmind/api/internal/mailer"
 	appmcp "github.com/rohithgilla12/openmind/api/internal/mcp"
@@ -98,7 +99,7 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("building ai provider: %w", err)
 	}
 	slog.Info("ai provider ready", "provider", provider.Name())
-	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil)}
+	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil), Jev: jev.FromEnv()}
 
 	// PDF support degrades gracefully: a wasm init failure logs and leaves
 	// pipeline.PDF nil, so PDF items simply fall through to normal handling

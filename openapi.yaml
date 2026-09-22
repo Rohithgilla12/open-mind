@@ -976,6 +976,7 @@ components:
       type: object
       properties:
         kindleEmail: { type: string, format: email, description: "Destination e-mail for Send-to-Kindle digests; absent if not configured." }
+        aiAssistedOrganisation: { type: boolean, description: "Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server." }
         notifyDigest: { type: string, enum: [off, push, email, both], description: "Channels for Lens digest notifications. Default push." }
         notifyFeedRiver: { type: string, enum: [off, push, email, both], description: "Channels for coalesced feed-river activity. Default off." }
         notifyLifecycle: { type: string, enum: [off, push, email, both], description: "Channels for save-failure notifications. Default push. Exempt from the daily cap." }
@@ -986,6 +987,7 @@ components:
       type: object
       properties:
         kindleEmail: { type: string, format: email }
+        aiAssistedOrganisation: { type: boolean }
         notifyDigest: { type: string, enum: [off, push, email, both] }
         notifyFeedRiver: { type: string, enum: [off, push, email, both] }
         notifyLifecycle: { type: string, enum: [off, push, email, both] }

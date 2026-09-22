@@ -27,7 +27,7 @@ func testStore(t *testing.T) *store.Store {
 	if err := store.Migrate(ctx, pool); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
-	pool.Exec(ctx, `TRUNCATE items, item_embeddings CASCADE`)
+	pool.Exec(ctx, `TRUNCATE items, item_embeddings, jev_decisions CASCADE`)
 	return store.New(pool)
 }
 

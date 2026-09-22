@@ -178,7 +178,7 @@ func (p *Pipeline) runSocialVideo(ctx context.Context, userID uuid.UUID, item db
 	}); err != nil {
 		return fmt.Errorf("saving social video extraction: %w", err)
 	}
-	return p.enrichText(ctx, userID, item.ID, ex.Title, ex.Body)
+	return p.enrichText(ctx, userID, item.ID, item.Url, ex.Title, ex.Body)
 }
 
 // socialVideoTitleMax is the display cap for reel/TikTok card titles. Matches

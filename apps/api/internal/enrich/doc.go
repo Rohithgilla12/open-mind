@@ -63,7 +63,7 @@ func (p *Pipeline) persistDoc(ctx context.Context, userID uuid.UUID, item db.Ite
 	}); err != nil {
 		return fmt.Errorf("saving document markdown: %w", err)
 	}
-	return p.enrichText(ctx, userID, item.ID, title, res.Text)
+	return p.enrichText(ctx, userID, item.ID, item.Url, title, res.Text)
 }
 
 // runUploadedDoc enriches an uploaded office document (url = "/assets/<uuid>"):

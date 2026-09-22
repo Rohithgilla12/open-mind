@@ -13,13 +13,14 @@ import (
 )
 
 type settingsResp struct {
-	KindleEmail      *string `json:"kindleEmail"`
-	NotifyDigest     *string `json:"notifyDigest"`
-	NotifyFeedRiver  *string `json:"notifyFeedRiver"`
-	NotifyLifecycle  *string `json:"notifyLifecycle"`
-	NotifyQuietHours *string `json:"notifyQuietHours"`
-	NotifyTimezone   *string `json:"notifyTimezone"`
-	NotifyDailyCap   *int    `json:"notifyDailyCap"`
+	KindleEmail            *string `json:"kindleEmail"`
+	AiAssistedOrganisation *bool   `json:"aiAssistedOrganisation"`
+	NotifyDigest           *string `json:"notifyDigest"`
+	NotifyFeedRiver        *string `json:"notifyFeedRiver"`
+	NotifyLifecycle        *string `json:"notifyLifecycle"`
+	NotifyQuietHours       *string `json:"notifyQuietHours"`
+	NotifyTimezone         *string `json:"notifyTimezone"`
+	NotifyDailyCap         *int    `json:"notifyDailyCap"`
 }
 
 func getSettings(t *testing.T, url string) settingsResp {
@@ -350,5 +351,46 @@ func TestPatchSettingsOmittedFieldLeavesUntouched(t *testing.T) {
 	}
 	if afterThird.NotifyTimezone == nil || *afterThird.NotifyTimezone != "Europe/London" {
 		t.Errorf("NotifyTimezone after unrelated clear = %v, want untouched Europe/London", afterThird.NotifyTimezone)
+	}
+}
+
+// TestSettingsAIAssistedOrganisationRoundTrip covers the opt-in Jev gate:
+// absent by default, set true via PATCH, cleared back to absent via false.
+func TestSettingsAIAssistedOrganisationRoundTrip(t *testing.T) {
+	s, rc, _ := testDeps(t)
+	srv := httptest.NewServer(newSrv(t, s, rc, ""))
+	t.Cleanup(srv.Close)
+
+	empty := getSettings(t, srv.URL)
+	if empty.AiAssistedOrganisation != nil && *empty.AiAssistedOrganisation {
+		t.Fatalf("initial aiAssistedOrganisation = true, want absent/false")
+	}
+
+	on := doJSON(t, http.MethodPatch, srv.URL+"/settings", `{"aiAssistedOrganisation":true}`)
+	defer on.Body.Close()
+	if on.StatusCode != http.StatusOK {
+		t.Fatalf("patch on status = %d, want 200", on.StatusCode)
+	}
+	var patched settingsResp
+	if err := json.NewDecoder(on.Body).Decode(&patched); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if patched.AiAssistedOrganisation == nil || !*patched.AiAssistedOrganisation {
+		t.Fatalf("patched = %v, want true", patched.AiAssistedOrganisation)
+	}
+
+	got := getSettings(t, srv.URL)
+	if got.AiAssistedOrganisation == nil || !*got.AiAssistedOrganisation {
+		t.Fatalf("get after on = %v, want true", got.AiAssistedOrganisation)
+	}
+
+	off := doJSON(t, http.MethodPatch, srv.URL+"/settings", `{"aiAssistedOrganisation":false}`)
+	defer off.Body.Close()
+	if off.StatusCode != http.StatusOK {
+		t.Fatalf("patch off status = %d, want 200", off.StatusCode)
+	}
+	final := getSettings(t, srv.URL)
+	if final.AiAssistedOrganisation != nil && *final.AiAssistedOrganisation {
+		t.Fatalf("final = %v, want absent/false", final.AiAssistedOrganisation)
 	}
 }
