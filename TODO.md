@@ -61,6 +61,10 @@
 - (see Issues)
 
 ## Later
+- Jev phases 1–5 (TypeSafe decision layer). Phase 0 is only the client in
+  `apps/api/internal/jev` — do not call it from ingest, search, or Drift, and
+  do not make a save wait on it. Next is shadow-logged capture behind
+  `OPENMIND_TYPESAFE_API_KEY`, then suggestions, rerank, Drift, and a write-up.
 - Instant-search follow-up: Enter still navigates, so committing a live query
   pays the `(app)/loading.tsx` skeleton even though the results are already on
   screen. Keeping the overlay alive across that navigation means hoisting it out
@@ -205,6 +209,10 @@
   seam) only if the per-page seam proves annoying against a real 50-card page.
 
 ## Done (recent)
+- **Jev Phase 0 client (2026-09-22).** Hand-rolled `apps/api/internal/jev`:
+  `POST /v1/systemone`, question set and provisional thresholds in
+  `questions.go`. Not wired into ingest, search, or Drift. Saves still return
+  before any model call.
 - **Deployed to prod 2026-08-21 (fourth deploy) — instant search (PR #69).**
   Web-only rebuild plus the mandatory `cloudflared` restart; the api image was
   not touched. Verified from outside: `/architecture` serves the new
