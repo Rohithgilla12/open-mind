@@ -13,44 +13,42 @@ type JevSuggestions = {
   userVerdict?: string | null;
 };
 
-const suggestChip: CSSProperties = {
+const chipBase: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  gap: 5,
+  gap: 6,
   font: `500 10px/1 ${font.mono}`,
   letterSpacing: ".02em",
+  borderRadius: 20,
+  padding: "6px 8px 6px 10px",
+};
+
+const suggestChip: CSSProperties = {
+  ...chipBase,
   color: color.inkMuted,
   background: `color-mix(in srgb, ${color.gold} 14%, transparent)`,
   border: `1px dashed color-mix(in srgb, ${color.gold} 45%, transparent)`,
-  padding: "4px 4px 4px 8px",
-  borderRadius: 20,
   cursor: "pointer",
 };
 
-const appliedHint: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 5,
-  font: `500 10px/1 ${font.mono}`,
-  letterSpacing: ".02em",
+const appliedChip: CSSProperties = {
+  ...chipBase,
   color: color.green,
   background: `color-mix(in srgb, ${color.green} 9%, transparent)`,
   border: `1px solid color-mix(in srgb, ${color.green} 22%, transparent)`,
-  padding: "4px 4px 4px 8px",
-  borderRadius: 20,
 };
 
-const iconBtn: CSSProperties = {
+const dismissBtn: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 14,
-  height: 14,
+  minWidth: 18,
+  minHeight: 18,
   borderRadius: "50%",
   border: "none",
   background: "none",
   fontFamily: font.mono,
-  fontSize: 12,
+  fontSize: 13,
   lineHeight: 1,
   cursor: "pointer",
   padding: 0,
@@ -112,25 +110,27 @@ export function JevSuggestionChips({
                   disabled={pending}
                   aria-label={`Add suggested tag ${t}`}
                   style={{
-                    ...iconBtn,
-                    color: color.inkMuted,
                     border: "none",
                     background: "none",
-                    width: "auto",
-                    height: "auto",
-                    font: `500 10px/1 ${font.mono}`,
-                    cursor: pending ? "default" : "pointer",
                     padding: 0,
+                    margin: 0,
+                    font: `500 10px/1 ${font.mono}`,
+                    letterSpacing: ".02em",
+                    color: color.inkMuted,
+                    cursor: pending ? "default" : "pointer",
                   }}
                 >
                   + {t}
                 </button>
                 <button
                   type="button"
-                  onClick={() => act("dismiss", t)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    act("dismiss", t);
+                  }}
                   disabled={pending}
                   aria-label={`Dismiss suggested tag ${t}`}
-                  style={{ ...iconBtn, color: color.inkFaint }}
+                  style={{ ...dismissBtn, color: color.inkFaint }}
                 >
                   ×
                 </button>
@@ -146,14 +146,14 @@ export function JevSuggestionChips({
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9, alignItems: "center" }}>
             {applied.map((t) => (
-              <span key={t} style={{ ...appliedHint, opacity: pending ? 0.6 : 1 }}>
+              <span key={t} style={{ ...appliedChip, opacity: pending ? 0.6 : 1 }}>
                 {t}
                 <button
                   type="button"
                   onClick={() => act("undo", t)}
                   disabled={pending}
                   aria-label={`Undo auto-applied tag ${t}`}
-                  style={{ ...iconBtn, color: color.green }}
+                  style={{ ...dismissBtn, color: color.green }}
                 >
                   ×
                 </button>
