@@ -31,6 +31,22 @@ const (
 	RerankVectorWeight = 0.4
 	RerankJevWeight    = 0.6
 
+	// Drift blend weights for Phase 4 resurfacing. They sum to 1.
+	//
+	//   score = DriftWorthWeight·worth_resurfacing
+	//         + DriftActionWeight·still_actionable
+	//         + DriftRecencyWeight·RecencyDecay(ageDays)
+	//
+	// RecencyDecay is 2^(-ageDays / DriftRecencyHalfLifeDays), so an item
+	// about DriftRecencyHalfLifeDays old contributes ~0.5 on the recency
+	// term. Jev Nouls dominate (0.8 combined); recency is a soft tie-break
+	// so equally judged items favour somewhat fresher saves. Wrong answers
+	// only reorder Drift suggestions — never mutate the library.
+	DriftWorthWeight         = 0.4
+	DriftActionWeight        = 0.4
+	DriftRecencyWeight       = 0.2
+	DriftRecencyHalfLifeDays = 90.0
+
 	// ColdStartTags is the minimum distinct tags before tag Nouls are asked.
 	// Fewer than this and CaptureQuestions asks only the fixed questions.
 	ColdStartTags = 5
@@ -41,6 +57,10 @@ const (
 
 	// SnippetMaxChars caps one rerank candidate snippet.
 	SnippetMaxChars = 300
+
+	// ActivitySummaryMaxSaves caps how many recent saves enter the Drift
+	// recent_activity text. Titles/hosts only — never bodies.
+	ActivitySummaryMaxSaves = 40
 )
 
 // Fixed question ids. Tag and candidate ids are prefixed; the model never
@@ -114,6 +134,24 @@ func AcceptContentType(confidence float64) bool {
 // BlendRerank combines embedding similarity and a rerank Noul.
 func BlendRerank(vectorSim, jevRelevance float64) float64 {
 	return RerankVectorWeight*vectorSim + RerankJevWeight*jevRelevance
+}
+
+// BlendDrift combines the two Drift Nouls with recency decay. Inputs outside
+// [0,1] are clamped. See the Drift*Weight constants for the formula.
+func BlendDrift(worthResurfacing, stillActionable, recency float64) float64 {
+	return DriftWorthWeight*clamp01(worthResurfacing) +
+		DriftActionWeight*clamp01(stillActionable) +
+		DriftRecencyWeight*clamp01(recency)
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 // CaptureState is the only capture text sent to Jev: URL, title, site, and a
@@ -246,7 +284,11 @@ func BuildDriftState(item DriftItem, recentActivity string) DriftState {
 }
 
 // DriftQuestions asks whether to resurface the item today and whether it is
-// still actionable. Rank the blend in code; these two stay separate.
+// still actionable. Rank in code with BlendDrift / ScoreDriftCandidate:
+//
+//	score = 0.4·worth_resurfacing + 0.4·still_actionable + 0.2·RecencyDecay(ageDays)
+//
+// where RecencyDecay = 2^(-ageDays / 90). These two Nouls stay separate.
 func DriftQuestions() map[string]Question {
 	return map[string]Question{
 		QWorthResurfacing: Noul(

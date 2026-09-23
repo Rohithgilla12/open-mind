@@ -91,6 +91,8 @@ type Item struct {
 	TaggedLocation string
 	UrlHost        pgtype.Text
 	BodyMarkdown   pgtype.Text
+	DriftScore     pgtype.Float4
+	DriftScoredAt  pgtype.Timestamptz
 }
 
 type ItemEmbedding struct {

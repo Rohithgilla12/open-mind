@@ -14,7 +14,7 @@ import (
 )
 
 const listItemsMatching = `-- name: ListItemsMatching :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at
 FROM items
 WHERE user_id = $1
   AND (
@@ -90,6 +90,8 @@ func (q *Queries) ListItemsMatching(ctx context.Context, arg ListItemsMatchingPa
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -102,7 +104,7 @@ func (q *Queries) ListItemsMatching(ctx context.Context, arg ListItemsMatchingPa
 }
 
 const listItemsWithPalette = `-- name: ListItemsWithPalette :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items
 WHERE user_id = $1
   AND cardinality(palette) > 0
   AND (
@@ -172,6 +174,8 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, arg ListItemsWithPal
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -184,7 +188,7 @@ func (q *Queries) ListItemsWithPalette(ctx context.Context, arg ListItemsWithPal
 }
 
 const relatedByEmbedding = `-- name: RelatedByEmbedding :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, i.body_markdown, (e.embedding <=> src.embedding)::float8 AS distance
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, i.body_markdown, i.drift_score, i.drift_scored_at, (e.embedding <=> src.embedding)::float8 AS distance
 FROM item_embeddings src
 JOIN item_embeddings e ON e.user_id = src.user_id AND e.item_id <> src.item_id
 JOIN items i ON i.id = e.item_id
@@ -231,6 +235,8 @@ type RelatedByEmbeddingRow struct {
 	TaggedLocation string
 	UrlHost        pgtype.Text
 	BodyMarkdown   pgtype.Text
+	DriftScore     pgtype.Float4
+	DriftScoredAt  pgtype.Timestamptz
 	Distance       float64
 }
 
@@ -275,6 +281,8 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 			&i.Distance,
 		); err != nil {
 			return nil, err
@@ -289,7 +297,7 @@ func (q *Queries) RelatedByEmbedding(ctx context.Context, arg RelatedByEmbedding
 
 const searchFTS = `-- name: SearchFTS :many
 
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at, ts_rank(search_tsv, websearch_to_tsquery('english', $2))::float8 AS rank
 FROM items
 WHERE user_id = $1
   AND search_tsv @@ websearch_to_tsquery('english', $2)
@@ -350,6 +358,8 @@ type SearchFTSRow struct {
 	TaggedLocation string
 	UrlHost        pgtype.Text
 	BodyMarkdown   pgtype.Text
+	DriftScore     pgtype.Float4
+	DriftScoredAt  pgtype.Timestamptz
 	Rank           float64
 }
 
@@ -396,6 +406,8 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 			&i.Rank,
 		); err != nil {
 			return nil, err
@@ -409,7 +421,7 @@ func (q *Queries) SearchFTS(ctx context.Context, arg SearchFTSParams) ([]SearchF
 }
 
 const searchVector = `-- name: SearchVector :many
-SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, i.body_markdown, (1 - (e.embedding <=> $2))::float8 AS similarity
+SELECT i.id, i.user_id, i.url, i.title, i.body, i.lead_image_url, i.summary, i.tags, i.card_type, i.status, i.created_at, i.updated_at, i.palette, i.user_tags, i.pinned_at, i.last_drifted_at, i.search_tsv, i.page_count, i.feed_id, i.kept_at, i.tagged_location, i.url_host, i.body_markdown, i.drift_score, i.drift_scored_at, (1 - (e.embedding <=> $2))::float8 AS similarity
 FROM item_embeddings e JOIN items i ON i.id = e.item_id
 WHERE e.user_id = $1
   AND (
@@ -468,6 +480,8 @@ type SearchVectorRow struct {
 	TaggedLocation string
 	UrlHost        pgtype.Text
 	BodyMarkdown   pgtype.Text
+	DriftScore     pgtype.Float4
+	DriftScoredAt  pgtype.Timestamptz
 	Similarity     float64
 }
 
@@ -511,6 +525,8 @@ func (q *Queries) SearchVector(ctx context.Context, arg SearchVectorParams) ([]S
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 			&i.Similarity,
 		); err != nil {
 			return nil, err

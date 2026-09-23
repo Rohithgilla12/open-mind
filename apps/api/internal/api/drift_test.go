@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rohithgilla12/openmind/api/internal/api"
+	"github.com/rohithgilla12/openmind/api/internal/jev"
 	"github.com/rohithgilla12/openmind/api/internal/store/db"
 )
 
@@ -222,5 +224,64 @@ func TestDriftExcludesUnkeptFeedItems(t *testing.T) {
 	out = getDrift(t, srv.URL)
 	if out.Total != 1 || len(out.Items) != 1 || out.Items[0].Id.String() != item.ID.String() {
 		t.Errorf("drift after keep = %+v, want the kept item %s", out, item.ID)
+	}
+}
+
+// TestGetDriftReordersByFreshScore verifies Phase 4: with Jev gated on and
+// fresh drift_score values, GET /drift prefers the blend order over the
+// oldest-first heuristic. Without scores (or without the gate), order is unchanged.
+func TestGetDriftReordersByFreshScore(t *testing.T) {
+	s, rc, pool := testDeps(t)
+	enableAIAssisted(t, s)
+
+	now := time.Now().UTC()
+	oldest := createNoteItem(t, newHTTPTest(t, s, rc).URL, "heuristic first")
+	// Recreate server with Jev so the gate can open (request path never Evaluate's).
+	handler := newSrvWithJev(t, s, rc, jev.New("unused-key"))
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	newestHigh := createNoteItem(t, srv.URL, "blend first")
+	setDriftFields(t, pool, oldest, "enriched", now.Add(-10*24*time.Hour), nil, nil)
+	setDriftFields(t, pool, newestHigh, "enriched", now.Add(-2*24*time.Hour), nil, nil)
+
+	// Heuristic: never-drifted oldest-first → oldest before newestHigh.
+	out := getDrift(t, srv.URL)
+	if len(out.Items) < 2 {
+		t.Fatalf("want ≥2 items, got %+v", out)
+	}
+	if out.Items[0].Id.String() != oldest {
+		t.Fatalf("before scores: first = %s, want oldest %s", out.Items[0].Id, oldest)
+	}
+
+	// Fresh high score on the newer item → it should surface first.
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE items SET drift_score=$2, drift_scored_at=$3 WHERE id=$1`,
+		uuid.MustParse(newestHigh), 0.95, now); err != nil {
+		t.Fatalf("set high score: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE items SET drift_score=$2, drift_scored_at=$3 WHERE id=$1`,
+		uuid.MustParse(oldest), 0.1, now); err != nil {
+		t.Fatalf("set low score: %v", err)
+	}
+
+	out = getDrift(t, srv.URL)
+	if out.Items[0].Id.String() != newestHigh {
+		t.Fatalf("after scores: first = %s, want %s", out.Items[0].Id, newestHigh)
+	}
+
+	// Stale scores → fall back to heuristic.
+	stale := now.Add(-48 * time.Hour)
+	for _, id := range []string{oldest, newestHigh} {
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE items SET drift_scored_at=$2 WHERE id=$1`,
+			uuid.MustParse(id), stale); err != nil {
+			t.Fatalf("stale %s: %v", id, err)
+		}
+	}
+	out = getDrift(t, srv.URL)
+	if out.Items[0].Id.String() != oldest {
+		t.Fatalf("stale scores should keep heuristic first=%s, want %s", out.Items[0].Id, oldest)
 	}
 }

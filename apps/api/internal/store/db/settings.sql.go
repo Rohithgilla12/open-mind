@@ -73,6 +73,32 @@ func (q *Queries) ListUserSettings(ctx context.Context, userID uuid.UUID) ([]Lis
 	return items, nil
 }
 
+const listUsersWithAIAssisted = `-- name: ListUsersWithAIAssisted :many
+SELECT user_id FROM user_settings
+WHERE key = 'ai_assisted_organisation' AND lower(trim(value)) = 'true'
+`
+
+// Users who opted into AI-assisted organisation (Jev capture / rerank / Drift).
+func (q *Queries) ListUsersWithAIAssisted(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUsersWithAIAssisted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertUserSetting = `-- name: UpsertUserSetting :exec
 INSERT INTO user_settings (user_id, key, value) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()

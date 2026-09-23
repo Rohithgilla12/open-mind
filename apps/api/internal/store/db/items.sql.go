@@ -46,7 +46,7 @@ func (q *Queries) CountDriftCandidates(ctx context.Context, userID uuid.UUID) (i
 }
 
 const createFeedItem = `-- name: CreateFeedItem :one
-INSERT INTO items (user_id, url, feed_id) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown
+INSERT INTO items (user_id, url, feed_id) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at
 `
 
 type CreateFeedItemParams struct {
@@ -82,12 +82,14 @@ func (q *Queries) CreateFeedItem(ctx context.Context, arg CreateFeedItemParams) 
 		&i.TaggedLocation,
 		&i.UrlHost,
 		&i.BodyMarkdown,
+		&i.DriftScore,
+		&i.DriftScoredAt,
 	)
 	return i, err
 }
 
 const createItem = `-- name: CreateItem :one
-INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown
+INSERT INTO items (user_id, url, body) VALUES ($1, $2, $3) RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at
 `
 
 type CreateItemParams struct {
@@ -123,12 +125,14 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, e
 		&i.TaggedLocation,
 		&i.UrlHost,
 		&i.BodyMarkdown,
+		&i.DriftScore,
+		&i.DriftScoredAt,
 	)
 	return i, err
 }
 
 const createQuoteItem = `-- name: CreateQuoteItem :one
-INSERT INTO items (user_id, body, card_type, url) VALUES ($1, $2, 'quote', '') RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown
+INSERT INTO items (user_id, body, card_type, url) VALUES ($1, $2, 'quote', '') RETURNING id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at
 `
 
 type CreateQuoteItemParams struct {
@@ -163,6 +167,8 @@ func (q *Queries) CreateQuoteItem(ctx context.Context, arg CreateQuoteItemParams
 		&i.TaggedLocation,
 		&i.UrlHost,
 		&i.BodyMarkdown,
+		&i.DriftScore,
+		&i.DriftScoredAt,
 	)
 	return i, err
 }
@@ -216,7 +222,7 @@ func (q *Queries) EnsureUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items WHERE user_id = $1 AND id = $2
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items WHERE user_id = $1 AND id = $2
 `
 
 type GetItemParams struct {
@@ -251,12 +257,14 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (Item, error) 
 		&i.TaggedLocation,
 		&i.UrlHost,
 		&i.BodyMarkdown,
+		&i.DriftScore,
+		&i.DriftScoredAt,
 	)
 	return i, err
 }
 
 const getItemByURL = `-- name: GetItemByURL :one
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items WHERE user_id = $1 AND url = $2 LIMIT 1
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items WHERE user_id = $1 AND url = $2 LIMIT 1
 `
 
 type GetItemByURLParams struct {
@@ -291,12 +299,14 @@ func (q *Queries) GetItemByURL(ctx context.Context, arg GetItemByURLParams) (Ite
 		&i.TaggedLocation,
 		&i.UrlHost,
 		&i.BodyMarkdown,
+		&i.DriftScore,
+		&i.DriftScoredAt,
 	)
 	return i, err
 }
 
 const listDriftCandidates = `-- name: ListDriftCandidates :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items
 WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
   AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
   AND (feed_id IS NULL OR kept_at IS NOT NULL)
@@ -342,6 +352,8 @@ func (q *Queries) ListDriftCandidates(ctx context.Context, arg ListDriftCandidat
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -354,7 +366,7 @@ func (q *Queries) ListDriftCandidates(ctx context.Context, arg ListDriftCandidat
 }
 
 const listFeedItems = `-- name: ListFeedItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items
 WHERE user_id = $1 AND feed_id IS NOT NULL
   AND ($2::uuid IS NULL OR feed_id = $2)
   AND (
@@ -412,6 +424,8 @@ func (q *Queries) ListFeedItems(ctx context.Context, arg ListFeedItemsParams) ([
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -448,7 +462,7 @@ func (q *Queries) ListItemURLs(ctx context.Context, userID uuid.UUID) ([]string,
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items
 WHERE user_id = $1 AND (feed_id IS NULL OR kept_at IS NOT NULL)
   AND (
     $2::timestamptz IS NULL
@@ -506,6 +520,8 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -518,7 +534,7 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]Item, e
 }
 
 const listItemsAll = `-- name: ListItemsAll :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items
 WHERE user_id = $1
 ORDER BY created_at DESC LIMIT $2
 `
@@ -565,6 +581,8 @@ func (q *Queries) ListItemsAll(ctx context.Context, arg ListItemsAllParams) ([]I
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -577,7 +595,7 @@ func (q *Queries) ListItemsAll(ctx context.Context, arg ListItemsAllParams) ([]I
 }
 
 const listItemsForExport = `-- name: ListItemsForExport :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items WHERE user_id = $1 ORDER BY created_at ASC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items WHERE user_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -613,6 +631,8 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -625,7 +645,7 @@ func (q *Queries) ListItemsForExport(ctx context.Context, userID uuid.UUID) ([]I
 }
 
 const listPinned = `-- name: ListPinned :many
-SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
+SELECT id, user_id, url, title, body, lead_image_url, summary, tags, card_type, status, created_at, updated_at, palette, user_tags, pinned_at, last_drifted_at, search_tsv, page_count, feed_id, kept_at, tagged_location, url_host, body_markdown, drift_score, drift_scored_at FROM items WHERE user_id = $1 AND pinned_at IS NOT NULL ORDER BY pinned_at DESC
 `
 
 func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, error) {
@@ -661,6 +681,8 @@ func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, err
 			&i.TaggedLocation,
 			&i.UrlHost,
 			&i.BodyMarkdown,
+			&i.DriftScore,
+			&i.DriftScoredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -670,6 +692,76 @@ func (q *Queries) ListPinned(ctx context.Context, userID uuid.UUID) ([]Item, err
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRecentSavesForActivity = `-- name: ListRecentSavesForActivity :many
+SELECT id, title, url, url_host, card_type, created_at
+FROM items
+WHERE user_id = $1
+  AND created_at > now() - interval '14 days'
+  AND (feed_id IS NULL OR kept_at IS NOT NULL)
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListRecentSavesForActivityParams struct {
+	UserID uuid.UUID
+	Limit  int32
+}
+
+type ListRecentSavesForActivityRow struct {
+	ID        uuid.UUID
+	Title     string
+	Url       string
+	UrlHost   pgtype.Text
+	CardType  string
+	CreatedAt pgtype.Timestamptz
+}
+
+// Privacy-filtered rows for the Drift recent_activity summary: title, host,
+// card type, and created_at only — never body/summary text.
+func (q *Queries) ListRecentSavesForActivity(ctx context.Context, arg ListRecentSavesForActivityParams) ([]ListRecentSavesForActivityRow, error) {
+	rows, err := q.db.Query(ctx, listRecentSavesForActivity, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecentSavesForActivityRow
+	for rows.Next() {
+		var i ListRecentSavesForActivityRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Url,
+			&i.UrlHost,
+			&i.CardType,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setDriftScore = `-- name: SetDriftScore :exec
+UPDATE items
+SET drift_score = $3, drift_scored_at = now(), updated_at = now()
+WHERE user_id = $1 AND id = $2
+`
+
+type SetDriftScoreParams struct {
+	UserID     uuid.UUID
+	ID         uuid.UUID
+	DriftScore pgtype.Float4
+}
+
+func (q *Queries) SetDriftScore(ctx context.Context, arg SetDriftScoreParams) error {
+	_, err := q.db.Exec(ctx, setDriftScore, arg.UserID, arg.ID, arg.DriftScore)
+	return err
 }
 
 const setItemBodyMarkdown = `-- name: SetItemBodyMarkdown :exec

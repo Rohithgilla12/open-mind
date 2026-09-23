@@ -245,8 +245,8 @@ export default function ArchitecturePage() {
         </div>
         <p style={{ fontSize: 14, color: c.inkMuted }}>
           Beyond the core four, dedicated jobs handle lead-image fetching, colour-palette
-          extraction, place detection from reels, feed polling, Kindle delivery, and the Drift
-          digest.
+          extraction, place detection from reels, feed polling, Kindle delivery, daily Drift
+          scoring (optional TypeSafe Jev), and the notification outbox.
         </p>
       </Section>
 
@@ -273,7 +273,8 @@ export default function ArchitecturePage() {
           words, and pgvector similarity for meaning. Their rankings are combined by rank fusion; an
           optional TypeSafe Jev re-rank (Lens <em>sort by relevance (beta)</em>, gated by API key +
           user opt-in) can reorder the top 30 hits, and a dedicated colour index lets you find things
-          by hue.
+          by hue. Drift resurfacing uses the same gate: a daily job blends Jev Nouls with recency
+          decay and GET <code>/drift</code> serves that order when scores are fresh.
         </p>
         <FlowRow items={["query", "FTS + pgvector", "rank fusion", "optional rerank", "results"]} />
       </Section>

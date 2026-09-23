@@ -66,7 +66,7 @@ export const stack: StackRow[] = [
   { layer: "PDF", choice: "go-pdfium + wazero", why: "PDFium compiled to WASM — no C toolchain at build time." },
   { layer: "Documents", choice: "anydoc + wazero", why: ".docx/.odt/.rtf/.epub to Markdown; Rust compiled to WASM, committed as an artefact so no Rust toolchain is needed to build." },
   { layer: "AI", choice: "Gemini · OpenAI-compatible · noop", why: "Ordered fallback chain behind one adapter interface." },
-  { layer: "Decisions (optional)", choice: "TypeSafe Jev", why: "Calibrated judgments on capture (tags/chips) and opt-in Lens/search re-ranking behind OPENMIND_TYPESAFE_API_KEY + AI-assisted organisation + a beta toggle." },
+  { layer: "Decisions (optional)", choice: "TypeSafe Jev", why: "Calibrated judgments on capture (tags/chips), opt-in Lens/search re-ranking, and daily Drift candidate scoring behind OPENMIND_TYPESAFE_API_KEY + AI-assisted organisation." },
   { layer: "Auth", choice: "Clerk or bearer device keys", why: "AUTH_MODE picks one; token mode keeps self-hosting free of any third party." },
   { layer: "Notifications", choice: "Postgres outbox · Expo push · e-mail", why: "At-least-once delivery with no broker; every channel is opt-in." },
   { layer: "Geocoding", choice: "Google Places or Nominatim (optional)", why: "Turns places named in a video into map pins; unset means places store by name only." },

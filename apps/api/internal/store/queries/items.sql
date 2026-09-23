@@ -96,6 +96,22 @@ WHERE user_id = $1 AND status = 'enriched' AND pinned_at IS NULL
   AND (last_drifted_at IS NULL OR last_drifted_at < now() - interval '30 days')
   AND (feed_id IS NULL OR kept_at IS NOT NULL);
 
+-- name: SetDriftScore :exec
+UPDATE items
+SET drift_score = $3, drift_scored_at = now(), updated_at = now()
+WHERE user_id = $1 AND id = $2;
+
+-- name: ListRecentSavesForActivity :many
+-- Privacy-filtered rows for the Drift recent_activity summary: title, host,
+-- card type, and created_at only — never body/summary text.
+SELECT id, title, url, url_host, card_type, created_at
+FROM items
+WHERE user_id = $1
+  AND created_at > now() - interval '14 days'
+  AND (feed_id IS NULL OR kept_at IS NOT NULL)
+ORDER BY created_at DESC
+LIMIT $2;
+
 -- name: DriftAction :execrows
 UPDATE items
 SET last_drifted_at = now(),

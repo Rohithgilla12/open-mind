@@ -10,3 +10,8 @@ DELETE FROM user_settings WHERE user_id = $1 AND key = $2;
 
 -- name: ListUserSettings :many
 SELECT key, value FROM user_settings WHERE user_id = $1;
+
+-- name: ListUsersWithAIAssisted :many
+-- Users who opted into AI-assisted organisation (Jev capture / rerank / Drift).
+SELECT user_id FROM user_settings
+WHERE key = 'ai_assisted_organisation' AND lower(trim(value)) = 'true';
