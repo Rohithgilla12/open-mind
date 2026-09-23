@@ -291,7 +291,7 @@ func (s *Server) DeleteLens(w http.ResponseWriter, r *http.Request, id openapi_t
 
 // GetLensItems runs a Lens's saved rule and returns the items it currently
 // matches — a live view, so new saves surface here without manual filing.
-func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetLensItemsParams) {
 	ctx := r.Context()
 	uid := userID(ctx)
 	l, err := s.store.Queries.GetLens(ctx, db.GetLensParams{UserID: uid, ID: id})
@@ -318,6 +318,8 @@ func (s *Server) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi
 		writeError(w, http.StatusInternalServerError, "could not run lens")
 		return
 	}
+	wantRerank := params.Rerank != nil && *params.Rerank
+	results = s.maybeRerank(ctx, uid, rule.q, wantRerank, results)
 	out := SearchResponse{Results: make([]SearchResult, 0, len(results))}
 	for _, res := range results {
 		out.Results = append(out.Results, SearchResult{Item: toAPIItem(res.Item), Score: float32(res.Score)})

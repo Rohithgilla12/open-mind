@@ -59,6 +59,10 @@ type Server struct {
 	assetMaxByte int64
 	feeds        *feeds.Service
 	kindle       KindleConfig
+	// jev is the optional TypeSafe client for Lens/search re-ranking. Nil
+	// disables the path (same as a missing API key). Capture enrichment wires
+	// its own client on the pipeline; this field is retrieval-only.
+	jev JevClient
 }
 
 // NewServer wires the HTTP handler: per-IP rate limiting, credential
@@ -73,8 +77,8 @@ type Server struct {
 // reverse-proxy networks allowed to supply X-Forwarded-For for client-IP
 // resolution in the rate limiters; nil trusts no proxy and limits by the
 // direct connection IP.
-func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, authCfg AuthConfig, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service, kindleCfg KindleConfig, trusted []*net.IPNet) http.Handler {
-	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc, kindle: kindleCfg}
+func NewServer(s *store.Store, riverClient *river.Client[pgx.Tx], provider ai.Provider, authCfg AuthConfig, assetStore *assets.FSStore, maxBytes int64, feedSvc *feeds.Service, kindleCfg KindleConfig, trusted []*net.IPNet, jevClient JevClient) http.Handler {
+	srv := &Server{store: s, riverClient: riverClient, provider: provider, assetStore: assetStore, assetMaxByte: maxBytes, feeds: feedSvc, kindle: kindleCfg, jev: jevClient}
 	r := chi.NewRouter()
 	// Rate limiting runs before credential resolution so failed guesses consume
 	// limiter tokens by construction — brute-force attempts are throttled to
@@ -372,6 +376,8 @@ func (s *Server) SearchItems(w http.ResponseWriter, r *http.Request, params Sear
 		writeError(w, http.StatusInternalServerError, "search failed")
 		return
 	}
+	wantRerank := params.Rerank != nil && *params.Rerank
+	results = s.maybeRerank(ctx, userID(ctx), text, wantRerank, results)
 	out := SearchResponse{Results: make([]SearchResult, 0, len(results)), Understood: understood}
 	for _, res := range results {
 		out.Results = append(out.Results, SearchResult{Item: toAPIItem(res.Item), Score: float32(res.Score)})

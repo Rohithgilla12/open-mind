@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { tokens } from "@openmind/ui";
-import { Grid } from "../../../../components/Grid";
 import { DeleteLensButton } from "../../../../components/DeleteLensButton";
 import { KindleButton } from "../../../../components/KindleButton";
 import { LensDigestControl } from "../../../../components/LensDigestControl";
+import { LensItemsWithRerank } from "../../../../components/LensItemsWithRerank";
 import { getLens, getLensItems } from "../../../../lib/lenses";
 import { lensDot, lensSummary } from "../../../../lib/lens-format";
 
@@ -20,6 +20,7 @@ export default async function LensPage({ params }: { params: Promise<{ id: strin
   const summary = lensSummary(lens.rule);
   const count = items.length;
   const noun = count === 1 ? "gathering" : "gatherings";
+  const query = (lens.rule?.q ?? "").trim();
 
   return (
     <>
@@ -82,7 +83,7 @@ export default async function LensPage({ params }: { params: Promise<{ id: strin
       <div style={{ position: "relative", flex: 1 }}>
         <div className="paper-texture" style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
         <div style={{ position: "relative", padding: "22px 28px 40px" }}>
-          <Grid items={items} />
+          <LensItemsWithRerank lensId={id} query={query} initialItems={items} />
         </div>
       </div>
     </>

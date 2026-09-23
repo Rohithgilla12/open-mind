@@ -362,7 +362,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river. */
+        /** @description Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river. When rerank=true (and TypeSafe Jev + AI-assisted organisation are enabled), the top-K hybrid hits are reordered by a blend of vector similarity and Jev relevance; Skip/errors leave the hybrid order unchanged. Prefer this on explicit Lens loads — not search-as-you-type. */
         get: operations["getLensItems"];
         put?: never;
         post?: never;
@@ -935,7 +935,7 @@ export interface components {
              * @description Destination e-mail for Send-to-Kindle digests; absent if not configured.
              */
             kindleEmail?: string;
-            /** @description Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server. */
+            /** @description Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments (capture) and, when the Lens/search "sort by relevance (beta)" toggle is on, candidate snippets for re-ranking. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server. */
             aiAssistedOrganisation?: boolean;
             /**
              * @description Channels for Lens digest notifications. Default push.
@@ -1904,7 +1904,10 @@ export interface operations {
     };
     getLensItems: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged. */
+                rerank?: boolean;
+            };
             header?: never;
             path: {
                 id: string;
@@ -2189,6 +2192,8 @@ export interface operations {
                 scope?: "library" | "all";
                 /** @description Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured. */
                 parse?: boolean;
+                /** @description Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Do not send from search-as-you-type — only explicit submitted searches. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged. */
+                rerank?: boolean;
             };
             header?: never;
             path?: never;

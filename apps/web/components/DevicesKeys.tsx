@@ -950,7 +950,9 @@ function AIOrganisationSection() {
         When on (and the server has <code>OPENMIND_TYPESAFE_API_KEY</code>), each save may send the URL,
         title, site, and a short excerpt (~1.5–2k characters) to TypeSafe Jev for tagging judgments.
         Never the full document. High-confidence tags may be auto-applied (one-tap undo); mid-confidence
-        tags show as suggestion chips on the item.
+        tags show as suggestion chips on the item. The same opt-in also unlocks Lens{" "}
+        <em>sort by relevance (beta)</em>, which may send the query plus short candidate snippets
+        (≤300 characters each, top 30 hits) for re-ranking — never full documents.
       </p>
       {loadFailed && !loaded ? (
         <button type="button" onClick={() => setLoadAttempt((n) => n + 1)} style={{ cursor: "pointer" }}>

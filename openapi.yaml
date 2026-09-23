@@ -443,9 +443,10 @@ paths:
   /lenses/{id}/items:
     get:
       operationId: getLensItems
-      description: "Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river."
+      description: "Run the Lens's saved rule and return the ranked items it currently matches — a live view, so new saves appear here without manual filing. Matches are library-scoped by default (Mind only: saved items and kept feed items); set rule.scope to all to include the unkept feed river. When rerank=true (and TypeSafe Jev + AI-assisted organisation are enabled), the top-K hybrid hits are reordered by a blend of vector similarity and Jev relevance; Skip/errors leave the hybrid order unchanged. Prefer this on explicit Lens loads — not search-as-you-type."
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: rerank, in: query, required: false, schema: { type: boolean }, description: "Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged." }
       responses:
         "200":
           description: items matching the lens
@@ -609,6 +610,7 @@ paths:
           description: "library = saved/kept only; all = include unkept feed items. Defaults to all when omitted on /search."
           schema: { type: string, enum: [library, all], default: all }
         - { name: parse, in: query, required: false, schema: { type: boolean }, description: "Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured." }
+        - { name: rerank, in: query, required: false, schema: { type: boolean }, description: "Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Do not send from search-as-you-type — only explicit submitted searches. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged." }
       responses:
         "200":
           content:
@@ -1040,7 +1042,7 @@ components:
       type: object
       properties:
         kindleEmail: { type: string, format: email, description: "Destination e-mail for Send-to-Kindle digests; absent if not configured." }
-        aiAssistedOrganisation: { type: boolean, description: "Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server." }
+        aiAssistedOrganisation: { type: boolean, description: "Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments (capture) and, when the Lens/search \"sort by relevance (beta)\" toggle is on, candidate snippets for re-ranking. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server." }
         notifyDigest: { type: string, enum: [off, push, email, both], description: "Channels for Lens digest notifications. Default push." }
         notifyFeedRiver: { type: string, enum: [off, push, email, both], description: "Channels for coalesced feed-river activity. Default off." }
         notifyLifecycle: { type: string, enum: [off, push, email, both], description: "Channels for save-failure notifications. Default push. Exempt from the daily cap." }

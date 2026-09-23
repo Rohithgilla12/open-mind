@@ -61,8 +61,8 @@
 - (see Issues)
 
 ## Later
-- Jev phases 3–5 (rerank, Drift, write-up). Phase 2 live capture (chips +
-  auto-apply + verdict backfill) is shipping; thresholds stay provisional.
+- Jev phases 4–5 (Drift, write-up). Phase 3 Lens/search re-rank
+  (opt-in beta toggle) ships with this change; Phase 2 live capture is on main.
 - Instant-search follow-up: Enter still navigates, so committing a live query
   pays the `(app)/loading.tsx` skeleton even though the results are already on
   screen. Keeping the overlay alive across that navigation means hoisting it out

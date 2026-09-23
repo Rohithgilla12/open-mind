@@ -99,7 +99,8 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("building ai provider: %w", err)
 	}
 	slog.Info("ai provider ready", "provider", provider.Name())
-	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil), Jev: jev.FromEnv()}
+	jevClient := jev.FromEnv()
+	pipeline := &enrich.Pipeline{Store: s, AI: provider, Extractor: enrich.NewTrafilatura(nil), Jev: jevClient}
 
 	// PDF support degrades gracefully: a wasm init failure logs and leaves
 	// pipeline.PDF nil, so PDF items simply fall through to normal handling
@@ -203,7 +204,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		feedSvc.River = client
-		return serveHTTP(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigFromDeps(kindleDeps), trustedProxies)
+		return serveHTTP(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigFromDeps(kindleDeps), trustedProxies, jevClient)
 	case "work":
 		client, err := jobs.NewRiverClient(pool, pipeline, feedSvc, kindleDeps, notifyDeps, geocoder, reelMode, reelExtractor, true)
 		if err != nil {
@@ -217,7 +218,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		feedSvc.River = client
-		return all(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigFromDeps(kindleDeps), trustedProxies)
+		return all(ctx, s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleConfigFromDeps(kindleDeps), trustedProxies, jevClient)
 	case "mcp":
 		if err := checkStdioAuthMode(); err != nil {
 			return err
@@ -381,11 +382,11 @@ func assetMaxBytesFromEnv() int64 {
 
 // serveHTTP runs the API only (insert-only River client), shutting down
 // gracefully on SIGINT/SIGTERM.
-func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleCfg api.KindleConfig, trustedProxies []*net.IPNet) error {
+func serveHTTP(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleCfg api.KindleConfig, trustedProxies []*net.IPNet, jevClient api.JevClient) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleCfg, trustedProxies)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleCfg, trustedProxies, jevClient)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)
@@ -441,7 +442,7 @@ func work(ctx context.Context, client *riverClient) error {
 }
 
 // all runs both the River workers and the HTTP API in one process.
-func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleCfg api.KindleConfig, trustedProxies []*net.IPNet) error {
+func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.Provider, authCfg api.AuthConfig, assetStore *assets.FSStore, assetMaxBytes int64, feedSvc *feeds.Service, kindleCfg api.KindleConfig, trustedProxies []*net.IPNet, jevClient api.JevClient) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -450,7 +451,7 @@ func all(ctx context.Context, s *store.Store, client *riverClient, provider ai.P
 	}
 	slog.Info("river workers started")
 
-	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleCfg, trustedProxies)}
+	srv := &http.Server{Addr: ":" + port(), Handler: api.NewServer(s, client, provider, authCfg, assetStore, assetMaxBytes, feedSvc, kindleCfg, trustedProxies, jevClient)}
 	errc := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", srv.Addr)

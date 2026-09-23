@@ -270,9 +270,10 @@ export default function ArchitecturePage() {
       <Section kicker="Retrieval" title="Hybrid search">
         <p>
           Search fuses two signals living in the same Postgres database: full-text search for exact
-          words, and pgvector similarity for meaning. Their rankings are combined by rank fusion, an
-          optional reranker can reorder the top results, and a dedicated colour index lets you find
-          things by hue.
+          words, and pgvector similarity for meaning. Their rankings are combined by rank fusion; an
+          optional TypeSafe Jev re-rank (Lens <em>sort by relevance (beta)</em>, gated by API key +
+          user opt-in) can reorder the top 30 hits, and a dedicated colour index lets you find things
+          by hue.
         </p>
         <FlowRow items={["query", "FTS + pgvector", "rank fusion", "optional rerank", "results"]} />
       </Section>

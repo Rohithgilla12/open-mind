@@ -566,7 +566,7 @@ type SearchResult struct {
 
 // Settings defines model for Settings.
 type Settings struct {
-	// AiAssistedOrganisation Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server.
+	// AiAssistedOrganisation Opt in to send URL, title, site, and a short excerpt to TypeSafe Jev for organisation judgments (capture) and, when the Lens/search "sort by relevance (beta)" toggle is on, candidate snippets for re-ranking. Default false. Requires OPENMIND_TYPESAFE_API_KEY on the server.
 	AiAssistedOrganisation *bool `json:"aiAssistedOrganisation,omitempty"`
 
 	// KindleEmail Destination e-mail for Send-to-Kindle digests; absent if not configured.
@@ -673,6 +673,12 @@ type CreateItemLinkJSONBody struct {
 	ToId openapi_types.UUID `json:"toId"`
 }
 
+// GetLensItemsParams defines parameters for GetLensItems.
+type GetLensItemsParams struct {
+	// Rerank Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged.
+	Rerank *bool `form:"rerank,omitempty" json:"rerank,omitempty"`
+}
+
 // SearchItemsParams defines parameters for SearchItems.
 type SearchItemsParams struct {
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
@@ -691,6 +697,9 @@ type SearchItemsParams struct {
 
 	// Parse Interpret q as a natural-language query, splitting it into text + colour + card-type + domain filters via the AI provider. Falls back to a plain text search when no AI provider is configured.
 	Parse *bool `form:"parse,omitempty" json:"parse,omitempty"`
+
+	// Rerank Opt-in Jev re-ranking (beta). Requires OPENMIND_TYPESAFE_API_KEY and the user AI-assisted organisation setting. Do not send from search-as-you-type — only explicit submitted searches. Ideal added latency ≤500ms; on Skip/timeout the hybrid order is returned unchanged.
+	Rerank *bool `form:"rerank,omitempty" json:"rerank,omitempty"`
 }
 
 // SearchItemsParamsTypes defines parameters for SearchItems.
@@ -877,7 +886,7 @@ type ServerInterface interface {
 	UpdateLens(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /lenses/{id}/items)
-	GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetLensItemsParams)
 	// Send this Lens's current matches to Kindle as a digest EPUB
 	// (POST /lenses/{id}/kindle)
 	SendLensToKindle(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -1113,7 +1122,7 @@ func (_ Unimplemented) UpdateLens(w http.ResponseWriter, r *http.Request, id ope
 }
 
 // (GET /lenses/{id}/items)
-func (_ Unimplemented) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+func (_ Unimplemented) GetLensItems(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetLensItemsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2270,8 +2279,19 @@ func (siw *ServerInterfaceWrapper) GetLensItems(w http.ResponseWriter, r *http.R
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLensItemsParams
+
+	// ------------- Optional query parameter "rerank" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "rerank", r.URL.Query(), &params.Rerank)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rerank", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetLensItems(w, r, id)
+		siw.Handler.GetLensItems(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2431,6 +2451,14 @@ func (siw *ServerInterfaceWrapper) SearchItems(w http.ResponseWriter, r *http.Re
 	err = runtime.BindQueryParameter("form", true, false, "parse", r.URL.Query(), &params.Parse)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "parse", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "rerank" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "rerank", r.URL.Query(), &params.Rerank)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rerank", Err: err})
 		return
 	}
 
